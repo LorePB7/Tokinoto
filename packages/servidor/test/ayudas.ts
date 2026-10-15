@@ -7,7 +7,7 @@ import {
   type Rng,
 } from '@tokinoto/reglas';
 import { expect } from 'vitest';
-import { mensajeRespuesta, type ComandoDeSala, type MensajeServidor, type Respuesta } from '../src/protocolo';
+import { mensajeRespuesta, type ComandoDeSala, type MensajeServidor, type Respuesta } from '@tokinoto/protocolo';
 import type { Reloj } from '../src/reloj';
 import { Sala, type OpcionesSala } from '../src/sala';
 
@@ -175,8 +175,18 @@ export function indiceDeAsiento(mesa: Mesa, asiento: number): number {
  * Juega hasta que termine el juego con jugadas legales al azar (la prueba
  * mira el estado del servidor para elegir). Avanza el reloj en las pausas.
  */
-export function jugarHastaElFinal(mesa: Mesa, rng: Rng = createSeededRng(7)): void {
-  for (let pasos = 0; mesa.sala.estado === 'JUGANDO'; pasos++) {
+export function jugarHastaElFinal(mesa: Mesa, rng: Rng = createSeededRng(7), alPaso: () => void = () => {}): void {
+  jugarHasta(mesa, () => false, rng, alPaso);
+}
+
+/** Como jugarHastaElFinal, pero se detiene apenas se cumple `parar` (o termina el juego). */
+export function jugarHasta(
+  mesa: Mesa,
+  parar: () => boolean,
+  rng: Rng = createSeededRng(7),
+  alPaso: () => void = () => {},
+): void {
+  for (let pasos = 0; mesa.sala.estado === 'JUGANDO' && !parar(); pasos++, alPaso()) {
     if (pasos > 5000) throw new Error('El juego no termina');
     const juego = mesa.sala.estadoDelJuego!;
     const turno = currentTurn(juego);

@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generarCodigoSala } from '../src/gestor';
-import { Limitador } from '../src/limitador';
-import { ALFABETO_CODIGO, VERSION_PROTOCOLO, leerPedido } from '../src/protocolo';
-import { origenPermitido } from '../src/servidor';
+import { VERSION_PROTOCOLO, armarComando, idPedidoDe, leerPedido } from '../src/protocolo';
 
 const sobre = (tipo: string, datos?: unknown, extra: Record<string, unknown> = {}) => ({
   v: VERSION_PROTOCOLO,
@@ -30,6 +27,8 @@ describe('lectura de comandos', () => {
       sobre('juego.apostar', { valor: 2 }),
       sobre('juego.jugarCarta', { idCarta: 'K-picas' }),
       sobre('juego.revancha'),
+      sobre('sync.pedir'),
+      sobre('sync.pedir', { ultimoSeq: 17 }),
       sobre('ping'),
     ];
     for (const crudo of validos) expect(leerPedido(crudo).ok, JSON.stringify(crudo)).toBe(true);
@@ -82,6 +81,8 @@ describe('lectura de comandos', () => {
       sobre('juego.apostar', { valor: 1, jugador: 'otro' }),
       sobre('juego.jugarCarta', { idCarta: '' }),
       sobre('juego.jugarCarta', { idCarta: 'x'.repeat(21) }),
+      sobre('sync.pedir', { ultimoSeq: -1 }),
+      sobre('sync.pedir', { ultimoSeq: 1.5 }),
     ];
     for (const crudo of invalidos) expect(codigoDeError(crudo), JSON.stringify(crudo)).toBe('MENSAJE_INVALIDO');
   });
@@ -101,48 +102,19 @@ describe('lectura de comandos', () => {
   });
 });
 
-describe('códigos de sala', () => {
-  it('tienen 8 caracteres del alfabeto sin confusiones y no se repiten', () => {
-    const codigos = new Set<string>();
-    for (let i = 0; i < 2000; i++) {
-      const codigo = generarCodigoSala();
-      expect(codigo).toMatch(new RegExp(`^[${ALFABETO_CODIGO}]{8}$`));
-      codigos.add(codigo);
-    }
-    expect(codigos.size).toBe(2000);
-    expect(ALFABETO_CODIGO).not.toMatch(/[01ILO]/);
+describe('ayudas del protocolo', () => {
+  it('armarComando produce algo que leerPedido acepta', () => {
+    expect(leerPedido(armarComando('juego.apostar', 'x1', { valor: 3 }))).toMatchObject({
+      ok: true,
+      pedido: { idPedido: 'x1', comando: { tipo: 'juego.apostar', datos: { valor: 3 } } },
+    });
+    expect(armarComando('sala.iniciar', 'x2')).toEqual({ v: VERSION_PROTOCOLO, tipo: 'sala.iniciar', idPedido: 'x2' });
   });
-});
 
-describe('límite de frecuencia', () => {
-  it('permite una ráfaga y después repone a ritmo constante', () => {
-    let ahora = 0;
-    const limitador = new Limitador({ capacidad: 3, porSegundo: 2 }, () => ahora);
-    expect([limitador.tomar(), limitador.tomar(), limitador.tomar(), limitador.tomar()]).toEqual([
-      true,
-      true,
-      true,
-      false,
-    ]);
-    ahora = 400; // 0,8 fichas
-    expect(limitador.tomar()).toBe(false);
-    ahora = 500; // se completa una ficha
-    expect(limitador.tomar()).toBe(true);
-    ahora = 100_000; // nunca más que la capacidad
-    expect([limitador.tomar(), limitador.tomar(), limitador.tomar(), limitador.tomar()]).toEqual([
-      true,
-      true,
-      true,
-      false,
-    ]);
-  });
-});
-
-describe('origen de las conexiones', () => {
-  it('acepta solo los sitios permitidos (y clientes sin cabecera Origin)', () => {
-    expect(origenPermitido('*', 'https://cualquiera.com')).toBe(true);
-    expect(origenPermitido(['https://tokinoto.com'], 'https://tokinoto.com')).toBe(true);
-    expect(origenPermitido(['https://tokinoto.com'], 'https://malo.com')).toBe(false);
-    expect(origenPermitido(['https://tokinoto.com'], undefined)).toBe(true);
+  it('idPedidoDe tolera cualquier cosa', () => {
+    expect(idPedidoDe(null)).toBeNull();
+    expect(idPedidoDe({ idPedido: 5 })).toBeNull();
+    expect(idPedidoDe({ idPedido: '' })).toBeNull();
+    expect(idPedidoDe({ idPedido: 'y'.repeat(100) })).toHaveLength(64);
   });
 });

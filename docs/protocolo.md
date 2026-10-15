@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ servidor (versión 1)
 
-Este documento describe los mensajes que implementa `@tokinoto/servidor`. El diseño general está en [`diseno-tecnico.md`](diseno-tecnico.md), sección 4. Los esquemas de validación viven en [`packages/servidor/src/protocolo.ts`](../packages/servidor/src/protocolo.ts), y este documento se mantiene junto a ellos.
+Este documento describe los mensajes que implementa `@tokinoto/servidor`. El diseño general está en [`diseno-tecnico.md`](diseno-tecnico.md), sección 4. Los esquemas, los tipos de cada mensaje y las vistas viven en el paquete compartido [`@tokinoto/protocolo`](../packages/protocolo), que usan tanto el servidor como el cliente. Este documento se mantiene junto a ellos.
 
 ## Transporte
 
@@ -41,6 +41,7 @@ Reglas generales:
 | `juego.apostar` | `{ valor }` | Quien tiene el turno de apuesta |
 | `juego.jugarCarta` | `{ idCarta }` | Quien tiene el turno de tirada |
 | `juego.revancha` | — | Anfitrión, con el juego terminado (DP-20) |
+| `sync.pedir` | `{ ultimoSeq? }` | Cualquier jugador de la sala. Pide una foto nueva |
 | `ping` | — | Cualquiera. Responde la hora del servidor |
 
 Validaciones del esquema: el nombre se recorta y tiene de 1 a 20 caracteres, sin caracteres de control. El código de sala tiene 8 caracteres de `ABCDEFGHJKMNPQRSTUVWXYZ23456789` y se acepta en minúsculas. No se aceptan campos de más.
@@ -58,6 +59,7 @@ Ejemplos:
 { "v": 1, "tipo": "juego.apostar", "idPedido": "a4", "datos": { "valor": 2 } }
 { "v": 1, "tipo": "juego.jugarCarta", "idPedido": "a5", "datos": { "idCarta": "K-corazones" } }
 { "v": 1, "tipo": "juego.revancha", "idPedido": "a6" }
+{ "v": 1, "tipo": "sync.pedir", "idPedido": "a8", "datos": { "ultimoSeq": 41 } }
 { "v": 1, "tipo": "ping", "idPedido": "a7" }
 ```
 
@@ -108,7 +110,7 @@ Si el mensaje no se puede leer, el `error` llega con `idPedido: null`.
 
 ## Eventos del servidor
 
-Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que entró, sin saltos. Si el cliente detecta un salto, más adelante podrá pedir una foto nueva con `sync.pedir` (etapa 4).
+Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que entró, sin saltos. Si el cliente detecta un salto, pide una foto nueva con `sync.pedir` (ver "Seguimiento del estado en el cliente").
 
 ### Sala
 
@@ -147,6 +149,7 @@ Notas:
 
 - `sorteo.cartasSacadas.repiten` lista los asientos empatados con la carta más alta, que vuelven a sacar. Vacío si no hubo empate.
 - `partida.manoRepartida` es el único evento con datos **privados**. Cada jugador recibe `cartas` con **solo sus cartas**, y todos reciben `cantidades`, que es cuántas cartas tiene cada asiento.
+- Si el anfitrión pide la revancha con el resumen en pausa, el juego nuevo empieza sin pausa y se avisa con `sala.resumenPausado` (`pausado: false`).
 - `apuesta.turno.valorProhibido` es el valor que el Pié no puede apostar. Es `null` si no le toca al Pié o si no hay restricción efectiva.
 - `baza.resuelta`: el ganador es el Mano de la baza siguiente. `tieneFicha` indica si el montón lleva ficha.
 - `porPiloto` y `fechaLimite` quedan reservados para la etapa 6 (piloto automático y tiempo límite). Hoy valen `false` y `null`.
@@ -161,20 +164,55 @@ El servidor maneja los tiempos (DP-23):
 
 ## Foto del estado
 
-Se envía al entrar a la sala. Su `seq` es el del último evento que ya incluye, así que el siguiente evento llega con `seq + 1`.
+La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que puede saber de su sala y del juego en curso, y nada más. Se envía al entrar a la sala y como respuesta a `sync.pedir`. Su `seq` es el del último evento que ya incluye, así que el siguiente evento llega con `seq + 1`.
 
 ```json
 {
-  "v": 1, "tipo": "estado.foto", "seq": 2,
+  "v": 1, "tipo": "estado.foto", "seq": 212,
   "datos": {
-    "codigo": "K7QM2XPA", "estado": "ESPERANDO", "yo": "…", "anfitrion": "…", "maxJugadores": 7,
+    "codigo": "K7QM2XPA", "estado": "JUGANDO", "yo": "…", "anfitrion": "…", "maxJugadores": 7,
+    "resumenPausado": false,
     "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true } ],
-    "horaServidor": 1760572800000
+    "horaServidor": 1760572800000,
+    "juego": {
+      "fase": "TIRADAS",
+      "asientos": [ { "asiento": 0, "idJugador": "…", "nombre": "Ana" } ],
+      "miAsiento": 0,
+      "sorteo": [ { "sacadas": [ { "asiento": 0, "carta": "9-picas" } ], "repiten": [] } ],
+      "repartidor": 3, "partida": 5, "totalPartidas": 14, "cartasPorJugador": 5, "mano": 1,
+      "miMano": ["2-picas", "J-corazones", "COMODIN"],
+      "cantidades": [3, 2, 3, 3, 3],
+      "apuestas": [1, 0, 2, 1, 2],
+      "bazasGanadas": [1, 1, 0, 0, 0],
+      "bazaActual": { "baza": 3, "mano": 1, "tiradas": [ { "asiento": 1, "carta": "7-diamantes" } ], "ganador": null },
+      "bazasCerradas": [ { "baza": 1, "ganador": 0, "cartaGanadora": "A-treboles", "tieneFicha": true } ],
+      "puntajes": [[6, 0, 7, 5], [0, 5, 0, 6]],
+      "totales": [18, 11],
+      "turno": { "tipo": "carta", "asiento": 2, "fechaLimite": null },
+      "ranking": null,
+      "motivoAborto": null
+    }
   }
 }
 ```
 
-`estado` puede ser `ESPERANDO` (lobby), `JUGANDO` o `TERMINADO`. En la etapa 4 la foto sumará la vista del juego en curso.
+(Para abreviar, algunas listas muestran menos asientos de los que tendría la mesa.)
+
+- `estado` puede ser `ESPERANDO` (lobby), `JUGANDO` o `TERMINADO`. En el lobby, `juego` es `null`.
+- `fase` puede ser `SORTEO`, `APUESTAS`, `TIRADAS`, `BAZA_RESUELTA` (la pausa de ~3 s), `RESUMEN` (la pausa de ~10 s), `TERMINADO` o `ABORTADO`.
+- **Regla de oro:** `miMano` trae solo las cartas propias. De los demás, solo `cantidades`. De las bazas cerradas, solo la carta ganadora y quién ganó. La baza en curso muestra todas sus cartas, que son públicas. El mazo no aparece.
+- `puntajes[asiento][partida - 1]` son los puntos de cada partida jugada. Sirven para el desempate final.
+
+## Seguimiento del estado en el cliente
+
+El cliente guarda la última foto y le aplica cada evento en orden, con `aplicarMensaje` de `@tokinoto/protocolo`:
+
+1. Al recibir una foto, reemplaza todo su estado.
+2. Al recibir el evento con `seq` siguiente, lo aplica.
+3. Si llega un evento repetido o viejo, lo ignora.
+4. Si detecta un salto en `seq`, queda **desincronizado**: ignora eventos, envía `sync.pedir` y espera la foto nueva.
+
+**Garantía** (verificada por las pruebas en cada paso de juegos completos): lo que el cliente reconstruye con los eventos es idéntico a la foto que le armaría el servidor en ese momento.
 
 ## Seguridad
 
@@ -189,5 +227,4 @@ Se envía al entrar a la sala. Su `seq` es el del último evento que ya incluye,
 | Mensaje | Etapa |
 |---|---|
 | `sala.reconectar` (con el `token`) | 6 |
-| `sync.pedir` y la foto completa del juego en curso | 4 |
 | Fecha límite por turno, piloto automático y `jugador.pilotoAutomatico` | 6 |

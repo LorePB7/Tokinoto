@@ -8,12 +8,13 @@
 import { createServer, type IncomingMessage, type Server as ServidorHttp } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Server, type Socket } from 'socket.io';
-import { error } from './errores';
 import { GestorSalas, type OpcionesGestor } from './gestor';
 import { LIMITE_POR_DEFECTO, Limitador, type OpcionesLimite } from './limitador';
 import {
   CANAL_COMANDOS,
   CANAL_MENSAJES,
+  error,
+  idPedidoDe,
   leerPedido,
   mensajeError,
   mensajeRespuesta,
@@ -21,7 +22,7 @@ import {
   respuestaOk,
   type MensajeServidor,
   type Respuesta,
-} from './protocolo';
+} from '@tokinoto/protocolo';
 import type { Destino, Sala } from './sala';
 
 export interface OpcionesServidor extends OpcionesGestor {
@@ -110,11 +111,7 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
   // Cuenta todo lo que llega (también nombres de evento desconocidos, que se ignoran).
   socket.onAny((canal: unknown, crudo: unknown) => {
     if (!limitador.tomar()) {
-      const idPedido =
-        typeof crudo === 'object' && crudo !== null && typeof (crudo as { idPedido?: unknown }).idPedido === 'string'
-          ? (crudo as { idPedido: string }).idPedido.slice(0, 64)
-          : null;
-      enviar(mensajeError(idPedido, error('DEMASIADOS_MENSAJES', 'Estás enviando mensajes demasiado rápido')));
+      enviar(mensajeError(idPedidoDe(crudo), error('DEMASIADOS_MENSAJES', 'Estás enviando mensajes demasiado rápido')));
       return;
     }
     if (canal === CANAL_COMANDOS) procesar(crudo);

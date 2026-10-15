@@ -9,9 +9,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   CANAL_COMANDOS,
   CANAL_MENSAJES,
+  ESTADO_CLIENTE_INICIAL,
   VERSION_PROTOCOLO,
+  aplicarMensaje,
+  esEvento,
+  type EstadoCliente,
+  type MensajeEvento,
   type MensajeServidor,
-} from '../src/protocolo';
+} from '@tokinoto/protocolo';
 import { crearServidor, type OpcionesServidor, type ServidorTokinoto } from '../src/servidor';
 
 const abiertos: { servidores: ServidorTokinoto[]; clientes: Cliente[] } = { servidores: [], clientes: [] };
@@ -107,46 +112,54 @@ async function salaCon(url: string, cantidad: number): Promise<{ clientes: Clien
   return { clientes, codigo };
 }
 
-/**
- * Jugador automático que decide solo con lo que recibe: su asiento, su mano
- * y los avisos de turno. Así se comprueba que el protocolo alcanza para jugar.
- */
-function jugarSolo(cliente: Cliente, idJugador: string, rng: Rng): void {
-  let asiento = -1;
-  let cartasPorJugador = 0;
-  let mano: string[] = [];
-  const elegir = <T,>(opciones: T[]): T => opciones[rng.nextInt(opciones.length)]!;
+interface Bot {
+  estado(): EstadoCliente;
+  /** Cuántas veces detectó un salto y pidió una foto nueva. */
+  resincronizaciones(): number;
+}
 
-  cliente.socket.on(CANAL_MENSAJES, (m: MensajeServidor) => {
-    const datos = m.datos as Record<string, unknown>;
-    switch (m.tipo) {
-      case 'juego.iniciado':
-        asiento = (datos['asientos'] as { asiento: number; idJugador: string }[]).find((a) => a.idJugador === idJugador)!.asiento;
-        break;
-      case 'partida.iniciada':
-        cartasPorJugador = datos['cartasPorJugador'] as number;
-        break;
-      case 'partida.manoRepartida':
-        mano = [...(datos['cartas'] as string[])];
-        break;
-      case 'baza.cartaJugada':
-        if (datos['asiento'] === asiento) mano = mano.filter((c) => c !== datos['carta']);
-        break;
-      case 'apuesta.turno':
-        if (datos['asiento'] === asiento) {
-          const opciones = Array.from({ length: cartasPorJugador + 1 }, (_, i) => i).filter(
-            (valor) => valor !== datos['valorProhibido'],
-          );
-          void cliente.pedir('juego.apostar', { valor: elegir(opciones) });
-        }
-        break;
-      case 'baza.turno':
-        if (datos['asiento'] === asiento) void cliente.pedir('juego.jugarCarta', { idCarta: elegir(mano) });
-        break;
-      default:
-        break;
+/**
+ * Jugador automático que decide SOLO con el estado que reconstruye a partir
+ * de lo que recibe (el mismo seguimiento que usará el navegador). Así se
+ * comprueba que el protocolo alcanza para jugar. Con `perder` se simulan
+ * eventos perdidos, para ejercitar la resincronización.
+ */
+function jugarSolo(cliente: Cliente, rng: Rng, perder: (m: MensajeEvento) => boolean = () => false): Bot {
+  let estado = ESTADO_CLIENTE_INICIAL;
+  let resincronizaciones = 0;
+  let esperandoFoto = false;
+  let actuoEnSeq = -1;
+  const elegir = <T,>(opciones: readonly T[]): T => opciones[rng.nextInt(opciones.length)]!;
+
+  const procesar = (mensaje: MensajeServidor): void => {
+    if (esEvento(mensaje) && perder(mensaje)) return;
+    estado = aplicarMensaje(estado, mensaje);
+    if (mensaje.tipo === 'estado.foto') esperandoFoto = false;
+    if (estado.desincronizado) {
+      if (!esperandoFoto) {
+        esperandoFoto = true;
+        resincronizaciones++;
+        void cliente.pedir('sync.pedir', { ultimoSeq: estado.seq });
+      }
+      return;
     }
-  });
+    const juego = estado.sala?.juego;
+    const turno = juego?.turno;
+    if (!juego || !turno || turno.asiento !== juego.miAsiento || actuoEnSeq === estado.seq) return;
+    actuoEnSeq = estado.seq;
+    if (turno.tipo === 'apuesta') {
+      const opciones = Array.from({ length: juego.cartasPorJugador + 1 }, (_, i) => i).filter(
+        (valor) => valor !== turno.valorProhibido,
+      );
+      void cliente.pedir('juego.apostar', { valor: elegir(opciones) });
+    } else {
+      void cliente.pedir('juego.jugarCarta', { idCarta: elegir(juego.miMano) });
+    }
+  };
+
+  for (const mensaje of cliente.recibidos) procesar(mensaje);
+  cliente.socket.on(CANAL_MENSAJES, procesar);
+  return { estado: () => estado, resincronizaciones: () => resincronizaciones };
 }
 
 describe('servidor HTTP', () => {
@@ -235,10 +248,7 @@ describe('salas por red', () => {
       // Sin pausas, el juego va mucho más rápido que entre personas: se amplía el límite de frecuencia.
       const url = await levantar({ limite: { capacidad: 1000, porSegundo: 1000 } });
       const { clientes } = await salaCon(url, cantidad);
-      clientes.forEach((cliente, i) => {
-        const id = (cliente.recibidos.find((m) => m.tipo === 'ok')!.datos as { idJugador: string }).idJugador;
-        jugarSolo(cliente, id, createSeededRng(100 + i));
-      });
+      const bots = clientes.map((cliente, i) => jugarSolo(cliente, createSeededRng(100 + i)));
       expect((await clientes[1]!.pedir('sala.iniciar', undefined, 'no-anfitrion')).datos).toMatchObject({
         codigo: 'NO_ES_ANFITRION',
       });
@@ -261,6 +271,33 @@ describe('salas por red', () => {
       const ranking = (finales[0]!.datos as { ranking: { puesto: number }[] }).ranking;
       expect(ranking).toHaveLength(cantidad);
       expect(ranking[0]!.puesto).toBe(1);
+      for (const bot of bots) {
+        expect(bot.estado().sala?.juego?.ranking).toEqual(ranking);
+        expect(bot.resincronizaciones()).toBe(0);
+      }
     }, 30_000);
   }
+
+  it('un cliente que pierde eventos lo detecta, pide una foto y sigue jugando', async () => {
+    const url = await levantar({ limite: { capacidad: 1000, porSegundo: 1000 } });
+    const { clientes } = await salaCon(url, 5);
+    const avisosDeTurno = new Set(['apuesta.turno', 'baza.turno', 'juego.terminado']);
+    const bots = clientes.map((cliente, i) =>
+      jugarSolo(cliente, createSeededRng(200 + i), (m) => i === 2 && m.seq % 23 === 0 && !avisosDeTurno.has(m.tipo)),
+    );
+    expect((await clientes[0]!.pedir('sala.iniciar')).tipo).toBe('ok');
+    await Promise.all(clientes.map((c) => c.esperar((m) => m.tipo === 'juego.terminado', 20_000)));
+
+    const olvidadizo = bots[2]!;
+    expect(olvidadizo.resincronizaciones()).toBeGreaterThan(3);
+    expect(clientes[2]!.recibidos.filter((m) => m.tipo === 'estado.foto').length).toBe(1 + olvidadizo.resincronizaciones());
+    // Al final, todos saben exactamente lo mismo del juego (salvo su propio asiento).
+    const referencia = bots[0]!.estado();
+    for (const bot of bots) {
+      const estado = bot.estado();
+      expect(estado.desincronizado).toBe(false);
+      expect(estado.seq).toBe(referencia.seq);
+      expect({ ...estado.sala!.juego!, miAsiento: 0 }).toEqual({ ...referencia.sala!.juego!, miAsiento: 0 });
+    }
+  }, 30_000);
 });
