@@ -6,6 +6,7 @@ Juego de cartas **Tokinoto** en versión online multijugador (4 a 7 jugadores, 1
 
 - [`docs/especificacion-tecnica.md`](docs/especificacion-tecnica.md): reglas del juego y decisiones aprobadas (fuente de verdad).
 - [`docs/diseno-tecnico.md`](docs/diseno-tecnico.md): tecnologías, arquitectura, modelo de datos y protocolo cliente-servidor.
+- [`docs/protocolo.md`](docs/protocolo.md): mensajes que implementa el servidor, con un ejemplo de cada uno.
 
 ## Estructura
 
@@ -13,7 +14,7 @@ Juego de cartas **Tokinoto** en versión online multijugador (4 a 7 jugadores, 1
 packages/
   reglas/     Motor de reglas (TypeScript puro, sin red ni base de datos)   ← etapa 1
   simulador/  Simulador en consola que juega juegos completos al azar     ← etapa 2
-  servidor/   (pendiente) Node.js + Socket.IO
+  servidor/   Servidor autoritativo con Node.js y Socket.IO                ← etapa 3
   cliente/    (pendiente) React + Vite
 docs/         Especificación y diseño
 ```
@@ -24,7 +25,7 @@ docs/         Especificación y diseño
 |---|---|---|
 | 1 | Motor de reglas con pruebas automáticas | Hecho |
 | 2 | Simulador en consola | Hecho |
-| 3 | Servidor mínimo (una sala, WebSocket) | Pendiente |
+| 3 | Servidor mínimo (salas, WebSocket) | Hecho |
 | 4 | Vistas por jugador (ocultar cartas ajenas) | Pendiente |
 | 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Pendiente |
 | 6 | Reconexión, temporizadores y piloto automático | Pendiente |
@@ -43,4 +44,7 @@ npm run typecheck # chequeo de tipos
 
 # Simulador: juega juegos completos al azar y verifica el motor
 npm run simular -w @tokinoto/simulador -- --juegos 1 --jugadores 5 --semilla 2 --detalle
+
+# Servidor (puerto 3001 por defecto)
+npm run iniciar -w @tokinoto/servidor
 ```
