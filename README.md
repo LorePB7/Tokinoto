@@ -12,6 +12,7 @@ Juego de cartas **Tokinoto** en versión online multijugador (4 a 7 jugadores, 1
 ```
 packages/
   reglas/     Motor de reglas (TypeScript puro, sin red ni base de datos)   ← etapa 1
+  simulador/  Simulador en consola que juega juegos completos al azar     ← etapa 2
   servidor/   (pendiente) Node.js + Socket.IO
   cliente/    (pendiente) React + Vite
 docs/         Especificación y diseño
@@ -22,7 +23,7 @@ docs/         Especificación y diseño
 | Etapa | Entregable | Estado |
 |---|---|---|
 | 1 | Motor de reglas con pruebas automáticas | Hecho |
-| 2 | Simulador en consola | Pendiente |
+| 2 | Simulador en consola | Hecho |
 | 3 | Servidor mínimo (una sala, WebSocket) | Pendiente |
 | 4 | Vistas por jugador (ocultar cartas ajenas) | Pendiente |
 | 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Pendiente |
@@ -39,4 +40,7 @@ Requiere Node.js 20 o superior.
 npm install
 npm test          # pruebas de todos los paquetes
 npm run typecheck # chequeo de tipos
+
+# Simulador: juega juegos completos al azar y verifica el motor
+npm run simular -w @tokinoto/simulador -- --juegos 1 --jugadores 5 --semilla 2 --detalle
 ```

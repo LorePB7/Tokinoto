@@ -1,0 +1,15 @@
+{
+  "name": "@tokinoto/simulador",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Simulador en consola: juega juegos completos de Tokinoto con jugadas al azar y verifica que el motor de reglas nunca viole un invariante.",
+  "scripts": {
+    "simular": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tokinoto/reglas": "*"
+  }
+}
