@@ -1,0 +1,12 @@
+{
+  "name": "tokinoto",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Tokinoto Online: juego de cartas multijugador",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": { "node": ">=20" }
+}
