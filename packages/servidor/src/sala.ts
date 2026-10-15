@@ -25,17 +25,24 @@ import {
   type GameState,
   type Rng,
 } from '@tokinoto/reglas';
-import { desdeMotor, type ErrorServidor } from './errores';
-import { eventoDeTurno, traducirEvento } from './eventos';
 import {
   VERSION_PROTOCOLO,
+  desdeMotor,
+  proyectarJuego,
   respuestaError,
   respuestaOk,
   type ComandoDeSala,
+  type DatosEventos,
+  type ErrorServidor,
+  type EstadoSala,
+  type MensajeEvento,
+  type MensajeFoto,
   type MensajeServidor,
   type Respuesta,
   type TipoEvento,
-} from './protocolo';
+  type VistaSala,
+} from '@tokinoto/protocolo';
+import { eventoDeTurno, traducirEvento, type EventoSalida } from './eventos';
 import { relojReal, type Reloj } from './reloj';
 
 /** A dónde se le envían los mensajes a un jugador (su conexión). */
@@ -66,15 +73,8 @@ export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
   alError: (problema) => console.error('[sala] error inesperado:', problema),
 };
 
-/** ESPERANDO = lobby; JUGANDO = juego en curso; TERMINADO = juego terminado o abortado. */
-export type EstadoSala = 'ESPERANDO' | 'JUGANDO' | 'TERMINADO';
-
-export interface RegistroEvento {
-  seq: number;
-  tipo: TipoEvento;
-  datos: Record<string, unknown>;
-  privados?: Map<string, Record<string, unknown>>;
-}
+/** Evento guardado en el registro de la sala, con su número. */
+export type RegistroEvento = EventoSalida & { seq: number };
 
 interface Jugador {
   id: string;
@@ -292,7 +292,7 @@ export class Sala {
     if (this.anfitrion === null) this.anfitrion = jugador.id;
 
     // Los demás reciben el evento; el que entra recibe una foto (que ya lo incluye).
-    this.emitir('sala.jugadorEntro', { idJugador: jugador.id, nombre: jugador.nombre }, undefined, jugador.id);
+    this.emitir('sala.jugadorEntro', { idJugador: jugador.id, nombre: jugador.nombre }, jugador.id);
     return respuestaOk({ codigo: this.codigo, idJugador: jugador.id, token: jugador.token });
   }
 
@@ -373,6 +373,11 @@ export class Sala {
       case 'juego.jugarCarta':
         return this.accionDeJugador({ type: 'JUGAR_CARTA', playerId: jugador.id, cardId: comando.datos.idCarta });
 
+      case 'sync.pedir':
+        // La respuesta llega primero; enseguida, la foto completa.
+        this.enviarA(jugador, this.foto(jugador));
+        return respuestaOk();
+
       case 'juego.revancha': {
         const noAnfitrion = this.exigirAnfitrion(jugador);
         if (noAnfitrion) return noAnfitrion;
@@ -415,9 +420,13 @@ export class Sala {
     }
     this.cancelarAvanceProgramado();
     this.generacion++;
+    if (this.resumenPausado) {
+      // Cada juego empieza sin pausa; se avisa para que los clientes lo sepan.
+      this.resumenPausado = false;
+      this.emitir('sala.resumenPausado', { pausado: false });
+    }
     this.juego = creado.value;
     this.azar = this.opciones.crearAzar();
-    this.resumenPausado = false;
     this.aplicarDelServidor({ type: 'INICIAR_JUEGO' });
     return respuestaOk();
   }
@@ -433,9 +442,7 @@ export class Sala {
 
     for (const evento of decision.value) {
       this.juego = evolve(this.juego, evento);
-      for (const salida of traducirEvento(evento, this.juego)) {
-        this.emitir(salida.tipo, salida.datos, salida.privados);
-      }
+      for (const salida of traducirEvento(evento, this.juego)) this.emitirSalida(salida);
     }
     this.despuesDeCambiar();
     return null;
@@ -458,10 +465,7 @@ export class Sala {
       case 'PLAYING': {
         const turno = currentTurn(juego);
         // Etapa 6: fecha límite del turno y piloto automático.
-        if (turno) {
-          const evento = eventoDeTurno(juego, turno, null);
-          this.emitir(evento.tipo, evento.datos);
-        }
+        if (turno) this.emitirSalida(eventoDeTurno(juego, turno, null));
         return;
       }
       case 'TRICK_RESOLUTION':
@@ -507,24 +511,22 @@ export class Sala {
    * Registra un evento con el siguiente `seq` y lo envía a los jugadores
    * conectados. Quien tenga datos privados recibe esos en lugar de los públicos.
    */
-  private emitir(
-    tipo: TipoEvento,
-    datos: Record<string, unknown>,
-    privados?: Map<string, Record<string, unknown>>,
-    excluir?: string,
-  ): void {
+  private emitir<T extends TipoEvento>(tipo: T, datos: DatosEventos[T], excluir?: string): void {
+    this.emitirSalida({ tipo, datos } as EventoSalida, excluir);
+  }
+
+  private emitirSalida(salida: EventoSalida, excluir?: string): void {
     this.seq++;
-    const registro: RegistroEvento = { seq: this.seq, tipo, datos };
-    if (privados) registro.privados = privados;
-    this.registro.push(registro);
+    this.registro.push({ ...salida, seq: this.seq } as RegistroEvento);
+    const privados = salida.privados as Map<string, unknown> | undefined;
     for (const jugador of this.jugadores) {
       if (jugador.id === excluir) continue;
       this.enviarA(jugador, {
         v: VERSION_PROTOCOLO,
-        tipo,
+        tipo: salida.tipo,
         seq: this.seq,
-        datos: privados?.get(jugador.id) ?? datos,
-      });
+        datos: privados?.get(jugador.id) ?? salida.datos,
+      } as MensajeEvento);
     }
   }
 
@@ -533,24 +535,28 @@ export class Sala {
     this.salida.push({ destino: jugador.destino, mensaje });
   }
 
-  /**
-   * Foto del estado para un jugador. En esta etapa cubre la sala (lobby);
-   * la vista del juego en curso llega con el proyector de vistas (etapa 4).
-   */
-  private foto(jugador: Jugador): MensajeServidor {
+  /** Todo lo que un jugador puede saber de la sala, con la vista del juego si hay uno. */
+  vistaPara(idJugador: string): VistaSala | null {
+    const jugador = this.buscar(idJugador);
+    if (!jugador) return null;
     return {
-      v: VERSION_PROTOCOLO,
-      tipo: 'estado.foto',
-      seq: this.seq,
-      datos: {
-        codigo: this.codigo,
-        estado: this.estado,
-        yo: jugador.id,
-        anfitrion: this.anfitrion,
-        maxJugadores: this.opciones.maxJugadores,
-        jugadores: this.jugadores.map((j) => ({ idJugador: j.id, nombre: j.nombre, conectado: j.conectado })),
-        horaServidor: this.opciones.reloj.ahora(),
-      },
+      codigo: this.codigo,
+      estado: this.estado,
+      yo: jugador.id,
+      anfitrion: this.anfitrion,
+      maxJugadores: this.opciones.maxJugadores,
+      resumenPausado: this.resumenPausado,
+      jugadores: this.jugadores.map((j) => ({ idJugador: j.id, nombre: j.nombre, conectado: j.conectado })),
+      horaServidor: this.opciones.reloj.ahora(),
+      // Etapa 6: la fecha límite del turno.
+      juego: this.juego ? proyectarJuego(this.juego, jugador.id, null) : null,
     };
+  }
+
+  /** Foto del estado para un jugador: su vista y el último `seq` que incluye. */
+  private foto(jugador: Jugador): MensajeFoto {
+    const vista = this.vistaPara(jugador.id);
+    if (!vista) throw new Error('El jugador no está en la sala');
+    return { v: VERSION_PROTOCOLO, tipo: 'estado.foto', seq: this.seq, datos: vista };
   }
 }

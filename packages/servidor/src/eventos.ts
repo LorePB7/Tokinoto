@@ -7,22 +7,13 @@
  * Las cartas viajan como su identificador (por ejemplo "K-picas"); el
  * cliente obtiene el valor con el paquete compartido @tokinoto/reglas.
  */
-import {
-  forbiddenBetFor,
-  highestDrawers,
-  totalScores,
-  type GameEvent,
-  type GameState,
-  type Turn,
-} from '@tokinoto/reglas';
-import type { TipoEvento } from './protocolo';
+import { forbiddenBetFor, totalScores, type GameEvent, type GameState, type Turn } from '@tokinoto/reglas';
+import { repitenEnSorteo, type DatosEventos, type TipoEvento } from '@tokinoto/protocolo';
 
-export interface EventoSalida {
-  tipo: TipoEvento;
-  datos: Record<string, unknown>;
-  /** Datos que ve cada jugador en lugar de los públicos (clave: idJugador). */
-  privados?: Map<string, Record<string, unknown>>;
-}
+/** Evento listo para emitir: datos públicos y, opcionalmente, datos privados por jugador (clave: idJugador). */
+export type EventoSalida = {
+  [T in TipoEvento]: { tipo: T; datos: DatosEventos[T]; privados?: Map<string, DatosEventos[T]> };
+}[TipoEvento];
 
 /**
  * Traduce un evento del motor. `despues` es el estado inmediatamente
@@ -51,7 +42,7 @@ export function traducirEvento(evento: GameEvent, despues: GameState): EventoSal
           tipo: 'sorteo.cartasSacadas',
           datos: {
             sacadas: evento.draws.map((d) => ({ asiento: d.seat, carta: d.card.id })),
-            repiten: highestDrawers(evento.draws).length > 1 ? highestDrawers(evento.draws) : [],
+            repiten: repitenEnSorteo(evento.draws),
           },
         },
       ];
@@ -61,7 +52,7 @@ export function traducirEvento(evento: GameEvent, despues: GameState): EventoSal
 
     case 'PARTIDA_INICIADA': {
       const cantidades = evento.hands.map((mano) => mano.length);
-      const privados = new Map<string, Record<string, unknown>>();
+      const privados = new Map<string, DatosEventos['partida.manoRepartida']>();
       despues.players.forEach((jugador, asiento) => {
         privados.set(jugador.id, {
           cantidades,
@@ -80,7 +71,7 @@ export function traducirEvento(evento: GameEvent, despues: GameState): EventoSal
           },
         },
         // Público: solo cuántas cartas tiene cada uno. Privado: además, las propias.
-        { tipo: 'partida.manoRepartida', datos: { cantidades }, privados },
+        { tipo: 'partida.manoRepartida', datos: { cantidades, cartas: [] }, privados },
       ];
     }
 
@@ -163,6 +154,6 @@ export function eventoDeTurno(estado: GameState, turno: Turn, fechaLimite: numbe
   }
   return {
     tipo: 'baza.turno',
-    datos: { asiento: turno.seat, baza: estado.currentTrick?.number ?? null, fechaLimite },
+    datos: { asiento: turno.seat, baza: estado.currentTrick?.number ?? 0, fechaLimite },
   };
 }

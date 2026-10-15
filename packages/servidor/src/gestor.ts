@@ -3,7 +3,7 @@
  * olvida cuando quedan vacías.
  */
 import { randomInt } from 'node:crypto';
-import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, respuestaError, type Respuesta } from './protocolo';
+import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, respuestaError, type Respuesta } from '@tokinoto/protocolo';
 import { Sala, type Destino, type OpcionesSala } from './sala';
 
 export interface OpcionesGestor {

@@ -14,6 +14,7 @@ Juego de cartas **Tokinoto** en versión online multijugador (4 a 7 jugadores, 1
 packages/
   reglas/     Motor de reglas (TypeScript puro, sin red ni base de datos)   ← etapa 1
   simulador/  Simulador en consola que juega juegos completos al azar     ← etapa 2
+  protocolo/  Mensajes, vistas por jugador y seguimiento (compartido)     ← etapa 4
   servidor/   Servidor autoritativo con Node.js y Socket.IO                ← etapa 3
   cliente/    (pendiente) React + Vite
 docs/         Especificación y diseño
@@ -26,7 +27,7 @@ docs/         Especificación y diseño
 | 1 | Motor de reglas con pruebas automáticas | Hecho |
 | 2 | Simulador en consola | Hecho |
 | 3 | Servidor mínimo (salas, WebSocket) | Hecho |
-| 4 | Vistas por jugador (ocultar cartas ajenas) | Pendiente |
+| 4 | Vistas por jugador (ocultar cartas ajenas) | Hecho |
 | 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Pendiente |
 | 6 | Reconexión, temporizadores y piloto automático | Pendiente |
 | 7 | Persistencia (PostgreSQL) | Pendiente |

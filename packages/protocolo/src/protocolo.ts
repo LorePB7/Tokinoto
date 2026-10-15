@@ -1,5 +1,5 @@
 /**
- * Protocolo de mensajes cliente ↔ servidor (docs/diseno-tecnico.md, sección 4).
+ * Protocolo de mensajes cliente ↔ servidor (docs/protocolo.md).
  *
  * Transporte: Socket.IO. El cliente envía cada comando en el evento
  * `comando`; el servidor envía todo (respuestas, eventos y fotos) en el
@@ -8,9 +8,11 @@
  *   { v, tipo, idPedido?, seq?, datos }
  *
  * Todo lo que llega del cliente se valida con Zod antes de usarlo.
+ * Este paquete lo comparten el servidor y el cliente.
  */
 import { z } from 'zod';
 import { error, type CodigoError, type ErrorServidor } from './errores';
+import type { VistaSala } from './vista';
 
 export const VERSION_PROTOCOLO = 1;
 
@@ -72,6 +74,11 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     datos: z.strictObject({ idCarta: z.string().min(1).max(20) }),
   }),
   z.strictObject({ tipo: z.literal('juego.revancha'), datos: sinDatos }),
+  z.strictObject({
+    tipo: z.literal('sync.pedir'),
+    /** Último `seq` que el cliente procesó bien (informativo). */
+    datos: z.strictObject({ ultimoSeq: z.int().min(0).optional() }).optional(),
+  }),
   z.strictObject({ tipo: z.literal('ping'), datos: sinDatos }),
 ]);
 
@@ -103,15 +110,18 @@ function explicar(problema: z.ZodError): string {
   return ruta ? `${primero.message} (en "${ruta}")` : primero.message;
 }
 
+/** Saca el idPedido de un mensaje cualquiera, si lo tiene (para responder aunque esté mal formado). */
+export function idPedidoDe(crudo: unknown): string | null {
+  if (typeof crudo !== 'object' || crudo === null) return null;
+  const id = (crudo as { idPedido?: unknown }).idPedido;
+  return typeof id === 'string' && id.length > 0 ? id.slice(0, 64) : null;
+}
+
 /** Lee y valida un comando recibido. Nunca lanza excepciones. */
 export function leerPedido(crudo: unknown): LecturaPedido {
   const sobre = sobreSchema.safeParse(crudo);
   if (!sobre.success) {
-    const idPedido =
-      typeof crudo === 'object' && crudo !== null && typeof (crudo as { idPedido?: unknown }).idPedido === 'string'
-        ? ((crudo as { idPedido: string }).idPedido.slice(0, 64) || null)
-        : null;
-    return { ok: false, idPedido, error: error('MENSAJE_INVALIDO', explicar(sobre.error)) };
+    return { ok: false, idPedido: idPedidoDe(crudo), error: error('MENSAJE_INVALIDO', explicar(sobre.error)) };
   }
   const { v, tipo, idPedido, datos } = sobre.data;
   if (v !== VERSION_PROTOCOLO) {
@@ -128,39 +138,98 @@ export function leerPedido(crudo: unknown): LecturaPedido {
   return { ok: true, pedido: { idPedido, comando: comando.data } };
 }
 
+/** Arma un comando listo para enviar (lo usa el cliente). */
+export function armarComando<T extends TipoComando>(
+  tipo: T,
+  idPedido: string,
+  datos?: Extract<Comando, { tipo: T }>['datos'],
+): { v: number; tipo: T; idPedido: string; datos?: unknown } {
+  return datos === undefined ? { v: VERSION_PROTOCOLO, tipo, idPedido } : { v: VERSION_PROTOCOLO, tipo, idPedido, datos };
+}
+
 // ---------------------------------------------------------------------------
-// Mensajes del servidor
+// Eventos del servidor
 // ---------------------------------------------------------------------------
 
-/** Tipos de eventos numerados (con `seq`) que emite una sala. */
-export type TipoEvento =
-  // Sala
-  | 'sala.jugadorEntro'
-  | 'sala.jugadorSalio'
-  | 'sala.anfitrionCambio'
-  | 'sala.resumenPausado'
-  | 'jugador.conexion'
-  // Juego
-  | 'juego.iniciado'
-  | 'sorteo.cartasSacadas'
-  | 'sorteo.resultado'
-  | 'partida.iniciada'
-  | 'partida.manoRepartida'
-  | 'apuesta.turno'
-  | 'apuesta.realizada'
-  | 'baza.iniciada'
-  | 'baza.turno'
-  | 'baza.cartaJugada'
-  | 'baza.resuelta'
-  | 'partida.puntajes'
-  | 'juego.terminado'
-  | 'juego.abortado';
+export interface AsientoPublico {
+  asiento: number;
+  idJugador: string;
+  nombre: string;
+}
 
-export type MensajeServidor =
-  | { v: number; tipo: 'ok'; idPedido: string; datos: Record<string, unknown> }
-  | { v: number; tipo: 'error'; idPedido: string | null; datos: ErrorServidor }
-  | { v: number; tipo: TipoEvento; seq: number; datos: Record<string, unknown> }
-  | { v: number; tipo: 'estado.foto'; seq: number; datos: Record<string, unknown> };
+export interface CartaSacada {
+  asiento: number;
+  /** Identificador de carta, por ejemplo "K-picas" o "COMODIN". */
+  carta: string;
+}
+
+export interface ResultadoDePartida {
+  asiento: number;
+  apuesta: number;
+  bazasGanadas: number;
+  puntos: number;
+}
+
+export interface PuestoEnRanking {
+  asiento: number;
+  total: number;
+  /** Los empatados comparten puesto (podio compartido). */
+  puesto: number;
+}
+
+/** Datos de cada evento numerado, por tipo. */
+export interface DatosEventos {
+  'sala.jugadorEntro': { idJugador: string; nombre: string };
+  'sala.jugadorSalio': { idJugador: string };
+  'sala.anfitrionCambio': { anfitrion: string };
+  'sala.resumenPausado': { pausado: boolean };
+  'jugador.conexion': { idJugador: string; asiento: number; conectado: boolean };
+  'juego.iniciado': { asientos: AsientoPublico[] };
+  'sorteo.cartasSacadas': { sacadas: CartaSacada[]; repiten: number[] };
+  'sorteo.resultado': { repartidor: number };
+  'partida.iniciada': { partida: number; cartasPorJugador: number; repartidor: number; pie: number; mano: number };
+  /** Privado: cada jugador recibe `cartas` con solo las suyas. */
+  'partida.manoRepartida': { cantidades: number[]; cartas: string[] };
+  'apuesta.turno': { asiento: number; valorProhibido: number | null; fechaLimite: number | null };
+  'apuesta.realizada': { asiento: number; valor: number; porPiloto: boolean };
+  'baza.iniciada': { baza: number; mano: number };
+  'baza.turno': { asiento: number; baza: number; fechaLimite: number | null };
+  'baza.cartaJugada': { asiento: number; carta: string; porPiloto: boolean };
+  'baza.resuelta': { baza: number; ganador: number; cartaGanadora: string; tieneFicha: boolean };
+  'partida.puntajes': { partida: number; resultados: ResultadoDePartida[]; totales: number[] };
+  'juego.terminado': { ranking: PuestoEnRanking[] };
+  'juego.abortado': { motivo: string };
+}
+
+export type TipoEvento = keyof DatosEventos;
+
+export type MensajeEvento = {
+  [T in TipoEvento]: { v: number; tipo: T; seq: number; datos: DatosEventos[T] };
+}[TipoEvento];
+
+export interface MensajeFoto {
+  v: number;
+  tipo: 'estado.foto';
+  /** Último evento que la foto ya incluye. */
+  seq: number;
+  datos: VistaSala;
+}
+
+export interface MensajeOk {
+  v: number;
+  tipo: 'ok';
+  idPedido: string;
+  datos: Record<string, unknown>;
+}
+
+export interface MensajeError {
+  v: number;
+  tipo: 'error';
+  idPedido: string | null;
+  datos: ErrorServidor;
+}
+
+export type MensajeServidor = MensajeOk | MensajeError | MensajeEvento | MensajeFoto;
 
 /** Respuesta a un comando: confirmación (con datos opcionales) o rechazo. */
 export type Respuesta = { ok: true; datos: Record<string, unknown> } | { ok: false; error: ErrorServidor };
@@ -181,4 +250,8 @@ export function mensajeRespuesta(idPedido: string, respuesta: Respuesta): Mensaj
 
 export function mensajeError(idPedido: string | null, falla: ErrorServidor): MensajeServidor {
   return { v: VERSION_PROTOCOLO, tipo: 'error', idPedido, datos: falla };
+}
+
+export function esEvento(mensaje: MensajeServidor): mensaje is MensajeEvento {
+  return 'seq' in mensaje && mensaje.tipo !== 'estado.foto';
 }

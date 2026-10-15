@@ -3,19 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Servidor autoritativo de Tokinoto: salas en memoria, Socket.IO y validación de mensajes con Zod.",
+  "description": "Servidor autoritativo de Tokinoto: salas en memoria y Socket.IO.",
   "scripts": {
     "iniciar": "tsx src/principal.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tokinoto/protocolo": "*",
     "@tokinoto/reglas": "*",
-    "socket.io": "^4.8.4",
-    "zod": "^4.6.7"
+    "socket.io": "^4.8.4"
   },
   "devDependencies": {
     "socket.io-client": "^4.8.4",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "fast-check": "^4.10.2"
   }
 }

@@ -1,5 +1,3 @@
-export * from './errores';
-export * from './protocolo';
 export * from './eventos';
 export * from './reloj';
 export * from './sala';
