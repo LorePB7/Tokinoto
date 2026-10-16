@@ -93,6 +93,10 @@ async function captura(j: Jugador, nombre: string): Promise<void> {
 const [anfitrion, ...invitados] = jugadores as [Jugador, ...Jugador[]];
 await anfitrion.pagina.goto(urlCliente);
 await captura(anfitrion, '1-inicio');
+{
+  const exceso = await excesoDeScroll(anfitrion);
+  verificar(exceso <= 0, `El inicio de ${anfitrion.nombre} hace scroll (${exceso} px de más).`);
+}
 await anfitrion.pagina.getByLabel('Tu nombre').fill(anfitrion.nombre);
 await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
@@ -100,6 +104,10 @@ verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"
 
 for (const j of invitados) {
   await j.pagina.goto(`${urlCliente}?sala=${codigo}`);
+  {
+    const exceso = await excesoDeScroll(j);
+    verificar(exceso <= 0, `El inicio con ?sala= de ${j.nombre} hace scroll (${exceso} px de más).`);
+  }
   await j.pagina.getByLabel('Tu nombre').fill(j.nombre);
   await j.pagina.getByRole('button', { name: 'Unirme' }).click();
   await j.pagina.getByTestId('codigo').waitFor();
