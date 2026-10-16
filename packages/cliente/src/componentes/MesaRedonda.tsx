@@ -2,7 +2,6 @@ import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { giroDeCarta, haciaElCentro, posicionAsiento } from '../util/geometria';
 import { Asiento } from './Asiento';
 import { Carta } from './Carta';
-import { PanelApuesta } from './PanelApuesta';
 
 interface PropiedadesMesa {
   sala: VistaSala;
@@ -45,8 +44,6 @@ export function MesaRedonda({ sala, juego }: PropiedadesMesa) {
           );
         })}
       </div>
-
-      <PanelApuesta juego={juego} />
 
       {juego.asientos.map((a) => (
         <Asiento key={a.asiento} sala={sala} juego={juego} asiento={a.asiento} />

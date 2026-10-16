@@ -1,8 +1,7 @@
 import type { VistaJuego } from '@tokinoto/protocolo';
 import { useTienda } from '../estado/contexto';
-import { Ficha } from './Ficha';
 
-/** Fichas del 0 al N para apostar. El valor que el Pié no puede apostar queda deshabilitado. */
+/** Botones del 0 al N para apostar. El valor que el Pié no puede apostar queda tachado y deshabilitado. */
 export function PanelApuesta({ juego }: { juego: VistaJuego }) {
   const apostar = useTienda((s) => s.apostar);
   const ocupado = useTienda((s) => s.ocupado || s.conexion !== 'conectada');
@@ -15,31 +14,29 @@ export function PanelApuesta({ juego }: { juego: VistaJuego }) {
 
   return (
     <section className="panel-apuesta" aria-label="Apuesta">
-      <h2>Hacé tu apuesta</h2>
-      <p>
-        ¿Cuántas bazas vas a ganar de {total}? Se apostaron {apostado}.
-      </p>
-      <div className="fichas-apuesta">
+      <p className="instruccion">¿Cuántas bazas pensás ganar de {total}? Tocá un número.</p>
+      <div className="botones-apuesta">
         {valores.map((valor) => {
           const prohibida = turno.valorProhibido === valor;
           return (
             <button
               key={valor}
               type="button"
-              className="boton-ficha"
+              className="boton-apuesta"
               disabled={ocupado || prohibida}
               onClick={() => void apostar(valor)}
               aria-label={prohibida ? `Apostar ${valor} (no permitido)` : `Apostar ${valor}`}
               title={prohibida ? `Como Pié, no podés apostar ${valor}: las apuestas sumarían ${total}` : undefined}
               data-apuesta={valor}
             >
-              <Ficha valor={valor} />
+              {valor}
             </button>
           );
         })}
       </div>
+      <p className="nota">Hasta ahora la mesa apostó {apostado} en total.</p>
       {turno.valorProhibido !== null && (
-        <p className="nota">
+        <p className="nota aviso-pie">
           Sos el Pié: no podés apostar {turno.valorProhibido}, porque la suma daría {total}.
         </p>
       )}

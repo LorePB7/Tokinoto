@@ -90,7 +90,7 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
           {montones.map((b) => (
             <span className="monton" key={b.baza} data-baza={b.baza}>
               <Carta id={b.cartaGanadora} tamano="xs" />
-              {b.tieneFicha && <Ficha color="rojo" tamano="s" titulo="Dentro de la apuesta" />}
+              {b.tieneFicha && <Ficha tamano="s" titulo="Dentro de la apuesta" />}
             </span>
           ))}
         </div>
