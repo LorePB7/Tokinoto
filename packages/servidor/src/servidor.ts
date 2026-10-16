@@ -8,7 +8,9 @@
 import { createServer, type IncomingMessage, type Server as ServidorHttp } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { Server, type Socket } from 'socket.io';
+import type { Repositorio } from '@tokinoto/persistencia';
 import { GestorSalas, type OpcionesGestor } from './gestor';
+import { GuardadorHistorial, MOTIVO_ABORTO_REINICIO, type OpcionesGuardador } from './guardador';
 import { LIMITE_POR_DEFECTO, Limitador, type OpcionesLimite } from './limitador';
 import {
   CANAL_COMANDOS,
@@ -31,6 +33,13 @@ export interface OpcionesServidor extends OpcionesGestor {
   limite?: OpcionesLimite;
   /** Tamaño máximo de un mensaje entrante, en bytes. */
   maxBytesMensaje?: number;
+  /**
+   * Dónde se guarda el historial de los juegos (DP-21). Sin esto no se guarda
+   * nada. Quien lo pasa es dueño de la conexión y la cierra después de `cerrar()`.
+   */
+  repositorio?: Repositorio;
+  /** Opciones del guardado (reintentos, aviso de errores). */
+  guardador?: OpcionesGuardador;
 }
 
 export interface ServidorTokinoto {
@@ -69,7 +78,10 @@ export function crearServidor(opciones: OpcionesServidor = {}): ServidorTokinoto
     allowRequest: (pedido: IncomingMessage, decidir) => decidir(null, origenPermitido(origenes, pedido.headers.origin)),
   });
 
-  const gestor = new GestorSalas(opciones);
+  const guardador = opciones.repositorio ? new GuardadorHistorial(opciones.repositorio, opciones.guardador) : null;
+  const gestor = new GestorSalas(
+    guardador ? { ...opciones, sala: { ...opciones.sala, historial: guardador } } : opciones,
+  );
   io.on('connection', (socket) => atenderConexion(socket, gestor, limite));
 
   return {
@@ -85,11 +97,20 @@ export function crearServidor(opciones: OpcionesServidor = {}): ServidorTokinoto
         });
       });
     },
-    cerrar() {
+    async cerrar() {
       gestor.cerrarTodas();
-      return new Promise((resolver) => {
+      await new Promise<void>((resolver) => {
         void io.close(() => resolver());
       });
+      if (guardador && opciones.repositorio) {
+        // Al apagar no se retoman juegos en curso (DT-05): quedan abortados en el historial.
+        await guardador.vaciar();
+        try {
+          await opciones.repositorio.abortarEnCurso(MOTIVO_ABORTO_REINICIO, new Date());
+        } catch (problema) {
+          console.error('[historial] no se pudieron cerrar los juegos en curso:', problema);
+        }
+      }
     },
   };
 }

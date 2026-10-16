@@ -10,11 +10,15 @@
  * Uso (desde la raíz del repositorio):
  *   npm run e2e -w @tokinoto/cliente -- [--jugadores 4] [--capturas carpeta]
  *
+ * Si está definida DATABASE_URL, el servidor guarda el historial en esa base
+ * (etapa 7) y al final se verifica que el juego quedó guardado y es consistente.
+ *
  * Necesita un Chromium instalado (npx playwright-core install chromium) o la
  * variable CHROMIUM_PATH apuntando a uno.
  */
 import { mkdirSync } from 'node:fs';
 import { parseArgs } from 'node:util';
+import { abrirRepositorioPostgres, verificarJuego } from '@tokinoto/persistencia';
 import { crearServidor } from '@tokinoto/servidor';
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { createServer } from 'vite';
@@ -32,7 +36,12 @@ const verificar = (condicion: boolean, mensaje: string) => {
   if (!condicion) problemas.push(mensaje);
 };
 
-const servidor = crearServidor({ sala: { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300 } });
+const urlBase = process.env['DATABASE_URL'];
+const repositorio = urlBase ? await abrirRepositorioPostgres(urlBase) : null;
+const servidor = crearServidor({
+  sala: { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300 },
+  ...(repositorio ? { repositorio } : {}),
+});
 const puertoServidor = await servidor.escuchar(0, '127.0.0.1');
 process.env['VITE_SERVIDOR'] = `http://127.0.0.1:${puertoServidor}`;
 const vite = await createServer({
@@ -197,6 +206,23 @@ if (terminado) {
 await navegador.close();
 await vite.close();
 await servidor.cerrar();
+
+if (repositorio) {
+  const juegos = await repositorio.listarJuegos({ sala: codigo });
+  verificar(juegos.length === 2, `Se esperaban 2 juegos guardados (el jugado y la revancha) y hay ${juegos.length}`);
+  const estados = juegos.map((j) => j.estado).sort();
+  verificar(estados.join() === 'ABORTADO,TERMINADO', `Estados guardados inesperados: ${estados.join()}`);
+  for (const juego of juegos) {
+    const detalle = await repositorio.obtenerJuego(juego.id);
+    if (juego.estado === 'TERMINADO') {
+      verificar(detalle?.ranking.length === cantidad, 'El ranking guardado no tiene a todos los jugadores');
+      verificar(detalle?.puntajes.length === 14 * cantidad, 'Faltan puntajes de partida en el historial');
+    }
+    for (const problema of await verificarJuego(repositorio, juego.id)) problemas.push(`Historial ${juego.id}: ${problema}`);
+  }
+  console.log(`Historial en PostgreSQL: ${juegos.length} juegos guardados y verificados.`);
+  await repositorio.cerrar();
+}
 
 if (problemas.length > 0) {
   console.error('\nProblemas:\n- ' + problemas.join('\n- '));

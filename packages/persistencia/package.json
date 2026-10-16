@@ -1,0 +1,25 @@
+{
+  "name": "@tokinoto/persistencia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Historial de Tokinoto en PostgreSQL: juegos terminados, puntajes, ranking y registro de eventos.",
+  "main": "src/index.ts",
+  "scripts": {
+    "generar": "drizzle-kit generate",
+    "historial": "tsx src/historial-cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tokinoto/reglas": "*",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.23.15"
+  }
+}
