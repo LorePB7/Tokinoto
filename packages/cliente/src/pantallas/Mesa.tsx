@@ -83,8 +83,10 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
   const meToca = juego.turno?.asiento === juego.miAsiento;
   const miFechaLimite = meToca ? (juego.turno?.fechaLimite ?? null) : null;
   const enCurso = sala.estado === 'JUGANDO';
+  // Mientras apostás, la mesa se achica un poco para que entren el cartel de apuesta y tus cartas sin scroll.
+  const apostando = juego.fase === 'APUESTAS' && juego.turno?.tipo === 'apuesta' && meToca;
   return (
-    <div className="pantalla-mesa">
+    <div className={`pantalla-mesa ${apostando ? 'apostando' : ''}`}>
       <header className="barra">
         <h1 className="marca">Tokinoto</h1>
         <p className="datos-partida">
@@ -110,7 +112,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
 
       <footer className="inferior">
         <MiPiloto sala={sala} />
-        <p className={`turno ${meToca ? 'mio' : ''}`} role="status" aria-live="polite">
+        <p className={`turno ${meToca ? 'mio' : ''} ${apostando ? 'solo-lectores' : ''}`} role="status" aria-live="polite">
           {mensajeDeTurno(juego)}
           {miFechaLimite !== null && <CuentaRegresiva fechaLimite={miFechaLimite} />}
         </p>

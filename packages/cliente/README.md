@@ -13,6 +13,8 @@ Para jugar, abrí entre 4 y 7 pestañas. Una crea la sala y las demás entran co
 
 El cliente busca el servidor en `VITE_SERVIDOR`. Si no está definida, usa el puerto 3001 del mismo equipo desde el que se abrió la página.
 
+El enlace de invitación que ofrece la sala de espera usa `VITE_URL_PUBLICA` (la dirección pública del juego) y, si no está definida, la dirección desde la que se abrió la página. Probando en `localhost`, ese enlace solo abre en tu computadora, y la sala de espera lo avisa. "Copiar código" y "Copiar enlace" usan el portapapeles del navegador; en páginas sin conexión segura (http en la red local) usan el método clásico, y si nada funciona muestran el texto para copiarlo a mano.
+
 ## Pruebas
 
 ```bash
@@ -34,7 +36,7 @@ src/
   pantallas/   Inicio, Lobby, Mesa
   util/        cartas.ts, geometria.ts (asientos alrededor de la mesa), preferencias.ts
 test/          pruebas con Vitest y Testing Library
-e2e/           prueba de punta a punta con navegadores reales
+e2e/           prueba de punta a punta con navegadores reales (incluye copiar código y enlace, reglas y que apostar no pida scroll)
 ```
 
 ## Cómo funciona
@@ -46,9 +48,9 @@ e2e/           prueba de punta a punta con navegadores reales
 
 ## Aspecto y ayudas para principiantes (etapa 8)
 
-- **Estilo.** Todo el aspecto vive en `src/estilos.css`, con los colores y tipografías definidos como variables al principio. Los títulos usan Abril Fatface y los nombres y números, Playfair Display (paquetes `@fontsource`, que viajan con la aplicación: no se piden a Internet). El texto corrido usa la letra del sistema, por legibilidad.
+- **Estilo.** Todo el aspecto vive en `src/estilos.css`, con los colores y tipografías definidos como variables al principio. Los títulos, nombres y números usan Lora, una serif clásica de libro (paquete `@fontsource/lora`, que viaja con la aplicación: no se pide a Internet). El texto corrido usa la letra del sistema, por legibilidad.
 - **Fichas.** Todas son iguales (bordó); lo que cambia es el número.
-- **Acciones claras.** Cuando te toca apostar aparece un cartel con un botón por cada número posible; el que el Pié no puede elegir queda tachado. Cuando te toca jugar, tus cartas se marcan con un borde y una indicación ("Tocá la carta que querés jugar"). El turno propio se ve en una etiqueta destacada.
+- **Acciones claras.** Cuando te toca apostar aparece un cartel con un botón por cada número posible; el que el Pié no puede elegir queda tachado. Mientras apostás, la mesa se achica un poco para que el cartel y tus cartas entren sin scroll en una pantalla de computadora de 800 px de alto (lo verifica la prueba e2e). Cuando te toca jugar, tus cartas se marcan con un borde y una indicación ("Tocá la carta que querés jugar"). El turno propio se ve en una etiqueta destacada.
 - **Reglas.** El botón "Reglas" (arriba a la derecha, en todas las pantallas) abre un panel al costado con cómo se juega, el valor de las cartas de menor a mayor (incluido el Comodín), la restricción del Pié, los puntos y el desempate. Se cierra con "Cerrar" o con Escape. El texto sigue la especificación aprobada (v4).
 
 ## Ausencias (etapa 6)
