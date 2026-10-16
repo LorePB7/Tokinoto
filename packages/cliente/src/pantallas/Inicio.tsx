@@ -1,4 +1,9 @@
-import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, LARGO_MAXIMO_NOMBRE } from '@tokinoto/protocolo';
+import {
+  ALFABETO_CODIGO,
+  LARGO_CODIGO_SALA,
+  LARGO_MAXIMO_NOMBRE,
+  TIEMPO_TURNO_POR_DEFECTO_S,
+} from '@tokinoto/protocolo';
 import { useState, type FormEvent } from 'react';
 import { useTienda } from '../estado/contexto';
 import { leerPreferencia, guardarPreferencia } from '../util/preferencias';
@@ -11,11 +16,19 @@ function codigoDeLaURL(): string {
   }
 }
 
-/** Pantalla de entrada: crear una sala nueva o unirse con un código. */
+/** Opciones de tiempo por jugada (DP-13). 0 representa "sin límite". */
+const TIEMPOS = [TIEMPO_TURNO_POR_DEFECTO_S, 60, 0];
+
+/** Pantalla de entrada: crear una sala nueva, unirse con un código o volver a la última partida. */
 export function Inicio() {
   const crearSala = useTienda((s) => s.crearSala);
   const unirse = useTienda((s) => s.unirse);
-  const ocupado = useTienda((s) => s.ocupado || s.conexion === 'conectando');
+  const reconectar = useTienda((s) => s.reconectar);
+  const conectando = useTienda((s) => s.conexion === 'conectando');
+  const ocupado = useTienda((s) => s.ocupado) || conectando;
+  const ultimaSesion = useTienda((s) => s.ultimaSesion);
+  const [ultima] = useState(ultimaSesion);
+  const [tiempo, setTiempo] = useState(TIEMPO_TURNO_POR_DEFECTO_S);
   const [nombre, setNombre] = useState(() => leerPreferencia('nombre') ?? '');
   const [codigo, setCodigo] = useState(codigoDeLaURL);
   const [cupo, setCupo] = useState(7);
@@ -30,7 +43,7 @@ export function Inicio() {
     evento.preventDefault();
     if (!nombreLimpio || ocupado) return;
     recordarNombre();
-    void crearSala(nombreLimpio, cupo);
+    void crearSala(nombreLimpio, cupo, tiempo === 0 ? null : tiempo);
   }
 
   function alUnirse(evento: FormEvent) {
@@ -44,6 +57,23 @@ export function Inicio() {
     <main className="inicio">
       <h1 className="logo">Tokinoto</h1>
       <p className="lema">Un juego de cartas para jugar de 4 a 7 amigos.</p>
+      {conectando && (
+        <p className="estado-conexion" role="status">
+          Conectando…
+        </p>
+      )}
+
+      {ultima && (
+        <div className="hoja volver">
+          <p>
+            Tenés una partida en la sala <strong>{ultima.codigo}</strong>
+            {ultima.nombre ? ` como ${ultima.nombre}` : ''}.
+          </p>
+          <button type="button" className="boton" disabled={ocupado} onClick={() => void reconectar(ultima.token)}>
+            Volver a esa partida
+          </button>
+        </div>
+      )}
 
       <div className="hoja formulario">
         <label className="campo">
@@ -65,6 +95,16 @@ export function Inicio() {
               {[4, 5, 6, 7].map((n) => (
                 <option key={n} value={n}>
                   {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="campo corto">
+            <span>Tiempo por jugada</span>
+            <select value={tiempo} onChange={(e) => setTiempo(Number(e.target.value))}>
+              {TIEMPOS.map((t) => (
+                <option key={t} value={t}>
+                  {t === 0 ? 'Sin límite' : `${t} segundos`}
                 </option>
               ))}
             </select>

@@ -228,12 +228,14 @@ describe('salas por red', () => {
   });
 
   it('al desconectarse en el lobby, los demás se enteran; al vaciarse, la sala desaparece', async () => {
-    const url = await levantar();
+    const url = await levantar({ sala: { pausaBazaMs: 0, pausaResumenMs: 0, graciaLobbyMs: 30 } });
     const gestor = abiertos.servidores.at(-1)!.gestor;
     const { clientes, codigo } = await salaCon(url, 2);
     const invitado = clientes[1]!;
     const idInvitado = (invitado.recibidos.find((m) => m.tipo === 'ok')!.datos as { idJugador: string }).idJugador;
     invitado.socket.disconnect();
+    // Primero se lo marca desconectado (por si recarga la página); si no vuelve, sale.
+    await clientes[0]!.esperar((m) => m.tipo === 'jugador.conexion');
     const salio = await clientes[0]!.esperar((m) => m.tipo === 'sala.jugadorSalio');
     expect(salio.datos).toEqual({ idJugador: idInvitado });
 
@@ -241,6 +243,42 @@ describe('salas por red', () => {
     expect(gestor.buscar(codigo)).toBeUndefined();
     // Ya fuera de la sala, puede crear otra.
     expect((await clientes[0]!.pedir('sala.crear', { nombre: 'Otra vez' })).tipo).toBe('ok');
+  });
+
+  it('con el token se vuelve desde otra conexión; la anterior queda reemplazada', async () => {
+    const url = await levantar();
+    const gestor = abiertos.servidores.at(-1)!.gestor;
+    const { clientes, codigo } = await salaCon(url, 4);
+    expect((await clientes[0]!.pedir('sala.iniciar')).tipo).toBe('ok');
+    const invitado = clientes[2]!;
+    const ingreso = invitado.recibidos.find((m) => m.tipo === 'ok')!.datos as { idJugador: string; token: string };
+    expect(ingreso.token.startsWith(`${codigo}.`)).toBe(true);
+
+    // Se corta y vuelve desde una conexión nueva.
+    invitado.socket.disconnect();
+    await clientes[0]!.esperar((m) => m.tipo === 'jugador.pilotoAutomatico');
+    const nueva = await Cliente.conectar(url);
+    const vuelta = await nueva.pedir('sala.reconectar', { token: ingreso.token });
+    expect(vuelta).toMatchObject({ tipo: 'ok', datos: { codigo, idJugador: ingreso.idJugador } });
+    const foto = await nueva.esperar((m) => m.tipo === 'estado.foto');
+    expect((foto.datos as { yo: string; juego: unknown }).yo).toBe(ingreso.idJugador);
+    expect((foto.datos as { juego: unknown }).juego).not.toBeNull();
+
+    // Una tercera conexión con el mismo token reemplaza a la segunda.
+    const otra = await Cliente.conectar(url);
+    expect((await otra.pedir('sala.reconectar', { token: ingreso.token })).tipo).toBe('ok');
+    const aviso = await nueva.esperar((m) => m.tipo === 'error' && m.idPedido === null);
+    expect(aviso.datos).toMatchObject({ codigo: 'SESION_REEMPLAZADA' });
+    expect((await nueva.pedir('sync.pedir')).datos).toMatchObject({ codigo: 'SESION_REEMPLAZADA' });
+    // Ya sin sala, esa conexión puede crear otra.
+    expect((await nueva.pedir('sala.crear', { nombre: 'Otra' })).tipo).toBe('ok');
+    expect(gestor.cantidad).toBe(2);
+
+    // Un token desconocido no entra.
+    const extraña = await Cliente.conectar(url);
+    expect((await extraña.pedir('sala.reconectar', { token: `${codigo}.no-existe-este-token` })).datos).toMatchObject({
+      codigo: 'SESION_INVALIDA',
+    });
   });
 
   for (const cantidad of [4, 7]) {

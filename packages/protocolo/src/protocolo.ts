@@ -26,6 +26,13 @@ export const LARGO_CODIGO_SALA = 8;
 /** Alfabeto de los códigos de sala: sin 0/O, 1/I/L, para dictarlos sin confusión. */
 export const ALFABETO_CODIGO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
+/** Tiempo por jugada (DP-13): por defecto 30 s; la sala puede elegir otro o ninguno. */
+export const TIEMPO_TURNO_POR_DEFECTO_S = 30;
+export const TIEMPO_TURNO_MINIMO_S = 10;
+export const TIEMPO_TURNO_MAXIMO_S = 120;
+/** Vencimientos seguidos tras los cuales el piloto automático toma el asiento (DP-13). */
+export const VENCIMIENTOS_PARA_PILOTO = 3;
+
 // ---------------------------------------------------------------------------
 // Comandos del cliente
 // ---------------------------------------------------------------------------
@@ -52,11 +59,18 @@ const comandoSchema = z.discriminatedUnion('tipo', [
       nombre,
       /** Cupo de la sala (4 a 7). El juego empieza con los presentes (4 a 7). */
       maxJugadores: z.int().min(4).max(7).optional(),
+      /** Segundos por apuesta y por tirada; null = sin límite. Por defecto, 30. */
+      tiempoTurno: z.int().min(TIEMPO_TURNO_MINIMO_S).max(TIEMPO_TURNO_MAXIMO_S).nullable().optional(),
     }),
   }),
   z.strictObject({
     tipo: z.literal('sala.unirse'),
     datos: z.strictObject({ codigo: codigoSala, nombre }),
+  }),
+  z.strictObject({
+    tipo: z.literal('sala.reconectar'),
+    /** Secreto que el servidor entregó al crear o unirse. */
+    datos: z.strictObject({ token: z.string().min(10).max(100) }),
   }),
   z.strictObject({ tipo: z.literal('sala.salir'), datos: sinDatos }),
   z.strictObject({ tipo: z.literal('sala.iniciar'), datos: sinDatos }),
@@ -73,6 +87,7 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     tipo: z.literal('juego.jugarCarta'),
     datos: z.strictObject({ idCarta: z.string().min(1).max(20) }),
   }),
+  z.strictObject({ tipo: z.literal('juego.retomarControl'), datos: sinDatos }),
   z.strictObject({ tipo: z.literal('juego.revancha'), datos: sinDatos }),
   z.strictObject({
     tipo: z.literal('sync.pedir'),
@@ -84,8 +99,8 @@ const comandoSchema = z.discriminatedUnion('tipo', [
 
 export type Comando = z.infer<typeof comandoSchema>;
 export type TipoComando = Comando['tipo'];
-/** Comandos que se ejecutan dentro de una sala (todos menos crear, unirse y ping). */
-export type ComandoDeSala = Exclude<Comando, { tipo: 'sala.crear' | 'sala.unirse' | 'ping' }>;
+/** Comandos que se ejecutan dentro de una sala (todos menos crear, unirse, reconectar y ping). */
+export type ComandoDeSala = Exclude<Comando, { tipo: 'sala.crear' | 'sala.unirse' | 'sala.reconectar' | 'ping' }>;
 
 export interface PedidoValido {
   idPedido: string;
@@ -177,6 +192,12 @@ export interface PuestoEnRanking {
   puesto: number;
 }
 
+/**
+ * Por qué se activó el piloto automático: desconexión, tiempo vencido
+ * (3 veces seguidas) o abandono (`sala.salir` con el juego en curso).
+ */
+export type MotivoPiloto = 'desconexion' | 'tiempo' | 'abandono';
+
 /** Datos de cada evento numerado, por tipo. */
 export interface DatosEventos {
   'sala.jugadorEntro': { idJugador: string; nombre: string };
@@ -184,6 +205,8 @@ export interface DatosEventos {
   'sala.anfitrionCambio': { anfitrion: string };
   'sala.resumenPausado': { pausado: boolean };
   'jugador.conexion': { idJugador: string; asiento: number; conectado: boolean };
+  /** El piloto automático toma o deja un asiento. `motivo` es null al desactivarse. */
+  'jugador.pilotoAutomatico': { idJugador: string; asiento: number; activado: boolean; motivo: MotivoPiloto | null };
   'juego.iniciado': { asientos: AsientoPublico[] };
   'sorteo.cartasSacadas': { sacadas: CartaSacada[]; repiten: number[] };
   'sorteo.resultado': { repartidor: number };

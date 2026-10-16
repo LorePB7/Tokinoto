@@ -1,6 +1,6 @@
 # @tokinoto/cliente
 
-Interfaz web de Tokinoto (React 19, Vite y Zustand). Es la etapa 5: se puede jugar un juego entero entre varias pestañas. El diseño es sobrio y sin animaciones; el pulido llega en la etapa 8.
+Interfaz web de Tokinoto (React 19, Vite y Zustand). Se puede jugar un juego entero entre varias pestañas (etapa 5), con reconexión, tiempo límite y piloto automático (etapa 6). El diseño es sobrio y sin animaciones; el pulido llega en la etapa 8.
 
 ## Cómo correrlo
 
@@ -22,7 +22,7 @@ npm run e2e -w @tokinoto/cliente -- --jugadores 7 --capturas ./capturas
 ```
 
 - Las pruebas de tienda y de componentes usan un **servidor real** en un puerto libre, con pausas cortas. No hay maquetas del servidor.
-- `e2e` levanta el servidor y Vite, abre un Chromium por jugador (el último con pantalla de celular), juega un juego completo tocando la pantalla y verifica que todos vean el mismo ranking, sin avisos de error ni errores de consola. Después prueba la revancha. Con `--capturas` guarda imágenes de cada pantalla.
+- `e2e` levanta el servidor y Vite, abre un Chromium por jugador (el último con pantalla de celular), juega un juego completo tocando la pantalla y verifica que todos vean el mismo ranking, sin avisos de error ni errores de consola. A mitad del juego, un jugador recarga la página y otro cierra la pestaña (juega el piloto) y vuelve desde una nueva con "Volver a esa partida". Al final prueba la revancha. Con `--capturas` guarda imágenes de cada pantalla.
 - Hace falta Chromium: el que instala Playwright (`npx playwright-core install chromium`) o uno propio indicado en `CHROMIUM_PATH`.
 
 ## Estructura
@@ -44,8 +44,10 @@ e2e/           prueba de punta a punta con navegadores reales
 - La mesa es redonda: yo estoy abajo y el juego gira hacia la derecha, así que los asientos siguientes van hacia la derecha de la pantalla y luego hacia arriba.
 - Nunca se reciben cartas ajenas; de los demás solo se ve la cantidad.
 
-## Límites conocidos (etapa 6)
+## Ausencias (etapa 6)
 
-- No hay reconexión: si se corta la conexión, aparece una pantalla para volver al inicio.
-- Durante el juego no hay botón de salir.
-- Si alguien se desconecta, la mesa espera su turno: todavía no hay tiempo límite ni piloto automático.
+- **Reconexión:** el token de la sesión se guarda en la pestaña (`sessionStorage`). Si se corta la conexión, la tienda reintenta sola y vuelve al asiento con `sala.reconectar`; al recargar la página, también. Mientras tanto se muestra "Volviendo a la mesa…".
+- **Otra pestaña:** la última sesión también queda en `localStorage`, y la pantalla de inicio ofrece "Volver a esa partida" (por ejemplo, si se cerró la pestaña). Si la misma sesión se abre en dos pestañas, la anterior se desconecta y ofrece "Jugar en esta pestaña".
+- **Tiempo límite:** el turno muestra la cuenta regresiva, corregida con la hora del servidor. Al crear la sala se elige 30 s, 60 s o sin límite.
+- **Piloto automático:** quien está ausente lleva la insignia "Piloto". Si a mí se me vence el tiempo 3 veces seguidas, aparece "Retomar el control".
+- **Salir:** durante el juego, "Salir" pide confirmación: el asiento queda y el piloto juega hasta el final.

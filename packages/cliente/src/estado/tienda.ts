@@ -5,6 +5,10 @@
  * El cliente no deduce nada importante: muestra lo que el servidor confirma.
  * Mantiene la última foto y le aplica los eventos con `aplicarMensaje` (del
  * paquete compartido). Si nota que perdió un evento, pide una foto nueva.
+ *
+ * Reconexión (DP-14): el token de la sesión se guarda en la pestaña. Si la
+ * conexión se corta, la tienda reintenta sola y vuelve al asiento con
+ * `sala.reconectar`; al recargar la página, también.
  */
 import {
   CANAL_MENSAJES,
@@ -20,12 +24,22 @@ import {
 import { io as socketIo, type Socket } from 'socket.io-client';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { describirEvento, type LineaRegistro } from './registro';
+import { almacenDelNavegador, type AlmacenSesion, type Sesion } from './sesion';
 
 /** Cuánto se espera la respuesta del servidor a un comando. */
 export const TIEMPO_DE_RESPUESTA_MS = 10_000;
+/** Esperas entre reintentos de reconexión: crecen hasta el último valor y se quedan ahí. */
+export const ESPERAS_DE_RECONEXION_MS = [300, 1000, 2000, 4000];
 const LINEAS_DE_REGISTRO = 60;
 
-export type EstadoConexion = 'inactiva' | 'conectando' | 'conectada' | 'caida';
+/**
+ * - inactiva: sin sala.
+ * - conectando: entrando a una sala (o volviendo a ella al abrir la página).
+ * - conectada: en la sala.
+ * - reconectando: se cortó la conexión y se está volviendo solo.
+ * - reemplazada: la misma sesión se abrió en otra pestaña.
+ */
+export type EstadoConexion = 'inactiva' | 'conectando' | 'conectada' | 'reconectando' | 'reemplazada';
 
 export interface Aviso {
   id: number;
@@ -37,23 +51,32 @@ export interface EstadoTienda {
   /** Última foto del servidor con los eventos aplicados. */
   seguimiento: EstadoCliente;
   idJugador: string | null;
-  /** Secreto de la sesión (sirve para reconectar en la etapa 6). */
+  /** Secreto de la sesión: permite volver al asiento. */
   token: string | null;
+  /** Hora del servidor menos la hora local, en ms (para las cuentas regresivas). */
+  desfaseReloj: number;
   /** Hay un comando esperando respuesta. */
   ocupado: boolean;
   aviso: Aviso | null;
   registro: LineaRegistro[];
 
-  crearSala(nombre: string, maxJugadores: number): Promise<boolean>;
+  crearSala(nombre: string, maxJugadores: number, tiempoTurno?: number | null): Promise<boolean>;
   unirse(codigo: string, nombre: string): Promise<boolean>;
+  /** Vuelve a la sala con un token guardado. */
+  reconectar(token: string): Promise<boolean>;
+  /** Al abrir la página: si esta pestaña tenía una sesión, vuelve a ella. */
+  retomarSesion(): Promise<boolean>;
+  /** La última sesión de este navegador (aunque sea de otra pestaña), para ofrecer volver. */
+  ultimaSesion(): Sesion | null;
   salir(): Promise<boolean>;
   iniciar(): Promise<boolean>;
   apostar(valor: number): Promise<boolean>;
   jugarCarta(idCarta: string): Promise<boolean>;
+  retomarControl(): Promise<boolean>;
   pausarResumen(pausar: boolean): Promise<boolean>;
   revancha(): Promise<boolean>;
   descartarAviso(): void;
-  /** Vuelve a la pantalla de inicio, cerrando la conexión. */
+  /** Vuelve a la pantalla de inicio, cerrando la conexión y olvidando la sesión. */
   reiniciar(): void;
 }
 
@@ -61,6 +84,10 @@ export interface OpcionesTienda {
   url: string;
   /** Permite probar sin red real. Por defecto crea un socket de Socket.IO. */
   crearSocket?: (url: string) => Socket;
+  /** Dónde se guarda la sesión. Por defecto, el almacenamiento del navegador. */
+  almacen?: AlmacenSesion;
+  /** Esperas entre reintentos de reconexión. */
+  esperasDeReconexion?: readonly number[];
 }
 
 export type Tienda = StoreApi<EstadoTienda>;
@@ -72,6 +99,7 @@ function nuevoIdPedido(): string {
 }
 
 function crearSocketPorDefecto(url: string): Socket {
+  // La reconexión la maneja la tienda (necesita mandar el token en cada intento).
   return socketIo(url, { transports: ['websocket'], reconnection: false, forceNew: true });
 }
 
@@ -82,11 +110,15 @@ interface Pendiente {
 
 export function crearTienda(opciones: OpcionesTienda): Tienda {
   const crearSocket = opciones.crearSocket ?? crearSocketPorDefecto;
+  const almacen = opciones.almacen ?? almacenDelNavegador;
+  const esperas = opciones.esperasDeReconexion ?? ESPERAS_DE_RECONEXION_MS;
   let socket: Socket | null = null;
   const pendientes = new Map<string, Pendiente>();
   let esperandoFoto = false;
   let contadorDeLineas = 0;
   let contadorDeAvisos = 0;
+  let reintento: ReturnType<typeof setTimeout> | null = null;
+  let intentos = 0;
 
   const tienda = createStore<EstadoTienda>((set, get) => {
     const avisar = (texto: string): void => set({ aviso: { id: ++contadorDeAvisos, texto } });
@@ -112,6 +144,12 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       });
     }
 
+    function cancelarReintento(): void {
+      if (reintento) clearTimeout(reintento);
+      reintento = null;
+    }
+
+    /** Cierra la conexión a propósito (sin disparar la reconexión). */
     function cerrarConexion(): void {
       const actual = socket;
       socket = null;
@@ -139,6 +177,11 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
           clearTimeout(pendiente.temporizador);
           pendientes.delete(mensaje.idPedido);
           pendiente.resolver(mensaje);
+        } else if (mensaje.tipo === 'error' && mensaje.datos.codigo === 'SESION_REEMPLAZADA') {
+          // Se abrió la misma sesión en otra pestaña: esta deja de jugar.
+          cancelarReintento();
+          cerrarConexion();
+          set({ conexion: 'reemplazada' });
         } else if (mensaje.tipo === 'error') {
           // Rechazos sin pedido conocido, por ejemplo por exceso de mensajes.
           avisar(mensaje.datos.mensaje);
@@ -148,74 +191,137 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
 
       const previo = get().seguimiento;
       const nuevo = aplicarMensaje(previo, mensaje);
-      if (mensaje.tipo === 'estado.foto') esperandoFoto = false;
+      const cambios: Partial<EstadoTienda> = { seguimiento: nuevo };
+      if (mensaje.tipo === 'estado.foto') {
+        esperandoFoto = false;
+        cambios.desfaseReloj = mensaje.datos.horaServidor - Date.now();
+      }
 
-      let registro = get().registro;
       if (esEvento(mensaje) && nuevo !== previo && nuevo.sala && !nuevo.desincronizado) {
         const texto = describirEvento(mensaje, previo.sala, nuevo.sala);
-        if (texto) registro = [...registro, { id: ++contadorDeLineas, texto }].slice(-LINEAS_DE_REGISTRO);
+        if (texto) {
+          cambios.registro = [...get().registro, { id: ++contadorDeLineas, texto }].slice(-LINEAS_DE_REGISTRO);
+        }
       }
-      set({ seguimiento: nuevo, registro });
+      set(cambios);
 
       if (nuevo.desincronizado && !esperandoFoto) pedirFoto();
     }
 
-    async function conectar(): Promise<boolean> {
+    /** Abre una conexión. `silencioso` evita el aviso al fallar (en los reintentos). */
+    async function conectar(silencioso = false): Promise<boolean> {
       if (socket?.connected) return true;
-      set({ conexion: 'conectando' });
       return new Promise((resolver) => {
         const nuevoSocket = crearSocket(opciones.url);
         socket = nuevoSocket;
         nuevoSocket.on(CANAL_MENSAJES, procesar);
-        nuevoSocket.once('connect', () => {
-          set({ conexion: 'conectada' });
-          resolver(true);
-        });
+        nuevoSocket.once('connect', () => resolver(true));
         nuevoSocket.once('connect_error', () => {
           if (socket === nuevoSocket) socket = null;
           nuevoSocket.disconnect();
-          set({ conexion: 'inactiva' });
-          avisar('No se pudo conectar con el servidor. Probá de nuevo en un momento.');
+          if (!silencioso) avisar('No se pudo conectar con el servidor. Probá de nuevo en un momento.');
           resolver(false);
         });
         nuevoSocket.on('disconnect', () => {
           if (socket !== nuevoSocket) return; // cierre a propósito
           cerrarConexion();
-          set({ conexion: get().seguimiento.sala ? 'caida' : 'inactiva' });
+          if (get().seguimiento.sala && get().token) empezarReconexion();
+          else set({ conexion: 'inactiva' });
         });
       });
     }
 
-    /** Ejecuta un comando y avisa si fue rechazado. Devuelve true si el servidor lo aceptó. */
-    async function ejecutar(construir: (idPedido: string) => unknown): Promise<MensajeOk | null> {
+    function empezarReconexion(): void {
+      set({ conexion: 'reconectando', ocupado: false });
+      intentos = 0;
+      programarReintento();
+    }
+
+    function programarReintento(): void {
+      cancelarReintento();
+      const espera = esperas[Math.min(intentos, esperas.length - 1)] ?? 1000;
+      intentos++;
+      reintento = setTimeout(() => {
+        reintento = null;
+        void reintentar();
+      }, espera);
+    }
+
+    async function reintentar(): Promise<void> {
+      const token = get().token;
+      if (get().conexion !== 'reconectando' || !token) return;
+      if (!(await conectar(true))) {
+        if (get().conexion === 'reconectando') programarReintento();
+        return;
+      }
+      const id = nuevoIdPedido();
+      const respuesta = await enviar(id, armarComando('sala.reconectar', id, { token }));
+      if (get().conexion !== 'reconectando') return;
+      if (respuesta.tipo === 'ok') {
+        set({ conexion: 'conectada' });
+      } else if (respuesta.datos.codigo === 'SESION_INVALIDA') {
+        reiniciar();
+        avisar('La sala ya no existe. Podés crear otra o unirte con un código.');
+      } else {
+        cerrarConexion();
+        programarReintento();
+      }
+    }
+
+    /** Ejecuta un comando y avisa si fue rechazado. Devuelve la confirmación, o null. */
+    async function ejecutar(construir: (idPedido: string) => unknown, avisarError = true): Promise<MensajeOk | MensajeError> {
       set({ ocupado: true });
       const id = nuevoIdPedido();
       const respuesta = await enviar(id, construir(id));
       set({ ocupado: false });
-      if (respuesta.tipo === 'error') {
-        avisar(respuesta.datos.mensaje);
-        return null;
-      }
+      if (respuesta.tipo === 'error' && avisarError) avisar(respuesta.datos.mensaje);
       return respuesta;
     }
 
-    async function ingresar(construir: (idPedido: string) => unknown): Promise<boolean> {
-      if (!(await conectar())) return false;
-      const respuesta = await ejecutar(construir);
-      if (!respuesta) {
-        if (!get().seguimiento.sala) cerrarConexion();
-        set({ conexion: get().seguimiento.sala ? get().conexion : 'inactiva' });
-        return false;
+    /** Entra a una sala (crear, unirse o reconectar) y guarda la sesión. */
+    async function ingresar(construir: (idPedido: string) => unknown, nombre: string | null): Promise<MensajeOk | MensajeError> {
+      cancelarReintento();
+      set({ conexion: 'conectando' });
+      if (!(await conectar())) {
+        set({ conexion: 'inactiva' });
+        return errorLocal('', 'No se pudo conectar con el servidor');
       }
-      set({
-        idJugador: String(respuesta.datos['idJugador']),
-        token: String(respuesta.datos['token']),
-      });
-      return true;
+      const respuesta = await ejecutar(construir, false);
+      if (respuesta.tipo === 'error') {
+        if (!get().seguimiento.sala) cerrarConexion();
+        set({ conexion: get().seguimiento.sala ? 'conectada' : 'inactiva' });
+        return respuesta;
+      }
+      const token = String(respuesta.datos['token']);
+      const codigo = String(respuesta.datos['codigo']);
+      set({ conexion: 'conectada', idJugador: String(respuesta.datos['idJugador']), token });
+      const yo = get().seguimiento.sala?.jugadores.find((j) => j.idJugador === get().idJugador)?.nombre;
+      almacen.guardar({ token, codigo, nombre: nombre ?? yo ?? '' });
+      return respuesta;
     }
 
-    const reiniciar = (): void => {
+    async function ingresarAvisando(construir: (idPedido: string) => unknown, nombre: string): Promise<boolean> {
+      const respuesta = await ingresar(construir, nombre);
+      if (respuesta.tipo === 'error' && respuesta.idPedido !== '') avisar(respuesta.datos.mensaje);
+      return respuesta.tipo === 'ok';
+    }
+
+    async function reconectar(token: string): Promise<boolean> {
+      const respuesta = await ingresar((id) => armarComando('sala.reconectar', id, { token }), null);
+      if (respuesta.tipo === 'ok') return true;
+      if (respuesta.datos.codigo === 'SESION_INVALIDA') {
+        almacen.borrar();
+        avisar('Esa partida ya no existe.');
+      } else if (respuesta.idPedido !== '') {
+        avisar(respuesta.datos.mensaje);
+      }
+      return false;
+    }
+
+    function reiniciar(): void {
+      cancelarReintento();
       cerrarConexion();
+      almacen.borrar();
       set({
         conexion: 'inactiva',
         seguimiento: ESTADO_CLIENTE_INICIAL,
@@ -224,34 +330,54 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         ocupado: false,
         registro: [],
       });
-    };
+    }
+
+    const aceptado = async (construir: (idPedido: string) => unknown): Promise<boolean> =>
+      (await ejecutar(construir)).tipo === 'ok';
 
     return {
       conexion: 'inactiva',
       seguimiento: ESTADO_CLIENTE_INICIAL,
       idJugador: null,
       token: null,
+      desfaseReloj: 0,
       ocupado: false,
       aviso: null,
       registro: [],
 
-      crearSala: (nombre, maxJugadores) =>
-        ingresar((id) => armarComando('sala.crear', id, { nombre, maxJugadores })),
-      unirse: (codigo, nombre) => ingresar((id) => armarComando('sala.unirse', id, { codigo, nombre })),
+      crearSala: (nombre, maxJugadores, tiempoTurno) =>
+        ingresarAvisando(
+          (id) =>
+            armarComando('sala.crear', id, {
+              nombre,
+              maxJugadores,
+              ...(tiempoTurno === undefined ? {} : { tiempoTurno }),
+            }),
+          nombre,
+        ),
+      unirse: (codigo, nombre) => ingresarAvisando((id) => armarComando('sala.unirse', id, { codigo, nombre }), nombre),
+      reconectar,
+      async retomarSesion() {
+        const sesion = almacen.leer();
+        return sesion ? reconectar(sesion.token) : false;
+      },
+      ultimaSesion: () => almacen.leerUltima(),
 
       async salir() {
-        const respuesta = await ejecutar((id) => armarComando('sala.salir', id));
-        if (!respuesta) return false;
+        if (get().conexion !== 'conectada') {
+          reiniciar();
+          return true;
+        }
+        if (!(await aceptado((id) => armarComando('sala.salir', id)))) return false;
         reiniciar();
         return true;
       },
-      iniciar: async () => (await ejecutar((id) => armarComando('sala.iniciar', id))) !== null,
-      apostar: async (valor) => (await ejecutar((id) => armarComando('juego.apostar', id, { valor }))) !== null,
-      jugarCarta: async (idCarta) =>
-        (await ejecutar((id) => armarComando('juego.jugarCarta', id, { idCarta }))) !== null,
-      pausarResumen: async (pausar) =>
-        (await ejecutar((id) => armarComando('sala.pausarResumen', id, { pausar }))) !== null,
-      revancha: async () => (await ejecutar((id) => armarComando('juego.revancha', id))) !== null,
+      iniciar: () => aceptado((id) => armarComando('sala.iniciar', id)),
+      apostar: (valor) => aceptado((id) => armarComando('juego.apostar', id, { valor })),
+      jugarCarta: (idCarta) => aceptado((id) => armarComando('juego.jugarCarta', id, { idCarta })),
+      retomarControl: () => aceptado((id) => armarComando('juego.retomarControl', id)),
+      pausarResumen: (pausar) => aceptado((id) => armarComando('sala.pausarResumen', id, { pausar })),
+      revancha: () => aceptado((id) => armarComando('juego.revancha', id)),
       descartarAviso: () => set({ aviso: null }),
       reiniciar,
     };

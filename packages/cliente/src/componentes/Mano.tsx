@@ -6,7 +6,7 @@ import { Carta } from './Carta';
 /** Mis cartas. Se pueden tocar solo cuando me toca jugar. */
 export function Mano({ juego }: { juego: VistaJuego }) {
   const jugarCarta = useTienda((s) => s.jugarCarta);
-  const ocupado = useTienda((s) => s.ocupado);
+  const ocupado = useTienda((s) => s.ocupado || s.conexion !== 'conectada');
   const meToca = juego.fase === 'TIRADAS' && juego.turno?.tipo === 'carta' && juego.turno.asiento === juego.miAsiento;
   const cartas = ordenarMano(juego.miMano);
 

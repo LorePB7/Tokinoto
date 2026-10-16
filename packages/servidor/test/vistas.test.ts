@@ -13,7 +13,7 @@ import {
   type MensajeFoto,
   type VistaSala,
 } from '@tokinoto/protocolo';
-import { createSeededRng } from '@tokinoto/reglas';
+import { createSeededRng, currentTurn, playableCards, validBetsFor } from '@tokinoto/reglas';
 import { describe, expect, it } from 'vitest';
 import { armarMesa, cartasEn, jugarHasta, jugarHastaElFinal, type Mesa } from './ayudas';
 
@@ -103,6 +103,57 @@ describe('foto = eventos', () => {
     expect(mesa.sala.resumenEnPausa).toBe(false);
     verificarCoincidencia(mesa, seguidos, conectados);
     jugarHastaElFinal(mesa, createSeededRng(4), () => verificarCoincidencia(mesa, seguidos, conectados));
+    expect(mesa.errores).toEqual([]);
+  });
+
+  it('también con ausencias: desconexiones, reconexiones, vencimientos, piloto y abandono', () => {
+    const mesa = armarMesa(5, { semilla: 91, pausaBazaMs: 100, pausaResumenMs: 100, pausaPilotoMs: 50 });
+    const seguidos = seguidores(mesa);
+    const conectados = new Set([0, 1, 2, 3, 4]);
+    const azar = createSeededRng(17);
+    mesa.comando(0, { tipo: 'sala.iniciar' });
+    let reconexiones = 0;
+    let vencidos = 0;
+    let abandono = false;
+
+    for (let pasos = 0; pasos < 4000 && mesa.sala.estado === 'JUGANDO'; pasos++) {
+      const juego = mesa.sala.estadoDelJuego!;
+      const dado = azar.nextInt(100);
+      const indice = azar.nextInt(5);
+      if (dado < 4 && conectados.has(indice) && conectados.size > 1) {
+        mesa.sala.desconectar(mesa.jugadores[indice]!.id);
+        conectados.delete(indice);
+      } else if (dado < 10 && !conectados.has(indice) && !(abandono && indice === 4)) {
+        expect(mesa.reconectar(indice)).toMatchObject({ ok: true });
+        conectados.add(indice);
+        reconexiones++;
+      } else if (dado < 12 && !abandono && conectados.has(4) && conectados.size > 1) {
+        expect(mesa.comando(4, { tipo: 'sala.salir' })).toEqual(OK);
+        conectados.delete(4);
+        abandono = true;
+      } else if (dado < 20) {
+        // Nadie juega: vence el plazo o actúa el piloto.
+        mesa.reloj.avanzarAlProximo();
+        vencidos++;
+      } else if (dado < 22 && conectados.has(indice)) {
+        mesa.comando(indice, { tipo: 'juego.retomarControl' });
+      } else {
+        const turno = currentTurn(juego);
+        const quien = turno ? mesa.jugadores.findIndex((j) => j.id === juego.players[turno.seat]!.id) : -1;
+        if (!turno || !conectados.has(quien)) {
+          mesa.reloj.avanzarAlProximo();
+        } else if (turno.kind === 'bet') {
+          mesa.comando(quien, { tipo: 'juego.apostar', datos: { valor: validBetsFor(juego, turno.seat)[0]! } });
+        } else {
+          mesa.comando(quien, { tipo: 'juego.jugarCarta', datos: { idCarta: playableCards(juego, turno.seat)[0]!.id } });
+        }
+      }
+      verificarCoincidencia(mesa, seguidos, conectados);
+    }
+    expect(mesa.sala.estadoDelJuego!.phase).toBe('FINISHED');
+    expect(reconexiones).toBeGreaterThan(5);
+    expect(vencidos).toBeGreaterThan(20);
+    expect(abandono).toBe(true);
     expect(mesa.errores).toEqual([]);
   });
 

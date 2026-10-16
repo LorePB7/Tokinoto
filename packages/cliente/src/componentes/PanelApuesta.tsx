@@ -5,7 +5,7 @@ import { Ficha } from './Ficha';
 /** Fichas del 0 al N para apostar. El valor que el Pié no puede apostar queda deshabilitado. */
 export function PanelApuesta({ juego }: { juego: VistaJuego }) {
   const apostar = useTienda((s) => s.apostar);
-  const ocupado = useTienda((s) => s.ocupado);
+  const ocupado = useTienda((s) => s.ocupado || s.conexion !== 'conectada');
   const turno = juego.turno;
   if (juego.fase !== 'APUESTAS' || turno?.tipo !== 'apuesta' || turno.asiento !== juego.miAsiento) return null;
 

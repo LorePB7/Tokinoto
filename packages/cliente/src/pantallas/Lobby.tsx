@@ -55,6 +55,12 @@ export function Lobby() {
           </button>
         </div>
 
+        <p className="nota">
+          Tiempo por jugada:{' '}
+          {sala.tiempoTurnoMs === null ? 'sin límite' : `${Math.round(sala.tiempoTurnoMs / 1000)} segundos`}. Si alguien se
+          va o se le vence el tiempo, el piloto automático juega por él.
+        </p>
+
         <h3>
           Jugadores ({sala.jugadores.length} de {sala.maxJugadores})
         </h3>

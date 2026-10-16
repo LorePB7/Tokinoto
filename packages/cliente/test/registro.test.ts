@@ -10,8 +10,8 @@ const sala = {
   yo: 'a',
   anfitrion: 'a',
   jugadores: [
-    { idJugador: 'a', nombre: 'Ana', conectado: true },
-    { idJugador: 'b', nombre: 'Beto', conectado: true },
+    { idJugador: 'a', nombre: 'Ana', conectado: true, piloto: null },
+    { idJugador: 'b', nombre: 'Beto', conectado: true, piloto: null },
   ],
   juego: null,
 } as unknown as VistaSala;
@@ -30,6 +30,18 @@ describe('describirEvento', () => {
   it('partidas con cartas en singular y plural', () => {
     expect(describirEvento(evento('partida.iniciada', { partida: 1, cartasPorJugador: 1 }), sala, sala)).toBe('Partida 1: 1 carta por jugador');
     expect(describirEvento(evento('partida.iniciada', { partida: 4, cartasPorJugador: 4 }), sala, sala)).toBe('Partida 4: 4 cartas por jugador');
+  });
+
+  it('piloto automático y jugadas del piloto', () => {
+    const piloto = (activado: boolean, motivo: string | null) =>
+      describirEvento(evento('jugador.pilotoAutomatico', { idJugador: 'b', asiento: 1, activado, motivo }), sala, sala);
+    expect(piloto(true, 'desconexion')).toBe('El piloto automático juega por Beto');
+    expect(piloto(true, 'abandono')).toBe('Beto dejó la mesa: juega el piloto automático');
+    expect(piloto(true, 'tiempo')).toBe('A Beto se le venció el tiempo: juega el piloto automático');
+    expect(piloto(false, null)).toBe('Beto retomó el control');
+    expect(describirEvento(evento('apuesta.realizada', { asiento: 1, valor: 0, porPiloto: true }), sala, sala)).toBe(
+      'Jugador 2 apuesta 0 (piloto)',
+    );
   });
 
   it('devuelve null para eventos que no se muestran', () => {

@@ -118,7 +118,7 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
   });
 
   socket.on('disconnect', () => {
-    if (vinculo) vinculo.sala.desconectar(vinculo.idJugador);
+    if (vinculo) vinculo.sala.desconectar(vinculo.idJugador, destino);
     vinculo = null;
   });
 
@@ -137,7 +137,8 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
         return;
 
       case 'sala.crear':
-      case 'sala.unirse': {
+      case 'sala.unirse':
+      case 'sala.reconectar': {
         const anterior = ingresos.get(idPedido);
         if (anterior) {
           responder(anterior);
@@ -157,9 +158,12 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
           responder(respuesta);
         };
         if (comando.tipo === 'sala.crear') {
-          gestor.crear(comando.datos.nombre, comando.datos.maxJugadores ?? 7, destino, alResponder);
-        } else {
+          const { nombre, maxJugadores, tiempoTurno } = comando.datos;
+          gestor.crear(nombre, maxJugadores ?? 7, destino, alResponder, tiempoTurno);
+        } else if (comando.tipo === 'sala.unirse') {
           gestor.unirse(comando.datos.codigo, comando.datos.nombre, destino, alResponder);
+        } else {
+          gestor.reconectar(comando.datos.token, destino, alResponder);
         }
         return;
       }
@@ -170,10 +174,17 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
           responder(respuestaError('NO_PERTENECE_A_SALA', 'Primero tenés que crear una sala o unirte a una'));
           return;
         }
-        actual.sala.comando(actual.idJugador, idPedido, comando, (respuesta) => {
-          if (comando.tipo === 'sala.salir' && respuesta.ok && vinculo === actual) vinculo = null;
-          responder(respuesta);
-        });
+        actual.sala.comando(
+          actual.idJugador,
+          idPedido,
+          comando,
+          (respuesta) => {
+            const reemplazada = !respuesta.ok && respuesta.error.codigo === 'SESION_REEMPLAZADA';
+            if (((comando.tipo === 'sala.salir' && respuesta.ok) || reemplazada) && vinculo === actual) vinculo = null;
+            responder(respuesta);
+          },
+          destino,
+        );
       }
     }
   }

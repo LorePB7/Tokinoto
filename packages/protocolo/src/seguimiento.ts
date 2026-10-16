@@ -78,7 +78,7 @@ export function juegoNuevo(asientos: AsientoPublico[], yo: string): VistaJuego {
 function aplicarEvento(sala: VistaSala, evento: MensajeEvento): boolean {
   switch (evento.tipo) {
     case 'sala.jugadorEntro':
-      sala.jugadores.push({ idJugador: evento.datos.idJugador, nombre: evento.datos.nombre, conectado: true });
+      sala.jugadores.push({ idJugador: evento.datos.idJugador, nombre: evento.datos.nombre, conectado: true, piloto: null });
       return true;
     case 'sala.jugadorSalio':
       sala.jugadores = sala.jugadores.filter((j) => j.idJugador !== evento.datos.idJugador);
@@ -93,6 +93,12 @@ function aplicarEvento(sala: VistaSala, evento: MensajeEvento): boolean {
       const jugador = sala.jugadores.find((j) => j.idJugador === evento.datos.idJugador);
       if (!jugador) return false;
       jugador.conectado = evento.datos.conectado;
+      return true;
+    }
+    case 'jugador.pilotoAutomatico': {
+      const jugador = sala.jugadores.find((j) => j.idJugador === evento.datos.idJugador);
+      if (!jugador) return false;
+      jugador.piloto = evento.datos.activado ? evento.datos.motivo : null;
       return true;
     }
     case 'juego.iniciado':
