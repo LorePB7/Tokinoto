@@ -52,6 +52,7 @@ import {
   type VistaSala,
 } from '@tokinoto/protocolo';
 import { eventoDeTurno, traducirEvento, type EventoSalida } from './eventos';
+import type { Historial } from './guardador';
 import { relojReal, type Reloj } from './reloj';
 
 /** A dónde se le envían los mensajes a un jugador (su conexión). */
@@ -79,6 +80,8 @@ export interface OpcionesSala {
   crearAzar: () => Rng;
   /** Qué hacer ante un error inesperado del servidor (no de un jugador). */
   alError: (problema: unknown) => void;
+  /** Dónde se guarda el historial de los juegos (DP-21). null = no se guarda. */
+  historial: Historial | null;
 }
 
 export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
@@ -92,6 +95,7 @@ export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
   reloj: relojReal,
   crearAzar: createCryptoRng,
   alError: (problema) => console.error('[sala] error inesperado:', problema),
+  historial: null,
 };
 
 /** Evento guardado en el registro de la sala, con su número. */
@@ -140,6 +144,9 @@ export class Sala {
   private juego: GameState | null = null;
   private azar: Rng | null = null;
   private resumenPausado = false;
+  /** Identificador del juego en el historial, y cuántos eventos del motor lleva. */
+  private juegoId: string | null = null;
+  private eventosDelMotor = 0;
 
   private seq = 0;
   private readonly registro: RegistroEvento[] = [];
@@ -702,6 +709,17 @@ export class Sala {
     }
     this.juego = creado.value;
     this.azar = this.opciones.crearAzar();
+    const juegoId = randomUUID();
+    this.juegoId = juegoId;
+    this.eventosDelMotor = 0;
+    this.guardar(() =>
+      this.opciones.historial?.juegoNuevo({
+        id: juegoId,
+        sala: this.codigo,
+        jugadores: creado.value.players.map((j) => ({ idJugador: j.id, nombre: j.name })),
+        config: creado.value.config,
+      }),
+    );
     this.aplicarDelServidor({ type: 'INICIAR_JUEGO' });
     return respuestaOk();
   }
@@ -717,10 +735,21 @@ export class Sala {
 
     for (const evento of decision.value) {
       this.juego = evolve(this.juego, evento);
+      const juegoId = this.juegoId;
+      if (juegoId) this.guardar(() => this.opciones.historial?.evento(juegoId, this.eventosDelMotor++, evento));
       for (const salida of traducirEvento(evento, this.juego)) this.emitirSalida(salida);
     }
     this.despuesDeCambiar();
     return null;
+  }
+
+  /** El historial nunca debe afectar al juego: cualquier falla se informa y se sigue. */
+  private guardar(tarea: () => void): void {
+    try {
+      tarea();
+    } catch (problema) {
+      this.opciones.alError(problema);
+    }
   }
 
   /** Acciones que dispara el propio servidor: si el motor las rechaza, es un error del servidor. */

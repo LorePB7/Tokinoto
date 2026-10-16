@@ -237,9 +237,11 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 - Guardar `semilla` permite **repetir un juego exacto** para investigar un error.
 - 🔵 Al guardar eventos que contienen cartas privadas, restringir el acceso: **estos datos nunca se exponen a los clientes**.
 
+> **Implementado en la etapa 7** (ver [`packages/persistencia`](../packages/persistencia/README.md)). Desviaciones: 🔵 no se guarda la semilla, porque se guardan los eventos del motor (con las manos), que reconstruyen el juego exacto; 🔵 hay una sola tabla `eventos`, la del motor; la tabla `salas` guarda código y creación (el anfitrión y la configuración de la sala viven en memoria); la configuración del juego se guarda en `juegos`. Solo se guardan juegos terminados o abortados, sin ranking global (DP-21).
+
 ### 3.7 Recuperación y escala
 🔵
-- **Recuperación tras un reinicio del servidor:** como el estado se reconstruye desde `eventos`, una sala puede **retomarse** donde quedó. Para la primera versión, se puede aceptar que un reinicio **aborte** las salas activas (decisión a confirmar, ver 6).
+- **Recuperación tras un reinicio del servidor:** como el estado se reconstruye desde `eventos`, una sala puede **retomarse** donde quedó. Para la primera versión, se puede aceptar que un reinicio **aborte** las salas activas (decisión a confirmar, ver 6). *Etapa 7: es lo que se implementó; al apagar o iniciar el servidor, los juegos `EN_CURSO` quedan `ABORTADO` con el motivo "Reinicio del servidor".*
 - **Escala:** un solo proceso Node soporta con holgura cientos de salas de 4 a 7 jugadores, que es mucho más de lo que necesitás al inicio. Si algún día hace falta más: se puede **repartir las salas entre varios procesos** manteniendo cada sala siempre en el mismo proceso. El diseño de "una sala = una cola" lo permite sin reescribir las reglas.
 - **Sin Redis al principio.** Se suma solo si hay más de un proceso.
 
