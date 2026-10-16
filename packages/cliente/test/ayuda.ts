@@ -1,7 +1,13 @@
 /** Ayudas para probar el cliente contra un servidor real. */
 import { crearServidor, type ServidorTokinoto } from '@tokinoto/servidor';
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
+import { almacenEnMemoria, type AlmacenSesion } from '../src/estado/sesion';
 import { crearTienda, type Tienda } from '../src/estado/tienda';
+
+/** Una tienda de prueba: sesión en memoria y reintentos rápidos. */
+export function tiendaDePrueba(url: string, almacen: AlmacenSesion = almacenEnMemoria()): Tienda {
+  return crearTienda({ url, almacen, esperasDeReconexion: [20, 50, 100] });
+}
 
 export interface Mundo {
   servidor: ServidorTokinoto;
@@ -11,19 +17,20 @@ export interface Mundo {
 }
 
 export async function levantarMundo(): Promise<Mundo> {
-  const servidor = crearServidor({ sala: { pausaBazaMs: 10, pausaResumenMs: 20 }, limite: { capacidad: 10_000, porSegundo: 10_000 } });
+  const servidor = crearServidor({ sala: { pausaBazaMs: 10, pausaResumenMs: 20, pausaPilotoMs: 10 }, limite: { capacidad: 10_000, porSegundo: 10_000 } });
   const puerto = await servidor.escuchar(0, '127.0.0.1');
   const url = `http://127.0.0.1:${puerto}`;
   const tiendas: Tienda[] = [];
-  return {
+  const mundo: Mundo = {
     servidor,
     url,
     tiendas,
     async cerrar() {
       for (const t of tiendas) t.getState().reiniciar();
-      await servidor.cerrar();
+      await mundo.servidor.cerrar();
     },
   };
+  return mundo;
 }
 
 export async function esperar(condicion: () => boolean, ms = 8000): Promise<void> {
@@ -43,7 +50,7 @@ export function juegoDe(t: Tienda): VistaJuego | null {
 
 /** Crea una sala con `n` jugadores conectados y empieza el juego. */
 export async function armarMesa(mundo: Mundo, n: number): Promise<Tienda[]> {
-  const nuevas = Array.from({ length: n }, () => crearTienda({ url: mundo.url }));
+  const nuevas = Array.from({ length: n }, () => tiendaDePrueba(mundo.url));
   mundo.tiendas.push(...nuevas);
   const [anfitrion, ...resto] = nuevas;
   if (!anfitrion) throw new Error('Hacen falta jugadores');

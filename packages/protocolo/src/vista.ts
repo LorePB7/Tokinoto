@@ -25,7 +25,7 @@ import {
   type GameState,
   type Phase,
 } from '@tokinoto/reglas';
-import type { AsientoPublico, CartaSacada, PuestoEnRanking } from './protocolo';
+import type { AsientoPublico, CartaSacada, MotivoPiloto, PuestoEnRanking } from './protocolo';
 
 /** ESPERANDO = lobby; JUGANDO = juego en curso; TERMINADO = juego terminado o abortado. */
 export type EstadoSala = 'ESPERANDO' | 'JUGANDO' | 'TERMINADO';
@@ -34,6 +34,8 @@ export interface JugadorDeSala {
   idJugador: string;
   nombre: string;
   conectado: boolean;
+  /** Si el piloto automático juega por este jugador, y por qué (null si no). */
+  piloto: MotivoPiloto | null;
 }
 
 /** Todo lo que un jugador sabe de su sala. Es el contenido de `estado.foto`. */
@@ -44,6 +46,8 @@ export interface VistaSala {
   yo: string;
   anfitrion: string | null;
   maxJugadores: number;
+  /** Tiempo por apuesta y por tirada, en ms; null = sin límite. */
+  tiempoTurnoMs: number | null;
   resumenPausado: boolean;
   jugadores: JugadorDeSala[];
   /** Hora del servidor al armar la foto (para calcular la diferencia de relojes). */

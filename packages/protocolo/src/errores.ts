@@ -24,6 +24,8 @@ export type CodigoError =
   | 'JUEGO_NO_INICIADO'
   | 'NOMBRE_EN_USO'
   | 'YA_ESTAS_EN_UNA_SALA'
+  | 'SESION_INVALIDA'
+  | 'SESION_REEMPLAZADA'
   // Protocolo
   | 'MENSAJE_INVALIDO'
   | 'VERSION_NO_SOPORTADA'

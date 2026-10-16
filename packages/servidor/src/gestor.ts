@@ -46,8 +46,17 @@ export class GestorSalas {
     return this.salas.get(codigo.trim().toUpperCase());
   }
 
-  /** Crea una sala; quien la crea es el primer jugador y el anfitrión. */
-  crear(nombre: string, maxJugadores: number, destino: Destino, responder: AlResponderIngreso): void {
+  /**
+   * Crea una sala; quien la crea es el primer jugador y el anfitrión.
+   * `tiempoTurno` en segundos: undefined usa el de las opciones; null es sin límite.
+   */
+  crear(
+    nombre: string,
+    maxJugadores: number,
+    destino: Destino,
+    responder: AlResponderIngreso,
+    tiempoTurno?: number | null,
+  ): void {
     if (this.salas.size >= this.maxSalas) {
       responder(respuestaError('ERROR_INTERNO', 'El servidor no admite más salas en este momento'), null);
       return;
@@ -55,7 +64,9 @@ export class GestorSalas {
     let codigo = generarCodigoSala();
     while (this.salas.has(codigo)) codigo = generarCodigoSala();
 
-    const sala = new Sala(codigo, { ...this.opcionesSala, maxJugadores }, (vacia) => this.olvidar(vacia));
+    const opciones: Partial<OpcionesSala> = { ...this.opcionesSala, maxJugadores };
+    if (tiempoTurno !== undefined) opciones.tiempoTurnoMs = tiempoTurno === null ? null : tiempoTurno * 1000;
+    const sala = new Sala(codigo, opciones, (vacia) => this.olvidar(vacia));
     this.salas.set(codigo, sala);
     sala.unirse(nombre, destino, (respuesta) => {
       if (!respuesta.ok) this.olvidar(sala); // no dejar salas vacías colgadas
@@ -71,6 +82,16 @@ export class GestorSalas {
       return;
     }
     sala.unirse(nombre, destino, (respuesta) => responder(respuesta, respuesta.ok ? sala : null));
+  }
+
+  /** Vuelve a una sala con el token de sesión (que empieza con el código de la sala). */
+  reconectar(token: string, destino: Destino, responder: AlResponderIngreso): void {
+    const sala = this.buscar(token.split('.')[0] ?? '');
+    if (!sala) {
+      responder(respuestaError('SESION_INVALIDA', 'Tu lugar en esa sala ya no existe'), null);
+      return;
+    }
+    sala.reconectar(token, destino, (respuesta) => responder(respuesta, respuesta.ok ? sala : null));
   }
 
   /** Cierra todas las salas (al apagar el servidor). */

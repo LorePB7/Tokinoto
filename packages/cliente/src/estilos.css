@@ -1012,6 +1012,111 @@ button.carta:disabled {
   color: var(--texto-suave);
 }
 
+/* ---------- Ausencias: reconexión, tiempo y piloto automático ---------- */
+
+.boton.chico {
+  padding: 6px 12px;
+  font-size: 14px;
+}
+
+.barra-derecha {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  position: relative;
+}
+
+.confirmar-salida {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  width: min(300px, calc(100vw - 32px));
+  padding: 12px 14px;
+  background: var(--fondo-claro);
+  border: 1px solid var(--laton-oscuro);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.confirmar-salida .acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cuenta-regresiva {
+  font-family: var(--sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--laton-claro);
+}
+
+.turno .cuenta-regresiva {
+  margin-left: 10px;
+  font-size: 16px;
+}
+
+.cuenta-regresiva.urgente {
+  color: var(--alerta);
+}
+
+.insignias i.piloto {
+  background: #7d8fa6;
+  color: #10161d;
+}
+
+.mi-piloto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border: 1px solid #7d8fa6;
+  border-radius: 10px;
+  background: rgba(125, 143, 166, 0.12);
+  font-size: 14px;
+}
+
+.reconectando {
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 95;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  padding: 10px 14px;
+  background: rgba(20, 17, 15, 0.95);
+  border: 1px solid var(--alerta);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+}
+
+.hoja.volver {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  margin-bottom: 16px;
+}
+
+.estado-conexion {
+  color: var(--texto-suave);
+  margin-bottom: 10px;
+}
+
 /* ---------- Pantallas angostas ---------- */
 
 @media (max-width: 820px) {

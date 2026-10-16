@@ -33,13 +33,15 @@ Reglas generales:
 
 | Tipo | Datos | Quién y cuándo |
 |---|---|---|
-| `sala.crear` | `{ nombre, maxJugadores? }` | Cualquiera sin sala. `maxJugadores` es el cupo, de 4 a 7 (por defecto 7) |
+| `sala.crear` | `{ nombre, maxJugadores?, tiempoTurno? }` | Cualquiera sin sala. `maxJugadores` es el cupo, de 4 a 7 (por defecto 7). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13) |
 | `sala.unirse` | `{ codigo, nombre }` | Cualquiera sin sala, con el lobby abierto |
-| `sala.salir` | — | En el lobby, o con el juego terminado |
+| `sala.reconectar` | `{ token }` | Cualquiera sin sala. Vuelve al asiento con el `token` que entregó `sala.crear` o `sala.unirse` (DP-14) |
+| `sala.salir` | — | Cualquier jugador. Con el juego en curso es **abandonar**: el asiento queda y el piloto automático juega por él |
 | `sala.iniciar` | — | Anfitrión, en el lobby, con 4 a 7 jugadores |
 | `sala.pausarResumen` | `{ pausar }` | Anfitrión, durante el juego (DP-23) |
 | `juego.apostar` | `{ valor }` | Quien tiene el turno de apuesta |
 | `juego.jugarCarta` | `{ idCarta }` | Quien tiene el turno de tirada |
+| `juego.retomarControl` | — | Quien tiene el piloto automático activo por vencimientos, con el juego en curso |
 | `juego.revancha` | — | Anfitrión, con el juego terminado (DP-20) |
 | `sync.pedir` | `{ ultimoSeq? }` | Cualquier jugador de la sala. Pide una foto nueva |
 | `ping` | — | Cualquiera. Responde la hora del servidor |
@@ -53,7 +55,9 @@ Ejemplos:
 ```json
 { "v": 1, "tipo": "sala.crear", "idPedido": "a1", "datos": { "nombre": "Ana", "maxJugadores": 5 } }
 { "v": 1, "tipo": "sala.unirse", "idPedido": "b1", "datos": { "codigo": "K7QM2XPA", "nombre": "Beto" } }
+{ "v": 1, "tipo": "sala.reconectar", "idPedido": "b3", "datos": { "token": "K7QM2XPA.…" } }
 { "v": 1, "tipo": "sala.salir", "idPedido": "b2" }
+{ "v": 1, "tipo": "juego.retomarControl", "idPedido": "b4" }
 { "v": 1, "tipo": "sala.iniciar", "idPedido": "a2" }
 { "v": 1, "tipo": "sala.pausarResumen", "idPedido": "a3", "datos": { "pausar": true } }
 { "v": 1, "tipo": "juego.apostar", "idPedido": "a4", "datos": { "valor": 2 } }
@@ -74,10 +78,10 @@ Algunas respuestas `ok` traen datos:
 
 | Comando | `datos` del `ok` |
 |---|---|
-| `sala.crear`, `sala.unirse` | `{ codigo, idJugador, token }`. El `token` es secreto: sirve para recuperar el asiento al reconectar (etapa 6) |
+| `sala.crear`, `sala.unirse`, `sala.reconectar` | `{ codigo, idJugador, token }`. El `token` es secreto: sirve para recuperar el asiento al reconectar. Empieza con el código de la sala y sigue con 24 bytes de azar criptográfico |
 | `ping` | `{ horaServidor }` en milisegundos |
 
-Si el mensaje no se puede leer, el `error` llega con `idPedido: null`.
+Si el mensaje no se puede leer, el `error` llega con `idPedido: null`. También llega con `idPedido: null` el aviso `SESION_REEMPLAZADA` a una conexión que fue reemplazada por otra con el mismo token.
 
 ### Códigos de error
 
@@ -99,12 +103,14 @@ Si el mensaje no se puede leer, el `error` llega con `idPedido: null`.
 | `JUEGO_NO_INICIADO` | Comando de juego sin juego en curso |
 | `NOMBRE_EN_USO` | Ya hay alguien con ese nombre en la sala (sin distinguir mayúsculas) |
 | `YA_ESTAS_EN_UNA_SALA` | La conexión ya está en una sala |
+| `SESION_INVALIDA` | El token no corresponde a ningún asiento (la sala ya no existe, o salió del lobby) |
+| `SESION_REEMPLAZADA` | La misma sesión se abrió desde otra conexión: esta deja de valer |
 | `MENSAJE_INVALIDO` | No cumple el esquema |
 | `VERSION_NO_SOPORTADA` | Otra versión del protocolo: hay que actualizar la página |
 | `DEMASIADOS_MENSAJES` | Superó el límite de frecuencia |
 | `ERROR_INTERNO` | Falla inesperada del servidor |
 
-🔵 Respecto del diseño técnico se agregaron `JUEGO_NO_INICIADO`, `NOMBRE_EN_USO`, `YA_ESTAS_EN_UNA_SALA`, `VERSION_NO_SOPORTADA` y `ERROR_INTERNO`.
+🔵 Respecto del diseño técnico se agregaron `JUEGO_NO_INICIADO`, `NOMBRE_EN_USO`, `YA_ESTAS_EN_UNA_SALA`, `SESION_INVALIDA`, `SESION_REEMPLAZADA`, `VERSION_NO_SOPORTADA` y `ERROR_INTERNO`.
 
 ---
 
@@ -119,10 +125,13 @@ Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que e
 { "v": 1, "tipo": "sala.jugadorSalio", "seq": 4, "datos": { "idJugador": "…" } }
 { "v": 1, "tipo": "sala.anfitrionCambio", "seq": 5, "datos": { "anfitrion": "…idJugador…" } }
 { "v": 1, "tipo": "jugador.conexion", "seq": 90, "datos": { "idJugador": "…", "asiento": 2, "conectado": false } }
+{ "v": 1, "tipo": "jugador.pilotoAutomatico", "seq": 91, "datos": { "idJugador": "…", "asiento": 2, "activado": true, "motivo": "desconexion" } }
 { "v": 1, "tipo": "sala.resumenPausado", "seq": 120, "datos": { "pausado": true } }
 ```
 
-Quien entra no recibe su propio `sala.jugadorEntro`, porque su foto ya lo incluye.
+Quien entra no recibe su propio `sala.jugadorEntro`, porque su foto ya lo incluye. Del mismo modo, quien vuelve con `sala.reconectar` no recibe su propio `jugador.conexion` ni el `jugador.pilotoAutomatico` que lo desactiva.
+
+`jugador.pilotoAutomatico.motivo` es `desconexion`, `abandono` (salió con `sala.salir`) o `tiempo` (3 vencimientos seguidos). Al desactivarse, `activado` es `false` y `motivo` es `null`.
 
 ### Juego
 
@@ -132,10 +141,10 @@ Quien entra no recibe su propio `sala.jugadorEntro`, porque su foto ya lo incluy
 { "tipo": "sorteo.resultado", "datos": { "repartidor": 3 } }
 { "tipo": "partida.iniciada", "datos": { "partida": 1, "cartasPorJugador": 1, "repartidor": 3, "pie": 3, "mano": 4 } }
 { "tipo": "partida.manoRepartida", "datos": { "cantidades": [1, 1, 1, 1, 1], "cartas": ["7-treboles"] } }
-{ "tipo": "apuesta.turno", "datos": { "asiento": 4, "valorProhibido": null, "fechaLimite": null } }
+{ "tipo": "apuesta.turno", "datos": { "asiento": 4, "valorProhibido": null, "fechaLimite": 1760572830000 } }
 { "tipo": "apuesta.realizada", "datos": { "asiento": 4, "valor": 1, "porPiloto": false } }
 { "tipo": "baza.iniciada", "datos": { "baza": 1, "mano": 4 } }
-{ "tipo": "baza.turno", "datos": { "asiento": 4, "baza": 1, "fechaLimite": null } }
+{ "tipo": "baza.turno", "datos": { "asiento": 4, "baza": 1, "fechaLimite": 1760572861000 } }
 { "tipo": "baza.cartaJugada", "datos": { "asiento": 4, "carta": "Q-diamantes", "porPiloto": false } }
 { "tipo": "baza.resuelta", "datos": { "baza": 1, "ganador": 0, "cartaGanadora": "A-picas", "tieneFicha": true } }
 { "tipo": "partida.puntajes", "datos": { "partida": 1, "resultados": [ { "asiento": 0, "apuesta": 1, "bazasGanadas": 1, "puntos": 6 } ], "totales": [6, 0, 0, 0, 5] } }
@@ -152,7 +161,9 @@ Notas:
 - Si el anfitrión pide la revancha con el resumen en pausa, el juego nuevo empieza sin pausa y se avisa con `sala.resumenPausado` (`pausado: false`).
 - `apuesta.turno.valorProhibido` es el valor que el Pié no puede apostar. Es `null` si no le toca al Pié o si no hay restricción efectiva.
 - `baza.resuelta`: el ganador es el Mano de la baza siguiente. `tieneFicha` indica si el montón lleva ficha.
-- `porPiloto` y `fechaLimite` quedan reservados para la etapa 6 (piloto automático y tiempo límite). Hoy valen `false` y `null`.
+- `fechaLimite` es la hora del servidor (en ms) en que vence el turno. Es `null` si la sala no tiene límite o si juega el piloto automático.
+- `porPiloto` es `true` si la apuesta o la carta la eligió el piloto automático.
+- Un turno puede anunciarse de nuevo (otro `apuesta.turno` o `baza.turno` para el mismo asiento) si cambia quién lo controla: por ejemplo, si el jugador se desconecta en su turno o vuelve. Vale el último.
 - 🔵 Respecto del diseño técnico se agregaron `baza.iniciada` y `sala.resumenPausado`.
 
 ### Ritmo
@@ -162,17 +173,36 @@ El servidor maneja los tiempos (DP-23):
 - Tras `baza.resuelta`, la baza queda a la vista unos **3 s** antes de seguir.
 - Tras `partida.puntajes`, el resumen dura unos **10 s**, salvo que el anfitrión lo pause con `sala.pausarResumen`. La pausa sigue activa en los resúmenes siguientes hasta que se reanude.
 
+### Ausencias: tiempo límite, piloto automático y reconexión
+
+Reglas oficiales del modo online (DP-12 a DP-14):
+
+- **Tiempo límite** (DP-13): cada apuesta y cada tirada tiene el tiempo de la sala (30 s por defecto). Si vence, el piloto automático hace esa jugada. Tras **3 vencimientos seguidos**, el piloto toma el asiento hasta que el jugador actúe de nuevo.
+- **Piloto automático** (DP-12b): apuesta el menor valor válido (0, o 1 si 0 está prohibido) y juega la carta de menor valor.
+- **Desconexión o abandono** (DP-12): el asiento nunca se elimina. El piloto juega por él y sus puntos se conservan.
+- **Reconexión** (DP-14): con su `token`, el jugador vuelve a su asiento sin límite de tiempo mientras el juego siga. Recibe la foto completa y el piloto se desactiva. Si le tocaba, su turno vuelve a empezar con el plazo completo.
+- **Nadie conectado** (DP-12): si no queda ningún jugador conectado durante **3 minutos**, el juego pasa a `ABORTADO` y la sala se cierra.
+
+🔵 Recomendaciones técnicas (no son reglas del juego; se pueden cambiar en la configuración del servidor):
+
+- El piloto espera **1 s** antes de jugar, para que la mesa se pueda seguir.
+- Mientras no hay nadie conectado, el piloto **no juega**: la mesa espera a que alguien vuelva o a que venza la espera de 3 minutos.
+- Quien tiene el piloto por vencimientos puede recuperar el control con `juego.retomarControl`, o simplemente jugando en su turno antes de que el piloto actúe.
+- En el **lobby**, quien se desconecta conserva su lugar **15 s** (por ejemplo, si recarga la página). Si no vuelve, sale de la sala.
+- Si la misma sesión se abre desde otra conexión (otra pestaña), la nueva reemplaza a la anterior, que recibe `SESION_REEMPLAZADA`.
+- En la revancha, quien sigue desconectado empieza con el piloto activo.
+
 ## Foto del estado
 
-La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que puede saber de su sala y del juego en curso, y nada más. Se envía al entrar a la sala y como respuesta a `sync.pedir`. Su `seq` es el del último evento que ya incluye, así que el siguiente evento llega con `seq + 1`.
+La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que puede saber de su sala y del juego en curso, y nada más. Se envía al entrar a la sala, al volver con `sala.reconectar` y como respuesta a `sync.pedir`. Su `seq` es el del último evento que ya incluye, así que el siguiente evento llega con `seq + 1`.
 
 ```json
 {
   "v": 1, "tipo": "estado.foto", "seq": 212,
   "datos": {
     "codigo": "K7QM2XPA", "estado": "JUGANDO", "yo": "…", "anfitrion": "…", "maxJugadores": 7,
-    "resumenPausado": false,
-    "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true } ],
+    "tiempoTurnoMs": 30000, "resumenPausado": false,
+    "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true, "piloto": null } ],
     "horaServidor": 1760572800000,
     "juego": {
       "fase": "TIRADAS",
@@ -188,7 +218,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
       "bazasCerradas": [ { "baza": 1, "ganador": 0, "cartaGanadora": "A-treboles", "tieneFicha": true } ],
       "puntajes": [[6, 0, 7, 5], [0, 5, 0, 6]],
       "totales": [18, 11],
-      "turno": { "tipo": "carta", "asiento": 2, "fechaLimite": null },
+      "turno": { "tipo": "carta", "asiento": 2, "fechaLimite": 1760572830000 },
       "ranking": null,
       "motivoAborto": null
     }
@@ -202,6 +232,8 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
 - `fase` puede ser `SORTEO`, `APUESTAS`, `TIRADAS`, `BAZA_RESUELTA` (la pausa de ~3 s), `RESUMEN` (la pausa de ~10 s), `TERMINADO` o `ABORTADO`.
 - **Regla de oro:** `miMano` trae solo las cartas propias. De los demás, solo `cantidades`. De las bazas cerradas, solo la carta ganadora y quién ganó. La baza en curso muestra todas sus cartas, que son públicas. El mazo no aparece.
 - `puntajes[asiento][partida - 1]` son los puntos de cada partida jugada. Sirven para el desempate final.
+- `jugadores[].piloto` indica si el piloto automático juega por ese jugador y por qué (`desconexion`, `abandono`, `tiempo`), o `null`.
+- `horaServidor` permite al cliente calcular la diferencia con su reloj y mostrar bien la cuenta regresiva.
 
 ## Seguimiento del estado en el cliente
 
@@ -224,7 +256,7 @@ El cliente guarda la última foto y le aplica cada evento en orden, con `aplicar
 
 ## Pendiente para próximas etapas
 
-| Mensaje | Etapa |
+| Tema | Etapa |
 |---|---|
-| `sala.reconectar` (con el `token`) | 6 |
-| Fecha límite por turno, piloto automático y `jugador.pilotoAutomatico` | 6 |
+| Guardar los juegos terminados y el registro de eventos (DP-21) | 7 |
+| Retomar las salas tras un reinicio del servidor (hoy un reinicio las cierra) | 7 |

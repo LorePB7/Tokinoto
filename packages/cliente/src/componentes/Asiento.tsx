@@ -1,7 +1,14 @@
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { posicionAsiento } from '../util/geometria';
 import { Carta } from './Carta';
+import { CuentaRegresiva } from './CuentaRegresiva';
 import { Ficha } from './Ficha';
+
+const TEXTO_PILOTO = {
+  desconexion: 'Se desconectó: el piloto automático juega por él',
+  abandono: 'Dejó la mesa: el piloto automático juega por él',
+  tiempo: 'Se le venció el tiempo varias veces: el piloto automático juega por él',
+} as const;
 
 interface PropiedadesAsiento {
   sala: VistaSala;
@@ -20,7 +27,10 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const ganadas = juego.bazasGanadas[asiento] ?? 0;
   const cartas = juego.cantidades[asiento] ?? 0;
   const enTurno = juego.turno?.asiento === asiento;
-  const desconectado = sala.jugadores.find((j) => j.idJugador === datos.idJugador)?.conectado === false;
+  const jugador = sala.jugadores.find((j) => j.idJugador === datos.idJugador);
+  const desconectado = jugador?.conectado === false;
+  const piloto = jugador?.piloto ?? null;
+  const fechaLimite = enTurno ? (juego.turno?.fechaLimite ?? null) : null;
   const montones = juego.bazasCerradas.filter((b) => b.ganador === asiento);
   // Los montones van hacia afuera de la mesa, para no tapar las cartas de la baza.
   const arriba = y < 42;
@@ -39,13 +49,19 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
           {datos.nombre}
           {soyYo ? ' (vos)' : ''}
         </span>
-        {(reparte || esMano || desconectado) && (
+        {(reparte || esMano || desconectado || piloto) && (
           <span className="insignias">
             {reparte && <i title="Reparte y apuesta último">Pié</i>}
             {esMano && <i title="Abre la baza">Mano</i>}
-            {desconectado && <i className="alerta">Sin conexión</i>}
+            {desconectado && !piloto && <i className="alerta">Sin conexión</i>}
+            {piloto && (
+              <i className="piloto" title={TEXTO_PILOTO[piloto]}>
+                Piloto
+              </i>
+            )}
           </span>
         )}
+        {fechaLimite !== null && <CuentaRegresiva fechaLimite={fechaLimite} />}
         <span className="marcador">
           {apuesta === null ? (
             <span className="sin-apuesta">{juego.fase === 'APUESTAS' ? 'Sin apostar' : ''}</span>

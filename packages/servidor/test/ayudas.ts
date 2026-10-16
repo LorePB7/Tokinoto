@@ -9,7 +9,7 @@ import {
 import { expect } from 'vitest';
 import { mensajeRespuesta, type ComandoDeSala, type MensajeServidor, type Respuesta } from '@tokinoto/protocolo';
 import type { Reloj } from '../src/reloj';
-import { Sala, type OpcionesSala } from '../src/sala';
+import { Sala, type Destino, type OpcionesSala } from '../src/sala';
 
 /** Reloj manual: el tiempo solo avanza cuando la prueba lo pide. */
 export class RelojManual implements Reloj {
@@ -70,6 +70,8 @@ export interface JugadorDePrueba {
   token: string;
   /** Todo lo que recibió: respuestas a sus comandos, eventos y fotos, en orden. */
   recibidos: MensajeServidor[];
+  /** Su conexión actual (cambia al reconectar). */
+  destino: Destino;
 }
 
 export interface Mesa {
@@ -80,6 +82,8 @@ export interface Mesa {
   vaciada: () => boolean;
   /** Suma un jugador más. Devuelve la respuesta y, si entró, el jugador. */
   sumar(nombre: string): { respuesta: Respuesta; jugador: JugadorDePrueba | null };
+  /** El jugador `indice` vuelve con su token desde una conexión nueva (lo recibido se sigue juntando). */
+  reconectar(indice: number, token?: string): Respuesta;
   /** Ejecuta un comando como el jugador `indice` y devuelve la respuesta. */
   comando(indice: number, comando: ComandoDeSala, idPedido?: string): Respuesta;
   /** Eventos (con seq) que recibió un jugador. */
@@ -114,7 +118,8 @@ export function armarMesa(
   function sumar(nombre: string) {
     const recibidos: MensajeServidor[] = [];
     let respuesta: Respuesta | null = null;
-    sala.unirse(nombre, { enviar: (m) => recibidos.push(m) }, (r) => {
+    const destino: Destino = { enviar: (m) => recibidos.push(m) };
+    sala.unirse(nombre, destino, (r) => {
       respuesta = r;
       recibidos.push(mensajeRespuesta('ingreso', r));
     });
@@ -126,6 +131,7 @@ export function armarMesa(
       token: final.datos['token'] as string,
       nombre,
       recibidos,
+      destino,
     };
     jugadores.push(jugador);
     return { respuesta: final, jugador };
@@ -140,6 +146,20 @@ export function armarMesa(
     errores,
     vaciada: () => vaciada,
     sumar,
+    reconectar(indice, token) {
+      const jugador = jugadores[indice];
+      if (!jugador) throw new Error(`No hay jugador ${indice}`);
+      const destino: Destino = { enviar: (m) => jugador.recibidos.push(m) };
+      let respuesta: Respuesta | null = null;
+      sala.reconectar(token ?? jugador.token, destino, (r) => {
+        respuesta = r;
+        jugador.recibidos.push(mensajeRespuesta('reconexion', r));
+      });
+      const final = respuesta as Respuesta | null;
+      if (!final) throw new Error('La sala no respondió de inmediato');
+      if (final.ok) jugador.destino = destino;
+      return final;
+    },
     comando(indice, comando, idPedido = `p${++contadorPedidos}`) {
       const jugador = jugadores[indice];
       if (!jugador) throw new Error(`No hay jugador ${indice}`);

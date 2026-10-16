@@ -12,7 +12,10 @@ import { crearTienda, type Tienda } from '../src/estado/tienda';
 import { Inicio } from '../src/pantallas/Inicio';
 import { Lobby } from '../src/pantallas/Lobby';
 import { Mesa, mensajeDeTurno } from '../src/pantallas/Mesa';
-import { armarMesa, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, type Mundo } from './ayuda';
+import { App } from '../src/App';
+import { CuentaRegresiva } from '../src/componentes/CuentaRegresiva';
+import { almacenEnMemoria } from '../src/estado/sesion';
+import { armarMesa, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, type Mundo } from './ayuda';
 
 const con = (tienda: Tienda, hijo: ReactNode) => render(<ProveedorTienda tienda={tienda}>{hijo}</ProveedorTienda>);
 
@@ -64,10 +67,11 @@ describe('con un servidor real', () => {
   });
 
   it('Lobby muestra el código y bloquea "Iniciar" con menos de 4 jugadores', async () => {
-    const ana = crearTienda({ url: mundo.url });
+    const ana = tiendaDePrueba(mundo.url);
     mundo.tiendas.push(ana);
     await ana.getState().crearSala('Ana', 4);
     con(ana, <Lobby />);
+    expect(screen.getByText(/Tiempo por jugada: 30 segundos/)).toBeInTheDocument();
     expect(screen.getByText(salaDe(ana)!.codigo)).toBeInTheDocument();
     expect(screen.getByText(/^Ana/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /iniciar/i })).toBeDisabled();
@@ -138,4 +142,101 @@ describe('con un servidor real', () => {
     expect(within(final).getAllByRole('listitem')).toHaveLength(4);
     expect(within(final).getByRole('button', { name: /jugar de nuevo/i })).toBeInTheDocument();
   }, 70000);
+});
+
+describe('ausencias (etapa 6)', () => {
+  it('la cuenta regresiva muestra los segundos y se resalta en los últimos 10', () => {
+    const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
+    const { rerender } = con(tienda, <CuentaRegresiva fechaLimite={Date.now() + 25_500} />);
+    expect(screen.getByRole('timer')).toHaveTextContent('26 s');
+    expect(screen.getByRole('timer')).not.toHaveClass('urgente');
+    rerender(
+      <ProveedorTienda tienda={tienda}>
+        <CuentaRegresiva fechaLimite={Date.now() + 8_000} />
+      </ProveedorTienda>,
+    );
+    expect(screen.getByRole('timer')).toHaveClass('urgente');
+    // Con el reloj del servidor adelantado, quedan menos segundos.
+    tienda.setState({ desfaseReloj: 5_000 });
+    rerender(
+      <ProveedorTienda tienda={tienda}>
+        <CuentaRegresiva fechaLimite={Date.now() + 25_500} />
+      </ProveedorTienda>,
+    );
+    expect(screen.getByRole('timer')).toHaveTextContent('21 s');
+  });
+
+  it('Inicio ofrece volver a la última partida de este navegador', () => {
+    const almacen = almacenEnMemoria();
+    almacen.ultima = { token: 'ABCDEFGH.secreto', codigo: 'ABCDEFGH', nombre: 'Ana' };
+    const tienda = crearTienda({ url: 'http://127.0.0.1:1', almacen });
+    con(tienda, <Inicio />);
+    expect(screen.getByText(/Tenés una partida en la sala/)).toHaveTextContent('ABCDEFGH como Ana');
+    expect(screen.getByRole('button', { name: /volver a esa partida/i })).toBeEnabled();
+    expect(screen.getByLabelText(/tiempo por jugada/i)).toHaveValue('30');
+  });
+
+  it('avisa mientras reconecta y si la sesión se abrió en otra pestaña', () => {
+    const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
+    tienda.setState({ conexion: 'reconectando' });
+    const { unmount } = con(tienda, <App />);
+    expect(screen.getByText(/Volviendo a la mesa/)).toBeInTheDocument();
+    unmount();
+    tienda.setState({ conexion: 'reemplazada', token: 'ABCDEFGH.secreto' });
+    con(tienda, <App />);
+    expect(screen.getByRole('heading', { name: /otra pestaña/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /jugar en esta pestaña/i })).toBeInTheDocument();
+  });
+
+  describe('con un servidor real', () => {
+    let mundo: Mundo;
+    beforeEach(async () => {
+      mundo = await levantarMundo();
+    });
+    afterEach(async () => {
+      await mundo.cerrar();
+    });
+
+    it('la mesa muestra el piloto de quien se fue y la cuenta regresiva del turno', async () => {
+      const tiendas = await armarMesa(mundo, 4);
+      await esperar(() => tiendas.every((t) => juegoDe(t)?.fase === 'APUESTAS' && juegoDe(t)?.turno));
+      const quedan = tiendas.slice(0, 3);
+      await tiendas[3]!.getState().salir();
+      await esperar(() => quedan.every((t) => salaDe(t)?.jugadores[3]?.piloto === 'abandono'));
+      const t = quedan[0]!;
+      con(t, <Mesa sala={salaDe(t)!} juego={juegoDe(t)!} />);
+      expect(screen.getByText('Piloto')).toBeInTheDocument();
+      if (juegoDe(t)!.turno?.fechaLimite) expect(screen.getAllByRole('timer').length).toBeGreaterThan(0);
+    });
+
+    it('salir del juego pide confirmación', async () => {
+      const tiendas = await armarMesa(mundo, 4);
+      await esperar(() => tiendas.every((t) => juegoDe(t)?.fase === 'APUESTAS'));
+      const t = tiendas[1]!;
+      const { rerender } = con(t, <Mesa sala={salaDe(t)!} juego={juegoDe(t)!} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Salir' }));
+      expect(screen.getByRole('alertdialog')).toHaveTextContent(/piloto automático/);
+      await userEvent.click(screen.getByRole('button', { name: /seguir jugando/i }));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      await userEvent.click(screen.getByRole('button', { name: 'Salir' }));
+      await userEvent.click(screen.getByRole('button', { name: /sí, salir/i }));
+      await esperar(() => salaDe(t) === null);
+      rerender(<ProveedorTienda tienda={t}>{null}</ProveedorTienda>);
+      await esperar(() => salaDe(tiendas[0]!)?.jugadores[1]?.piloto === 'abandono');
+    });
+
+    it('si el piloto juega por mí, puedo retomar el control', async () => {
+      const tiendas = await armarMesa(mundo, 4);
+      await esperar(() => tiendas.every((t) => juegoDe(t)?.fase === 'APUESTAS'));
+      const t = tiendas[2]!;
+      // Simulamos lo que veríamos tras 3 vencimientos seguidos.
+      const sala = structuredClone(salaDe(t)!);
+      sala.jugadores.find((j) => j.idJugador === sala.yo)!.piloto = 'tiempo';
+      t.setState({ seguimiento: { ...t.getState().seguimiento, sala } });
+      con(t, <Mesa sala={sala} juego={sala.juego!} />);
+      expect(screen.getByText(/el piloto automático está jugando por vos/)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /retomar el control/i }));
+      expect(t.getState().aviso).toBeNull();
+    });
+  });
 });

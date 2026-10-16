@@ -39,6 +39,18 @@ export function describirEvento(
       return evento.datos.pausado ? 'El anfitrión pausó el resumen' : 'Se reanudó el resumen';
     case 'jugador.conexion':
       return `${nombreDeJugador(despues, evento.datos.idJugador)} ${evento.datos.conectado ? 'volvió' : 'se desconectó'}`;
+    case 'jugador.pilotoAutomatico': {
+      const quien = nombreDeJugador(despues, evento.datos.idJugador);
+      if (!evento.datos.activado) return `${quien} retomó el control`;
+      switch (evento.datos.motivo) {
+        case 'abandono':
+          return `${quien} dejó la mesa: juega el piloto automático`;
+        case 'tiempo':
+          return `A ${quien} se le venció el tiempo: juega el piloto automático`;
+        default:
+          return `El piloto automático juega por ${quien}`;
+      }
+    }
     case 'juego.iniciado':
       return 'Empezó el juego';
     case 'sorteo.cartasSacadas': {
@@ -55,9 +67,9 @@ export function describirEvento(
       return `Partida ${partida}: ${cartasPorJugador} ${cartasPorJugador === 1 ? 'carta' : 'cartas'} por jugador`;
     }
     case 'apuesta.realizada':
-      return `${nombre(evento.datos.asiento)} apuesta ${evento.datos.valor}`;
+      return `${nombre(evento.datos.asiento)} apuesta ${evento.datos.valor}${evento.datos.porPiloto ? ' (piloto)' : ''}`;
     case 'baza.cartaJugada':
-      return `${nombre(evento.datos.asiento)} juega ${infoCarta(evento.datos.carta).texto}`;
+      return `${nombre(evento.datos.asiento)} juega ${infoCarta(evento.datos.carta).texto}${evento.datos.porPiloto ? ' (piloto)' : ''}`;
     case 'baza.resuelta':
       return `${nombre(evento.datos.ganador)} gana la baza con ${infoCarta(evento.datos.cartaGanadora).texto}`;
     case 'partida.puntajes':

@@ -59,8 +59,8 @@ describe('lobby', () => {
       anfitrion: ana!.id,
       maxJugadores: 7,
       jugadores: [
-        { idJugador: ana!.id, nombre: 'Jugador 1', conectado: true },
-        { idJugador: beto!.id, nombre: 'Jugador 2', conectado: true },
+        { idJugador: ana!.id, nombre: 'Jugador 1', conectado: true, piloto: null },
+        { idJugador: beto!.id, nombre: 'Jugador 2', conectado: true, piloto: null },
       ],
     });
     // El token es secreto: no aparece en lo que reciben los demás.
@@ -75,7 +75,7 @@ describe('lobby', () => {
   });
 
   it('si el anfitrión se va, el rol pasa al siguiente; vacía, la sala se cierra', () => {
-    const mesa = armarMesa(3);
+    const mesa = armarMesa(3, { graciaLobbyMs: 0 });
     const [ana, beto, caro] = mesa.jugadores;
     expect(mesa.comando(0, { tipo: 'sala.salir' })).toEqual(OK);
     expect(mesa.sala.idAnfitrion).toBe(beto!.id);
@@ -143,7 +143,8 @@ describe('inicio del juego', () => {
     expect(mesa.eventos(0, 'apuesta.turno')[0]!.datos).toEqual({
       asiento: currentTurn(juego)!.seat,
       valorProhibido: null,
-      fechaLimite: null,
+      // El reloj de prueba está en 0: la fecha límite es la hora más el tiempo por jugada (30 s).
+      fechaLimite: 30_000,
     });
   });
 
@@ -448,17 +449,18 @@ describe('revancha', () => {
 });
 
 describe('desconexiones', () => {
-  it('en juego el asiento se conserva, se avisa y el anfitrión pasa a otro conectado', () => {
+  it('en juego el asiento se conserva, se avisa, el anfitrión pasa a otro y el piloto toma el asiento', () => {
     const mesa = armarMesa(4);
     iniciar(mesa);
     const [ana, beto] = mesa.jugadores;
-    expect(mesa.comando(0, { tipo: 'sala.salir' })).toMatchObject({ error: { codigo: 'JUEGO_YA_INICIADO' } });
     mesa.sala.desconectar(ana!.id);
     expect(mesa.sala.cantidadJugadores).toBe(4);
     expect(mesa.sala.idAnfitrion).toBe(beto!.id);
-    expect(mesa.eventos(1).slice(-2).map((e) => [e.tipo, e.datos])).toEqual([
+    const avisos = mesa.eventos(1).filter((e) => e.tipo !== 'apuesta.turno');
+    expect(avisos.slice(-3).map((e) => [e.tipo, e.datos])).toEqual([
       ['jugador.conexion', { idJugador: ana!.id, asiento: 0, conectado: false }],
       ['sala.anfitrionCambio', { anfitrion: beto!.id }],
+      ['jugador.pilotoAutomatico', { idJugador: ana!.id, asiento: 0, activado: true, motivo: 'desconexion' }],
     ]);
     // Desconectar dos veces no repite el aviso.
     const cantidad = mesa.eventos(1).length;
@@ -466,8 +468,8 @@ describe('desconexiones', () => {
     expect(mesa.eventos(1)).toHaveLength(cantidad);
   });
 
-  it('si no queda nadie conectado, la sala se cierra y cancela las pausas', () => {
-    const mesa = armarMesa(4, { semilla: 2 });
+  it('si no queda nadie conectado, la mesa espera y, si nadie vuelve, el juego se aborta y la sala se cierra', () => {
+    const mesa = armarMesa(4, { semilla: 2, esperaAbortoMs: 60_000 });
     iniciar(mesa);
     // Llegamos a una baza resuelta para que haya una pausa programada.
     while (mesa.sala.estadoDelJuego!.phase !== 'TRICK_RESOLUTION') {
@@ -482,6 +484,16 @@ describe('desconexiones', () => {
     }
     expect(mesa.reloj.pendientes).toBe(1);
     for (const jugador of mesa.jugadores) mesa.sala.desconectar(jugador.id);
+    expect(mesa.vaciada()).toBe(false);
+    const desde = mesa.sala.eventos.length;
+    // La baza termina y empieza la siguiente, pero el piloto no juega sin nadie mirando.
+    mesa.reloj.avanzar(59_000);
+    expect(mesa.sala.estadoDelJuego!.phase).not.toBe('TRICK_RESOLUTION');
+    const jugadas = mesa.sala.eventos.slice(desde).filter((e) => e.tipo === 'apuesta.realizada' || e.tipo === 'baza.cartaJugada');
+    expect(jugadas).toEqual([]);
+    mesa.reloj.avanzar(1_000);
+    expect(mesa.sala.estadoDelJuego!.phase).toBe('ABORTED');
+    expect(mesa.sala.eventos.at(-1)).toMatchObject({ tipo: 'juego.abortado', datos: { motivo: 'No quedó ningún jugador conectado' } });
     expect(mesa.vaciada()).toBe(true);
     expect(mesa.reloj.pendientes).toBe(0);
   });

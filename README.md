@@ -29,7 +29,7 @@ docs/         Especificación y diseño
 | 3 | Servidor mínimo (salas, WebSocket) | Hecho |
 | 4 | Vistas por jugador (ocultar cartas ajenas) | Hecho |
 | 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Hecho |
-| 6 | Reconexión, temporizadores y piloto automático | Pendiente |
+| 6 | Reconexión, temporizadores y piloto automático | Hecho |
 | 7 | Persistencia (PostgreSQL) | Pendiente |
 | 8 | Pulido de interfaz | Pendiente |
 | 9 | Despliegue | Pendiente |
