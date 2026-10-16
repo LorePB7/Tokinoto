@@ -2,8 +2,10 @@ import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { useState } from 'react';
 import { CuentaRegresiva } from '../componentes/CuentaRegresiva';
 import { Mano } from '../componentes/Mano';
+import { PanelApuesta } from '../componentes/PanelApuesta';
 import { MesaRedonda } from '../componentes/MesaRedonda';
 import { Registro } from '../componentes/Registro';
+import { BotonReglas } from '../componentes/Reglas';
 import { Resultados } from '../componentes/Resultados';
 import { Resumen } from '../componentes/Resumen';
 import { useTienda } from '../estado/contexto';
@@ -99,6 +101,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
           <p className="sala-codigo">
             Sala <strong>{sala.codigo}</strong>
           </p>
+          <BotonReglas />
           <BotonSalir enCurso={enCurso} />
         </div>
       </header>
@@ -111,6 +114,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
           {mensajeDeTurno(juego)}
           {miFechaLimite !== null && <CuentaRegresiva fechaLimite={miFechaLimite} />}
         </p>
+        <PanelApuesta juego={juego} />
         <Mano juego={juego} />
       </footer>
 

@@ -98,19 +98,27 @@ for (const j of invitados) {
 }
 await anfitrion.pagina.getByText(`Jugadores (${cantidad} de 7)`).waitFor();
 await captura(anfitrion, '2-sala-de-espera');
+
+// Reglas: el botón abre un panel al costado con el valor de las cartas, y se cierra.
+await anfitrion.pagina.getByRole('button', { name: 'Reglas' }).click();
+await anfitrion.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor();
+verificar((await anfitrion.pagina.locator('.panel-reglas .carta').count()) === 14, 'El panel de reglas no muestra las 14 cartas');
+await captura(anfitrion, '2b-reglas');
+await anfitrion.pagina.keyboard.press('Escape');
+await anfitrion.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor({ state: 'detached' });
 await anfitrion.pagina.getByRole('button', { name: 'Iniciar juego' }).click();
 
 // Juego: cada jugador mira su pantalla y actúa cuando le toca.
 const capturado = new Set<string>();
 async function actuar(j: Jugador): Promise<void> {
   const p = j.pagina;
-  const fichas = p.locator('.boton-ficha:not([disabled])');
+  const fichas = p.locator('.boton-apuesta:not([disabled])');
   if ((await fichas.count()) > 0) {
-    if (!capturado.has(`${j.nombre}-apuesta`) && (await p.locator('.boton-ficha').count()) >= 3) {
+    if (!capturado.has(`${j.nombre}-apuesta`) && (await p.locator('.boton-apuesta').count()) >= 3) {
       capturado.add(`${j.nombre}-apuesta`);
       await captura(j, '3-apuesta');
     }
-    if (!capturado.has(`${j.nombre}-apuesta-grande`) && (await p.locator('.boton-ficha').count()) >= 8) {
+    if (!capturado.has(`${j.nombre}-apuesta-grande`) && (await p.locator('.boton-apuesta').count()) >= 8) {
       capturado.add(`${j.nombre}-apuesta-grande`);
       await captura(j, '3b-apuesta-con-7-cartas');
     }

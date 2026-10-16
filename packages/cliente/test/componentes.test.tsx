@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Carta } from '../src/componentes/Carta';
 import { Ficha } from '../src/componentes/Ficha';
 import { Mano } from '../src/componentes/Mano';
+import { BotonReglas } from '../src/componentes/Reglas';
 import { PanelApuesta } from '../src/componentes/PanelApuesta';
 import { Resultados } from '../src/componentes/Resultados';
 import { ProveedorTienda } from '../src/estado/contexto';
@@ -43,6 +44,43 @@ describe('Carta y Ficha', () => {
   it('la ficha lleva su número', () => {
     render(<Ficha valor={5} />);
     expect(screen.getByText('5')).toBeInTheDocument();
+  });
+});
+
+describe('fichas y reglas', () => {
+  it('todas las fichas son iguales: solo cambia el número', () => {
+    const { container } = render(
+      <>
+        <Ficha valor={0} />
+        <Ficha valor={3} />
+        <Ficha valor={7} />
+      </>,
+    );
+    const clases = [...container.querySelectorAll('.ficha')].map((f) => f.className);
+    expect(clases).toHaveLength(3);
+    expect(new Set(clases).size).toBe(1);
+  });
+
+  it('el botón Reglas abre un panel con las reglas y las 14 cartas, y se cierra con Escape devolviendo el foco', async () => {
+    render(<BotonReglas />);
+    const boton = screen.getByRole('button', { name: 'Reglas' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(boton);
+    const panel = screen.getByRole('dialog', { name: /reglas del juego/i });
+    expect(within(within(panel).getByRole('list', { name: /cartas de menor a mayor/i })).getAllByRole('listitem')).toHaveLength(14);
+    expect(within(panel).getByText(/le gana a todas, incluso al As/i)).toBeInTheDocument();
+    expect(within(panel).getByText(/5 puntos más tu apuesta/i)).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(boton).toHaveFocus();
+  });
+
+  it('el botón Cerrar también cierra el panel', async () => {
+    render(<BotonReglas flotante />);
+    await userEvent.click(screen.getByRole('button', { name: 'Reglas' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
@@ -117,10 +155,12 @@ describe('con un servidor real', () => {
     const a = con(sinTurno, <Mano juego={juegoDe(sinTurno)!} />);
     expect(within(screen.getByRole('group', { name: /tu mano/i })).queryAllByRole('button')).toHaveLength(0);
     expect(mensajeDeTurno(juegoDe(sinTurno)!)).toMatch(/^Juega /);
+    expect(screen.queryByText(/tocá la carta que querés jugar/i)).toBeNull();
     a.unmount();
 
     con(conTurno, <Mano juego={juegoDe(conTurno)!} />);
     expect(mensajeDeTurno(juegoDe(conTurno)!)).toBe('Te toca jugar una carta');
+    expect(screen.getByText(/tocá la carta que querés jugar/i)).toBeInTheDocument();
     const botones = within(screen.getByRole('group', { name: /tu mano/i })).getAllByRole('button');
     expect(botones.length).toBeGreaterThan(0);
     await userEvent.click(botones[0]!);

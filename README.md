@@ -17,7 +17,7 @@ packages/
   simulador/  Simulador en consola que juega juegos completos al azar     ← etapa 2
   protocolo/  Mensajes, vistas por jugador y seguimiento (compartido)     ← etapa 4
   servidor/   Servidor autoritativo con Node.js y Socket.IO                ← etapa 3
-  cliente/    Interfaz web con React y Vite (lobby, mesa, apuesta, tirada)  ← etapa 5
+  cliente/    Interfaz web con React y Vite (estilo pulpería, reglas)       ← etapas 5 y 8
   persistencia/ Historial de juegos en PostgreSQL (Drizzle)                 ← etapa 7
 docs/         Especificación y diseño
 ```
@@ -33,7 +33,7 @@ docs/         Especificación y diseño
 | 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Hecho |
 | 6 | Reconexión, temporizadores y piloto automático | Hecho |
 | 7 | Persistencia (PostgreSQL) | Hecho |
-| 8 | Pulido de interfaz | Pendiente |
+| 8 | Pulido de interfaz | Hecho |
 | 9 | Despliegue | Pendiente |
 
 ## Desarrollo

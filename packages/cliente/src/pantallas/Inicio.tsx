@@ -1,3 +1,4 @@
+import { BotonReglas } from '../componentes/Reglas';
 import {
   ALFABETO_CODIGO,
   LARGO_CODIGO_SALA,
@@ -55,6 +56,7 @@ export function Inicio() {
 
   return (
     <main className="inicio">
+      <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <p className="lema">Un juego de cartas para jugar de 4 a 7 amigos.</p>
       {conectando && (

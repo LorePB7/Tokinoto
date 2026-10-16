@@ -1,3 +1,4 @@
+import { BotonReglas } from '../componentes/Reglas';
 import { useState } from 'react';
 import { useTienda } from '../estado/contexto';
 
@@ -40,6 +41,7 @@ export function Lobby() {
 
   return (
     <main className="inicio lobby">
+      <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <div className="hoja">
         <h2>Sala de espera</h2>

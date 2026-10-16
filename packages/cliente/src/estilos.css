@@ -1,24 +1,31 @@
-/* Tokinoto: mesa de casino. Paño verde, madera oscura y latón. */
+/* Tokinoto: pulpería. Madera gastada, paño verde botella, cuero, bronce y bordó. */
 
 :root {
-  --fondo: #14110f;
-  --fondo-claro: #1f1a15;
-  --madera-clara: #5a3a22;
-  --madera: #3a2415;
-  --madera-oscura: #22150c;
-  --pano: #1d5a3b;
-  --pano-claro: #28744b;
-  --pano-oscuro: #124029;
-  --laton: #c9a24b;
-  --laton-claro: #e6d28f;
-  --laton-oscuro: #8c6c26;
-  --marfil: #f6f1e4;
-  --texto: #efe8d8;
-  --texto-suave: #b9ae99;
-  --rojo-carta: #b3202a;
-  --negro-carta: #1b1b1f;
-  --alerta: #e0735c;
-  --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --fondo: #1a110b;
+  --fondo-claro: #2a1b11;
+  --madera-clara: #7a4e2c;
+  --madera: #4f301b;
+  --madera-oscura: #2a190d;
+  --pano: #2f5a43;
+  --pano-claro: #3d7155;
+  --pano-oscuro: #1d3b2b;
+  --laton: #c08a3e;
+  --laton-claro: #e8c57a;
+  --laton-oscuro: #7d5622;
+  --marfil: #f2e8cb;
+  --papel: #efe3c3;
+  --papel-oscuro: #e3d3a9;
+  --tinta: #2b1b10;
+  --bordo: #7b1e2c;
+  --bordo-claro: #a22d3f;
+  --bordo-oscuro: #4f1019;
+  --texto: #f1e6cb;
+  --texto-suave: #c4b18d;
+  --rojo-carta: #a3232c;
+  --negro-carta: #251a13;
+  --alerta: #e58a6c;
+  --cartel: 'Abril Fatface', 'Playfair Display', Georgia, serif;
+  --serif: 'Playfair Display', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --carta-m: 70px;
   --carta-s: 50px;
@@ -38,7 +45,13 @@ body {
 }
 
 body {
-  background: var(--fondo) radial-gradient(ellipse at 50% 20%, #1c2c23 0%, var(--fondo) 68%) no-repeat;
+  background-color: var(--fondo);
+  background-image:
+    radial-gradient(ellipse at 50% 35%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.6) 100%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.26) 0 2px, transparent 2px 150px),
+    repeating-linear-gradient(90deg, rgba(255, 220, 160, 0.03) 0 75px, transparent 75px 150px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.06) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, #2b1a0f, var(--fondo));
   background-attachment: fixed;
   color: var(--texto);
   font-family: var(--sans);
@@ -65,43 +78,64 @@ select {
   outline-offset: 2px;
 }
 
-/* ---------- Letras doradas ---------- */
+/* ---------- Letras de cartel ---------- */
 
 .logo,
 .marca,
 .titulo-mesa {
-  font-family: var(--serif);
-  font-weight: 700;
-  color: var(--laton-claro);
+  font-family: var(--cartel);
+  font-weight: 400;
+  color: var(--papel);
   text-shadow:
-    0 1px 0 rgba(0, 0, 0, 0.55),
-    0 0 18px rgba(201, 162, 75, 0.18);
+    2px 2px 0 var(--bordo),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+/* Papel de cartel: hojas, panel de apuesta y panel de reglas. */
+.hoja,
+.panel-apuesta,
+.panel-reglas {
+  --texto: var(--tinta);
+  --texto-suave: #6b5638;
+  --laton-claro: var(--bordo);
+  color: var(--tinta);
+  background: linear-gradient(180deg, #f4e9cc, var(--papel-oscuro));
 }
 
 /* ---------- Botones y formularios ---------- */
 
 .boton {
   appearance: none;
-  border: 1px solid var(--laton-oscuro);
-  background: linear-gradient(180deg, #e0c068, var(--laton) 55%, #a9842f);
-  color: #20160b;
+  border: 0;
+  border-bottom: 4px solid var(--bordo-oscuro);
+  background: linear-gradient(180deg, var(--bordo-claro), var(--bordo));
+  color: var(--papel);
+  font-family: var(--serif);
   font-weight: 700;
-  padding: 10px 20px;
-  border-radius: 8px;
+  font-size: 17px;
+  min-height: 46px;
+  padding: 8px 22px;
+  border-radius: 10px;
   cursor: pointer;
-  box-shadow: 0 2px 0 var(--laton-oscuro);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 0.08s ease;
 }
 
 .boton.secundario {
   background: transparent;
-  color: var(--laton-claro);
-  border-color: rgba(201, 162, 75, 0.55);
+  color: var(--texto);
+  border: 2px solid var(--texto-suave);
   box-shadow: none;
-  font-weight: 600;
 }
 
 .boton:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.1);
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(2px);
 }
 
 .boton:disabled {
@@ -121,8 +155,9 @@ select {
 
 .campo input,
 .campo select {
-  background: #120f0c;
-  border: 1px solid rgba(201, 162, 75, 0.4);
+  background: #fffaf0;
+  color: var(--tinta);
+  border: 2px solid #b39a68;
   border-radius: 8px;
   padding: 10px 12px;
   width: 100%;
@@ -169,35 +204,38 @@ select {
 
 .hoja {
   width: min(100%, 520px);
-  background: var(--fondo-claro);
-  border: 1px solid rgba(201, 162, 75, 0.45);
+  border: 2px solid #6d4a26;
   border-radius: 14px;
-  padding: 22px;
+  padding: 24px;
   display: grid;
   gap: 14px;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 18px 40px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 5px var(--papel-oscuro),
+    inset 0 0 0 6px rgba(109, 74, 38, 0.5);
 }
 
 .hoja h2 {
-  font-family: var(--serif);
-  font-size: 22px;
-  color: var(--laton-claro);
+  font-family: var(--cartel);
+  font-weight: 400;
+  font-size: 26px;
+  color: var(--bordo);
 }
 
 .hoja h3 {
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .formulario .bloque {
   display: grid;
   gap: 10px;
   padding-top: 14px;
-  border-top: 1px solid rgba(201, 162, 75, 0.25);
+  border-top: 2px dotted rgba(109, 74, 38, 0.45);
 }
 
 .formulario .bloque h2 {
-  font-size: 18px;
+  font-size: 21px;
 }
 
 .acciones {
@@ -209,9 +247,10 @@ select {
 .codigo-sala {
   display: inline-block;
   font-family: var(--serif);
+  font-weight: 700;
   font-size: 30px;
   letter-spacing: 0.2em;
-  color: var(--laton-claro);
+  color: var(--bordo);
 }
 
 .invitacion {
@@ -231,12 +270,12 @@ select {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(43, 27, 16, 0.07);
   border-radius: 8px;
 }
 
 .jugadores li.yo {
-  outline: 1px solid rgba(201, 162, 75, 0.5);
+  outline: 2px solid rgba(123, 30, 44, 0.45);
 }
 
 .insignia,
@@ -246,7 +285,7 @@ select {
   line-height: 1;
   padding: 3px 8px;
   border-radius: 999px;
-  background: var(--laton);
+  background: var(--laton-claro);
   color: #20160b;
   font-weight: 700;
 }
@@ -304,7 +343,7 @@ select {
 }
 
 .mesa {
-  --alto-disponible: calc(100dvh - 330px);
+  --alto-disponible: calc(100dvh - 390px);
   grid-area: mesa;
   position: relative;
   container-type: inline-size;
@@ -323,11 +362,12 @@ select {
   border-radius: 50%;
   padding: 3.4%;
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.14), transparent 55%),
+    repeating-linear-gradient(8deg, rgba(0, 0, 0, 0.12) 0 1px, transparent 1px 7px),
+    radial-gradient(ellipse at 30% 20%, rgba(255, 220, 160, 0.2), transparent 55%),
     linear-gradient(160deg, var(--madera-clara), var(--madera) 55%, var(--madera-oscura));
   box-shadow:
-    0 22px 40px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 2px rgba(0, 0, 0, 0.5);
+    0 22px 40px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.55);
 }
 
 .fieltro {
@@ -338,18 +378,31 @@ select {
   display: grid;
   place-items: center;
   background:
-    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.015) 0 2px, rgba(0, 0, 0, 0.02) 2px 4px),
+    repeating-radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.012) 0 2px, rgba(0, 0, 0, 0.025) 2px 4px),
     radial-gradient(circle at 50% 42%, var(--pano-claro), var(--pano) 55%, var(--pano-oscuro));
   box-shadow:
-    inset 0 0 0 2px var(--laton-oscuro),
-    inset 0 0 0 5px rgba(0, 0, 0, 0.35),
+    inset 0 0 0 3px var(--laton-oscuro),
+    inset 0 0 0 6px rgba(0, 0, 0, 0.4),
     inset 0 0 70px rgba(0, 0, 0, 0.5);
+}
+
+/* Costura del paño, como en una mesa de cuero. */
+.fieltro::after {
+  content: '';
+  position: absolute;
+  inset: 3.2%;
+  border-radius: 50%;
+  border: 2px dashed rgba(242, 232, 203, 0.28);
+  pointer-events: none;
 }
 
 .titulo-mesa {
   font-size: clamp(18px, 6.6cqw, 50px);
-  letter-spacing: 0.12em;
-  opacity: 0.82;
+  letter-spacing: 0.04em;
+  color: rgba(242, 232, 203, 0.5);
+  text-shadow:
+    0 -1px 0 rgba(0, 0, 0, 0.55),
+    0 1px 0 rgba(255, 255, 255, 0.12);
   user-select: none;
 }
 
@@ -384,8 +437,8 @@ select {
   justify-items: center;
   gap: 3px;
   padding: 6px 10px 7px;
-  background: rgba(20, 17, 15, 0.92);
-  border: 1px solid rgba(201, 162, 75, 0.45);
+  background: linear-gradient(180deg, #3b2616, #26160b);
+  border: 2px solid var(--laton-oscuro);
   border-radius: 10px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
   text-align: center;
@@ -395,11 +448,15 @@ select {
   border-color: var(--laton);
 }
 
+.asiento.yo .nombre {
+  color: var(--laton-claro);
+}
+
 .asiento.en-turno .placa {
   border-color: var(--laton-claro);
   box-shadow:
-    0 0 0 3px rgba(230, 210, 143, 0.55),
-    0 0 22px rgba(230, 210, 143, 0.5);
+    0 0 0 3px rgba(232, 197, 122, 0.6),
+    0 0 22px rgba(232, 197, 122, 0.5);
 }
 
 .asiento.desconectado .placa {
@@ -409,6 +466,7 @@ select {
 .nombre {
   font-family: var(--serif);
   font-weight: 700;
+  color: var(--texto);
   font-size: 15px;
   max-width: 100%;
   overflow: hidden;
@@ -499,10 +557,11 @@ select {
   padding: 0;
   flex: none;
   border-radius: calc(var(--cw) * 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.45);
-  background: linear-gradient(160deg, #fffdf6, var(--marfil) 60%, #ebe3cf);
+  border: 1px solid rgba(43, 27, 16, 0.55);
+  background: linear-gradient(160deg, #f9f0d8, var(--papel) 60%, #e4d4ac);
   color: var(--negro-carta);
   font-family: var(--serif);
+  font-variant-numeric: lining-nums;
   box-shadow:
     0 1px 2px rgba(0, 0, 0, 0.5),
     0 4px 8px rgba(0, 0, 0, 0.3);
@@ -629,15 +688,19 @@ select {
 }
 
 .carta.dorso {
-  border: calc(var(--cw) * 0.07) solid var(--marfil);
-  background-color: #8a1c24;
-  background-image:
-    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.22) 0 1.5px, transparent 1.5px 6px),
-    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.22) 0 1.5px, transparent 1.5px 6px);
+  border: calc(var(--cw) * 0.06) solid var(--papel);
+  background-color: var(--bordo);
+  /* Guarda de rombos, como las de un poncho. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10'%3E%3Cpath d='M5 0.5 9.5 5 5 9.5 0.5 5Z' fill='none' stroke='%23f2e8cb' stroke-opacity='.55' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: calc(var(--cw) * 0.2) calc(var(--cw) * 0.2);
+  box-shadow:
+    inset 0 0 0 2px var(--bordo-oscuro),
+    0 1px 2px rgba(0, 0, 0, 0.5),
+    0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .carta.resaltada {
-  outline: 2px solid var(--laton-claro);
+  outline: 3px solid var(--laton-claro);
 }
 
 button.carta {
@@ -652,7 +715,14 @@ button.carta.jugable {
 
 button.carta.jugable:hover:not(:disabled),
 button.carta.jugable:focus-visible {
-  transform: translateY(-12px);
+  transform: translateY(-14px);
+}
+
+/* Cuando te toca, tus cartas se marcan: son botones que se tocan. */
+.mano.activa button.carta.jugable:not(:disabled) {
+  box-shadow:
+    0 0 0 3px var(--laton-claro),
+    0 8px 16px rgba(0, 0, 0, 0.5);
 }
 
 button.carta:disabled {
@@ -660,12 +730,9 @@ button.carta:disabled {
   opacity: 0.85;
 }
 
-/* ---------- Fichas de casino ---------- */
+/* ---------- Fichas de apuesta (todas bordó) ---------- */
 
 .ficha {
-  --base: #a9262d;
-  --franja: #f3efe4;
-  --tinta: #fff;
   --lado: 36px;
   position: relative;
   display: inline-grid;
@@ -674,67 +741,36 @@ button.carta:disabled {
   width: var(--lado);
   aspect-ratio: 1;
   border-radius: 50%;
-  background: repeating-conic-gradient(var(--franja) 0 22.5deg, var(--base) 22.5deg 45deg);
+  background: radial-gradient(circle at 35% 30%, var(--bordo-claro), var(--bordo) 60%, var(--bordo-oscuro));
   box-shadow:
     0 2px 3px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4);
   font-family: var(--serif);
 }
 
 .ficha::before {
   content: '';
   position: absolute;
-  inset: 17%;
+  inset: 11%;
   border-radius: 50%;
-  background: var(--base);
-  border: 1.5px solid var(--franja);
+  border: 2px dashed rgba(242, 232, 203, 0.7);
 }
 
 .ficha-s {
-  --lado: 20px;
+  --lado: 22px;
 }
 
 .ficha-s::before {
-  inset: 20%;
+  inset: 14%;
   border-width: 1px;
 }
 
 .ficha-valor {
   position: relative;
-  color: var(--tinta);
+  color: var(--papel);
   font-weight: 700;
-  font-size: calc(var(--lado) * 0.42);
+  font-size: calc(var(--lado) * 0.46);
   line-height: 1;
-}
-
-.ficha-blanco {
-  --base: #ece6d6;
-  --franja: #8f8977;
-  --tinta: #222;
-}
-.ficha-rojo {
-  --base: #a9262d;
-}
-.ficha-azul {
-  --base: #1f4f8f;
-}
-.ficha-verde {
-  --base: #1f7a46;
-}
-.ficha-negro {
-  --base: #232323;
-  --franja: var(--laton);
-  --tinta: var(--marfil);
-}
-.ficha-violeta {
-  --base: #5b2a86;
-}
-.ficha-naranja {
-  --base: #c4661b;
-}
-.ficha-laton {
-  --base: #b08a35;
-  --tinta: #1b1b1b;
 }
 
 /* ---------- Parte de abajo: turno, apuesta y mano ---------- */
@@ -749,82 +785,117 @@ button.carta:disabled {
 
 .turno {
   font-family: var(--serif);
-  font-size: 19px;
+  font-size: 18px;
   color: var(--texto-suave);
   min-height: 1.5em;
+  padding: 3px 16px;
+  border-radius: 999px;
 }
 
 .turno.mio {
-  color: var(--laton-claro);
+  background: var(--laton-claro);
+  color: var(--tinta);
   font-weight: 700;
+  box-shadow:
+    0 0 0 2px var(--laton-oscuro),
+    0 4px 10px rgba(0, 0, 0, 0.4);
 }
 
+.turno.mio .cuenta-regresiva {
+  color: var(--bordo-oscuro);
+}
+
+.turno.mio .cuenta-regresiva.urgente {
+  color: #a31212;
+}
+
+.pista {
+  color: var(--laton-claro);
+  font-family: var(--serif);
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+/* Panel de apuesta: cartel de papel con un botón por cada número posible. */
 .panel-apuesta {
-  /* Sobre el paño, en el centro de la mesa: se apuesta como en un casino. */
-  position: absolute;
-  left: 50%;
-  top: 46%;
-  transform: translate(-50%, -50%);
-  z-index: 8;
-  width: 48%;
+  width: min(100%, 640px);
   display: grid;
   gap: 6px;
   justify-items: center;
   text-align: center;
-  padding: 12px 14px;
-  background: rgba(8, 24, 15, 0.95);
-  border: 1px solid var(--laton);
+  padding: 12px 16px 12px;
+  border: 2px solid #6d4a26;
   border-radius: 14px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 5px var(--papel-oscuro),
+    inset 0 0 0 6px rgba(109, 74, 38, 0.5);
 }
 
-.panel-apuesta h2 {
+.panel-apuesta .instruccion {
   font-family: var(--serif);
+  font-weight: 700;
   font-size: 19px;
-  color: var(--laton-claro);
+  line-height: 1.25;
+  color: var(--bordo);
 }
 
-.panel-apuesta p {
+.panel-apuesta .nota {
   font-size: 13px;
 }
 
-.panel-apuesta .fichas-apuesta {
-  gap: 6px;
+.panel-apuesta .aviso-pie {
+  color: var(--bordo);
+  font-weight: 600;
 }
 
-.panel-apuesta .boton-ficha .ficha {
-  --lado: 34px;
-}
-
-.fichas-apuesta {
+.botones-apuesta {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.boton-ficha {
+.boton-apuesta {
   appearance: none;
-  background: none;
+  width: 56px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 2px;
   border: 0;
-  padding: 2px;
-  border-radius: 50%;
+  border-bottom: 5px solid var(--bordo-oscuro);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--bordo-claro), var(--bordo));
+  color: var(--papel);
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 28px;
+  line-height: 1;
   cursor: pointer;
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.08s ease;
 }
 
-.boton-ficha .ficha {
-  --lado: clamp(34px, 8.6cqw, 52px);
-  transition: transform 0.1s ease;
-}
-
-.boton-ficha:hover:not(:disabled) .ficha {
+.boton-apuesta:hover:not(:disabled) {
   transform: translateY(-3px);
+  filter: brightness(1.12);
 }
 
-.boton-ficha:disabled {
+.boton-apuesta:active:not(:disabled) {
+  transform: translateY(1px);
+  border-bottom-width: 2px;
+}
+
+.boton-apuesta:disabled {
   cursor: not-allowed;
-  opacity: 0.3;
-  filter: grayscale(0.8);
+  background: repeating-linear-gradient(135deg, #cdbd96 0 6px, #d9cba6 6px 12px);
+  border-bottom-color: #a89468;
+  color: #8a7650;
+  box-shadow: none;
+  text-decoration: line-through;
 }
 
 .mano {
@@ -843,7 +914,7 @@ button.carta:disabled {
 }
 
 .mano.activa {
-  filter: drop-shadow(0 0 12px rgba(230, 210, 143, 0.25));
+  filter: drop-shadow(0 0 12px rgba(232, 197, 122, 0.3));
 }
 
 /* ---------- Registro ---------- */
@@ -856,14 +927,14 @@ button.carta:disabled {
   height: min(calc(100dvh - 120px), 560px);
   min-height: 200px;
   padding: 10px 12px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(201, 162, 75, 0.28);
+  background: rgba(20, 12, 7, 0.55);
+  border: 2px solid rgba(192, 138, 62, 0.4);
   border-radius: 12px;
 }
 
 .registro h2 {
   font-family: var(--serif);
-  font-size: 16px;
+  font-size: 17px;
   color: var(--laton-claro);
 }
 
@@ -890,7 +961,7 @@ button.carta:disabled {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(10, 8, 6, 0.62);
+  background: rgba(14, 8, 4, 0.7);
   overflow-y: auto;
 }
 
@@ -904,7 +975,7 @@ button.carta:disabled {
 .hoja td {
   padding: 6px 8px;
   text-align: right;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(43, 27, 16, 0.16);
 }
 
 .hoja th[scope='row'],
@@ -920,11 +991,11 @@ button.carta:disabled {
 }
 
 .hoja tr.yo {
-  background: rgba(201, 162, 75, 0.12);
+  background: rgba(123, 30, 44, 0.1);
 }
 
 .hoja td.acierto {
-  color: var(--laton-claro);
+  color: var(--bordo);
   font-weight: 700;
 }
 
@@ -946,15 +1017,15 @@ button.carta:disabled {
   gap: 8px;
   align-items: baseline;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(43, 27, 16, 0.07);
   border-radius: 8px;
   font-family: var(--serif);
   font-size: 18px;
 }
 
 .ranking li[data-puesto='1'] {
-  background: rgba(201, 162, 75, 0.18);
-  outline: 1px solid rgba(201, 162, 75, 0.6);
+  background: rgba(192, 138, 62, 0.28);
+  outline: 2px solid rgba(123, 30, 44, 0.55);
 }
 
 .ranking li.yo .jugador {
@@ -972,7 +1043,8 @@ button.carta:disabled {
 
 .hoja details summary {
   cursor: pointer;
-  color: var(--laton-claro);
+  color: var(--bordo);
+  font-weight: 600;
 }
 
 .aviso {
@@ -1098,8 +1170,8 @@ button.carta:disabled {
   justify-content: center;
   gap: 8px 14px;
   padding: 10px 14px;
-  background: rgba(20, 17, 15, 0.95);
-  border: 1px solid var(--alerta);
+  background: rgba(26, 17, 11, 0.96);
+  border: 2px solid var(--alerta);
   border-radius: 10px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   font-size: 14px;
@@ -1115,6 +1187,90 @@ button.carta:disabled {
 .estado-conexion {
   color: var(--texto-suave);
   margin-bottom: 10px;
+}
+
+/* ---------- Reglas ---------- */
+
+.boton-reglas {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: 15px;
+}
+
+.boton-reglas .signo {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--laton-claro);
+  color: var(--tinta);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.boton-reglas.flotante {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 40;
+  background: rgba(26, 17, 11, 0.85);
+}
+
+.panel-reglas {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 80;
+  width: min(430px, 100vw);
+  overflow-y: auto;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  padding: 18px 22px 32px;
+  border-left: 3px solid #6d4a26;
+  box-shadow: -14px 0 40px rgba(0, 0, 0, 0.6);
+}
+
+.encabezado-reglas {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.panel-reglas h2 {
+  font-family: var(--cartel);
+  font-weight: 400;
+  font-size: 28px;
+  color: var(--bordo);
+}
+
+.panel-reglas h3 {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--bordo);
+  margin-bottom: 4px;
+}
+
+.panel-reglas section {
+  display: grid;
+  gap: 8px;
+}
+
+.panel-reglas ol {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 8px;
+}
+
+.valores-cartas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 /* ---------- Pantallas angostas ---------- */
@@ -1146,22 +1302,14 @@ button.carta:disabled {
     margin: 46px auto 44px;
   }
 
-  .panel-apuesta {
-    width: 52%;
-    padding: 8px 8px;
-    gap: 4px;
+  .boton-apuesta {
+    width: 48px;
+    height: 54px;
+    font-size: 24px;
   }
 
-  .panel-apuesta .boton-ficha .ficha {
-    --lado: 32px;
-  }
-
-  .panel-apuesta h2 {
-    font-size: 16px;
-  }
-
-  .panel-apuesta p {
-    font-size: 12px;
+  .panel-apuesta .instruccion {
+    font-size: 17px;
   }
 
   .placa {
