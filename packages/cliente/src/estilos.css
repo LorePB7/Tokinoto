@@ -24,8 +24,8 @@
   --rojo-carta: #a3232c;
   --negro-carta: #251a13;
   --alerta: #e58a6c;
-  --cartel: 'Abril Fatface', 'Playfair Display', Georgia, serif;
-  --serif: 'Playfair Display', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --cartel: 'Lora', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --serif: 'Lora', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --carta-m: 70px;
   --carta-s: 50px;
@@ -84,10 +84,10 @@ select {
 .marca,
 .titulo-mesa {
   font-family: var(--cartel);
-  font-weight: 400;
+  font-weight: 700;
   color: var(--papel);
   text-shadow:
-    2px 2px 0 var(--bordo),
+    1px 2px 0 var(--bordo),
     0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
@@ -191,8 +191,8 @@ select {
 }
 
 .logo {
-  font-size: clamp(44px, 9vw, 80px);
-  letter-spacing: 0.1em;
+  font-size: clamp(44px, 9vw, 72px);
+  letter-spacing: 0.04em;
   line-height: 1;
 }
 
@@ -217,8 +217,8 @@ select {
 
 .hoja h2 {
   font-family: var(--cartel);
-  font-weight: 400;
-  font-size: 26px;
+  font-weight: 700;
+  font-size: 24px;
   color: var(--bordo);
 }
 
@@ -230,12 +230,54 @@ select {
 .formulario .bloque {
   display: grid;
   gap: 10px;
-  padding-top: 14px;
-  border-top: 2px dotted rgba(109, 74, 38, 0.45);
 }
 
-.formulario .bloque h2 {
-  font-size: 21px;
+/* Franja de guarda (rombos, como en un poncho) en lugar de una línea. */
+.guarda {
+  height: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10'%3E%3Cpath d='M8 0 16 5 8 10 0 5Z' fill='%237b1e2c'/%3E%3Cpath d='M8 3 12 5 8 7 4 5Z' fill='%23c08a3e'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+/* Elegir qué hacer: crear una sala o entrar con un código. */
+.pestanas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pestana {
+  appearance: none;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 2px solid var(--bordo);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--bordo);
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.pestana.activa {
+  background: var(--bordo);
+  color: var(--papel);
+}
+
+.pestana:not(.activa):hover {
+  background: rgba(123, 30, 44, 0.1);
+}
+
+.fila-campos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.fila-campos .campo.corto select {
+  width: 100%;
 }
 
 .acciones {
@@ -846,7 +888,6 @@ button.carta:disabled {
 
 .panel-apuesta .aviso-pie {
   color: var(--bordo);
-  font-weight: 600;
 }
 
 .botones-apuesta {
@@ -1189,6 +1230,91 @@ button.carta:disabled {
   margin-bottom: 10px;
 }
 
+/* ---------- Ayudas de lectura y de tamaño ---------- */
+
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Al apostar, la mesa cede un poco de alto al cartel de apuesta. */
+.pantalla-mesa.apostando .mesa {
+  --alto-disponible: calc(100dvh - 450px);
+}
+
+/* ---------- Pantallas bajas ---------- */
+
+@media (max-height: 760px) {
+  .inicio {
+    gap: 10px;
+    padding-top: 18px;
+  }
+
+  .inicio .lema {
+    display: none;
+  }
+
+  .hoja {
+    padding: 18px;
+    gap: 12px;
+  }
+
+  .hoja.volver {
+    margin-bottom: 8px;
+    padding: 12px 16px;
+    gap: 8px;
+  }
+}
+
+/* Celulares muy bajos: logo más chico y "Volver a esa partida" en una sola fila. */
+@media (max-height: 680px) {
+  .inicio .logo {
+    font-size: 36px;
+  }
+
+  .hoja.volver {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    justify-items: stretch;
+    font-size: 14px;
+  }
+
+  .hoja.volver .boton {
+    min-height: 40px;
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+}
+
+/* En pantallas angostas el botón Reglas flotante no debe tapar el logo. */
+@media (max-width: 520px) {
+  .inicio {
+    padding-top: 64px;
+  }
+}
+
+@media (max-width: 360px) {
+  .hoja {
+    padding: 14px;
+  }
+
+  .pestana {
+    font-size: 14px;
+    padding: 6px;
+  }
+
+  .fila-campos .campo.corto span {
+    font-size: 13px;
+  }
+}
+
 /* ---------- Reglas ---------- */
 
 .boton-reglas {
@@ -1243,8 +1369,8 @@ button.carta:disabled {
 
 .panel-reglas h2 {
   font-family: var(--cartel);
-  font-weight: 400;
-  font-size: 28px;
+  font-weight: 700;
+  font-size: 26px;
   color: var(--bordo);
 }
 

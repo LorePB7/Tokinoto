@@ -5,7 +5,7 @@ import {
   LARGO_MAXIMO_NOMBRE,
   TIEMPO_TURNO_POR_DEFECTO_S,
 } from '@tokinoto/protocolo';
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useTienda } from '../estado/contexto';
 import { leerPreferencia, guardarPreferencia } from '../util/preferencias';
 
@@ -33,6 +33,8 @@ export function Inicio() {
   const [nombre, setNombre] = useState(() => leerPreferencia('nombre') ?? '');
   const [codigo, setCodigo] = useState(codigoDeLaURL);
   const [cupo, setCupo] = useState(7);
+  // Una sola acción a la vez: así la pantalla entra entera, sin scroll, también en el celular.
+  const [modo, setModo] = useState<'crear' | 'unirme'>(() => (codigoDeLaURL() ? 'unirme' : 'crear'));
   const nombreLimpio = nombre.trim();
   const codigoValido = new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`).test(codigo.trim().toUpperCase());
 
@@ -52,6 +54,14 @@ export function Inicio() {
     if (!nombreLimpio || !codigoValido || ocupado) return;
     recordarNombre();
     void unirse(codigo.trim().toUpperCase(), nombreLimpio);
+  }
+
+  function alTeclearPestana(evento: KeyboardEvent) {
+    if (evento.key !== 'ArrowLeft' && evento.key !== 'ArrowRight') return;
+    evento.preventDefault();
+    const siguiente = modo === 'crear' ? 'unirme' : 'crear';
+    setModo(siguiente);
+    document.getElementById(`pestana-${siguiente}`)?.focus();
   }
 
   return (
@@ -89,51 +99,82 @@ export function Inicio() {
           />
         </label>
 
-        <form onSubmit={alCrear} className="bloque">
-          <h2>Crear una sala</h2>
-          <label className="campo corto">
-            <span>Jugadores como máximo</span>
-            <select value={cupo} onChange={(e) => setCupo(Number(e.target.value))}>
-              {[4, 5, 6, 7].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="campo corto">
-            <span>Tiempo por jugada</span>
-            <select value={tiempo} onChange={(e) => setTiempo(Number(e.target.value))}>
-              {TIEMPOS.map((t) => (
-                <option key={t} value={t}>
-                  {t === 0 ? 'Sin límite' : `${t} segundos`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
-            Crear sala
-          </button>
-        </form>
+        <div className="guarda" aria-hidden="true" />
 
-        <form onSubmit={alUnirse} className="bloque">
-          <h2>Unirme a una sala</h2>
-          <label className="campo">
-            <span>Código de la sala</span>
-            <input
-              className="codigo"
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-              maxLength={LARGO_CODIGO_SALA}
-              autoCapitalize="characters"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-          <button type="submit" className="boton" disabled={!nombreLimpio || !codigoValido || ocupado}>
-            Unirme
+        <div className="pestanas" role="tablist" aria-label="Qué querés hacer" onKeyDown={alTeclearPestana}>
+          <button
+            type="button"
+            role="tab"
+            id="pestana-crear"
+            aria-selected={modo === 'crear'}
+            aria-controls="panel-crear"
+            tabIndex={modo === 'crear' ? 0 : -1}
+            className={`pestana ${modo === 'crear' ? 'activa' : ''}`}
+            onClick={() => setModo('crear')}
+          >
+            Crear una sala
           </button>
-        </form>
+          <button
+            type="button"
+            role="tab"
+            id="pestana-unirme"
+            aria-selected={modo === 'unirme'}
+            aria-controls="panel-unirme"
+            tabIndex={modo === 'unirme' ? 0 : -1}
+            className={`pestana ${modo === 'unirme' ? 'activa' : ''}`}
+            onClick={() => setModo('unirme')}
+          >
+            Tengo código
+          </button>
+        </div>
+
+        {modo === 'crear' ? (
+          <form onSubmit={alCrear} className="bloque" role="tabpanel" id="panel-crear" aria-labelledby="pestana-crear">
+            <div className="fila-campos">
+              <label className="campo corto">
+                <span>Jugadores (máx.)</span>
+                <select value={cupo} onChange={(e) => setCupo(Number(e.target.value))}>
+                  {[4, 5, 6, 7].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="campo corto">
+                <span>Tiempo por jugada</span>
+                <select value={tiempo} onChange={(e) => setTiempo(Number(e.target.value))}>
+                  {TIEMPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t === 0 ? 'Sin límite' : `${t} s`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
+              Crear sala
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={alUnirse} className="bloque" role="tabpanel" id="panel-unirme" aria-labelledby="pestana-unirme">
+            <label className="campo">
+              <span>Código de la sala</span>
+              <input
+                className="codigo"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                maxLength={LARGO_CODIGO_SALA}
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <button type="submit" className="boton" disabled={!nombreLimpio || !codigoValido || ocupado}>
+              Unirme
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );

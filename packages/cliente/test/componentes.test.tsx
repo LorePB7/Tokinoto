@@ -93,6 +93,33 @@ describe('pantallas iniciales', () => {
     await userEvent.type(screen.getByLabelText(/tu nombre/i), 'Ana');
     expect(crear).toBeEnabled();
   });
+
+  it('Inicio muestra una sola acción a la vez, con pestañas', async () => {
+    const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
+    con(tienda, <Inicio />);
+    const [crearTab, unirmeTab] = screen.getAllByRole('tab');
+    expect(crearTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByRole('button', { name: 'Unirme' })).toBeNull();
+    await userEvent.click(unirmeTab!);
+    expect(unirmeTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Unirme' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /crear sala/i })).toBeNull();
+    await userEvent.type(screen.getByLabelText(/tu nombre/i), 'Ana');
+    await userEvent.type(screen.getByLabelText(/código de la sala/i), 'ABCD2345');
+    expect(screen.getByRole('button', { name: 'Unirme' })).toBeEnabled();
+  });
+
+  it('Inicio abre "Unirme" con el código ya cargado si el enlace trae ?sala=', () => {
+    window.history.pushState({}, '', '/?sala=abcd2345');
+    try {
+      const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
+      con(tienda, <Inicio />);
+      expect(screen.getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByLabelText(/código de la sala/i)).toHaveValue('ABCD2345');
+    } finally {
+      window.history.pushState({}, '', '/');
+    }
+  });
 });
 
 describe('con un servidor real', () => {

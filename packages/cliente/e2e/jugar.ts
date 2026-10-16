@@ -67,13 +67,21 @@ interface Jugador {
 const jugadores: Jugador[] = [];
 for (let i = 0; i < cantidad; i++) {
   const movil = i === cantidad - 1;
-  const contexto = await navegador.newContext({ viewport: movil ? { width: 390, height: 844 } : { width: 1280, height: 800 } });
+  const contexto = await navegador.newContext({
+    viewport: movil ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+    permissions: ['clipboard-read', 'clipboard-write'],
+  });
   const pagina = await contexto.newPage();
   pagina.on('pageerror', (e) => problemas.push(`Error de página (${i}): ${e.message}`));
   pagina.on('console', (m) => {
     if (m.type() === 'error') problemas.push(`Consola (${i}): ${m.text()}`);
   });
   jugadores.push({ nombre: `Jugador ${i + 1}`, contexto, pagina, movil });
+}
+
+/** Cuánto se pasa la página del alto de la pantalla (si es más de 0, hay que hacer scroll). */
+async function excesoDeScroll(j: Jugador): Promise<number> {
+  return j.pagina.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
 }
 
 async function captura(j: Jugador, nombre: string): Promise<void> {
@@ -85,6 +93,10 @@ async function captura(j: Jugador, nombre: string): Promise<void> {
 const [anfitrion, ...invitados] = jugadores as [Jugador, ...Jugador[]];
 await anfitrion.pagina.goto(urlCliente);
 await captura(anfitrion, '1-inicio');
+{
+  const exceso = await excesoDeScroll(anfitrion);
+  verificar(exceso <= 0, `El inicio de ${anfitrion.nombre} hace scroll (${exceso} px de más).`);
+}
 await anfitrion.pagina.getByLabel('Tu nombre').fill(anfitrion.nombre);
 await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
@@ -92,12 +104,25 @@ verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"
 
 for (const j of invitados) {
   await j.pagina.goto(`${urlCliente}?sala=${codigo}`);
+  {
+    const exceso = await excesoDeScroll(j);
+    verificar(exceso <= 0, `El inicio con ?sala= de ${j.nombre} hace scroll (${exceso} px de más).`);
+  }
   await j.pagina.getByLabel('Tu nombre').fill(j.nombre);
   await j.pagina.getByRole('button', { name: 'Unirme' }).click();
   await j.pagina.getByTestId('codigo').waitFor();
 }
 await anfitrion.pagina.getByText(`Jugadores (${cantidad} de 7)`).waitFor();
 await captura(anfitrion, '2-sala-de-espera');
+
+// Copiar: el código y el enlace llegan bien al portapapeles.
+await anfitrion.pagina.getByRole('button', { name: 'Copiar código' }).click();
+await anfitrion.pagina.getByRole('button', { name: 'Código copiado' }).waitFor();
+verificar((await anfitrion.pagina.evaluate(() => navigator.clipboard.readText())) === codigo, 'Copiar código no copió el código');
+await anfitrion.pagina.getByRole('button', { name: 'Copiar enlace' }).click();
+await anfitrion.pagina.getByRole('button', { name: 'Enlace copiado' }).waitFor();
+const enlace = new URL(await anfitrion.pagina.evaluate(() => navigator.clipboard.readText()));
+verificar(enlace.origin === new URL(urlCliente).origin && enlace.searchParams.get('sala') === codigo, `Copiar enlace copió "${enlace}"`);
 
 // Reglas: el botón abre un panel al costado con el valor de las cartas, y se cierra.
 await anfitrion.pagina.getByRole('button', { name: 'Reglas' }).click();
@@ -121,6 +146,13 @@ async function actuar(j: Jugador): Promise<void> {
     if (!capturado.has(`${j.nombre}-apuesta-grande`) && (await p.locator('.boton-apuesta').count()) >= 8) {
       capturado.add(`${j.nombre}-apuesta-grande`);
       await captura(j, '3b-apuesta-con-7-cartas');
+    }
+    // En pantallas de computadora, apostar y ver tu mano no debe pedir scroll.
+    if (!j.movil && !capturado.has(`${j.nombre}-sin-scroll-${await p.locator('.boton-apuesta').count()}`)) {
+      capturado.add(`${j.nombre}-sin-scroll-${await p.locator('.boton-apuesta').count()}`);
+      const exceso = await excesoDeScroll(j);
+      console.log(`Apuesta con ${(await p.locator('.boton-apuesta').count()) - 1} cartas: exceso de scroll ${exceso} px`);
+      verificar(exceso <= 0, `Al apostar con ${(await p.locator('.boton-apuesta').count()) - 1} cartas hay que hacer scroll (${exceso} px de más)`);
     }
     const elegido = Math.floor(Math.random() * (await fichas.count()));
     await fichas.nth(elegido).click({ timeout: 2000 }).catch(() => {});
