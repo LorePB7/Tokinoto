@@ -16,7 +16,7 @@ packages/
   simulador/  Simulador en consola que juega juegos completos al azar     ← etapa 2
   protocolo/  Mensajes, vistas por jugador y seguimiento (compartido)     ← etapa 4
   servidor/   Servidor autoritativo con Node.js y Socket.IO                ← etapa 3
-  cliente/    (pendiente) React + Vite
+  cliente/    Interfaz web con React y Vite (lobby, mesa, apuesta, tirada)  ← etapa 5
 docs/         Especificación y diseño
 ```
 
@@ -28,7 +28,7 @@ docs/         Especificación y diseño
 | 2 | Simulador en consola | Hecho |
 | 3 | Servidor mínimo (salas, WebSocket) | Hecho |
 | 4 | Vistas por jugador (ocultar cartas ajenas) | Hecho |
-| 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Pendiente |
+| 5 | Cliente básico (lobby, mesa, apuesta y tirada) | Hecho |
 | 6 | Reconexión, temporizadores y piloto automático | Pendiente |
 | 7 | Persistencia (PostgreSQL) | Pendiente |
 | 8 | Pulido de interfaz | Pendiente |
@@ -48,4 +48,10 @@ npm run simular -w @tokinoto/simulador -- --juegos 1 --jugadores 5 --semilla 2 -
 
 # Servidor (puerto 3001 por defecto)
 npm run iniciar -w @tokinoto/servidor
+
+# Cliente web (http://localhost:5173; busca el servidor en el puerto 3001 del mismo equipo)
+npm run dev -w @tokinoto/cliente
+
+# Prueba de punta a punta: abre un navegador por jugador y juega un juego entero
+npm run e2e -w @tokinoto/cliente -- --jugadores 4
 ```

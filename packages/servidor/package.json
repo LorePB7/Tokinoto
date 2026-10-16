@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Servidor autoritativo de Tokinoto: salas en memoria y Socket.IO.",
+  "main": "src/index.ts",
   "scripts": {
     "iniciar": "tsx src/principal.ts",
     "test": "vitest run",
