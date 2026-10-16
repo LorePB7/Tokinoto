@@ -84,6 +84,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
   const miFechaLimite = meToca ? (juego.turno?.fechaLimite ?? null) : null;
   const enCurso = sala.estado === 'JUGANDO';
   // Mientras apostás, la mesa se achica un poco para que entren el cartel de apuesta y tus cartas sin scroll.
+  const [registroAbierto, setRegistroAbierto] = useState(false);
   const apostando = juego.fase === 'APUESTAS' && juego.turno?.tipo === 'apuesta' && meToca;
   return (
     <div className={`pantalla-mesa ${apostando ? 'apostando' : ''}`}>
@@ -103,12 +104,23 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
           <p className="sala-codigo">
             Sala <strong>{sala.codigo}</strong>
           </p>
+          <button
+            type="button"
+            className="boton chico secundario boton-registro"
+            aria-expanded={registroAbierto}
+            aria-controls="registro-mesa"
+            onClick={() => setRegistroAbierto((a) => !a)}
+          >
+            Registro
+          </button>
           <BotonReglas />
           <BotonSalir enCurso={enCurso} />
         </div>
       </header>
 
-      <MesaRedonda sala={sala} juego={juego} />
+      <div className="zona-mesa">
+        <MesaRedonda sala={sala} juego={juego} />
+      </div>
 
       <footer className="inferior">
         <MiPiloto sala={sala} />
@@ -120,7 +132,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
         <Mano juego={juego} />
       </footer>
 
-      <Registro />
+      <Registro abierto={registroAbierto} alCerrar={() => setRegistroAbierto(false)} />
 
       <Resumen sala={sala} juego={juego} />
       <Resultados sala={sala} juego={juego} />

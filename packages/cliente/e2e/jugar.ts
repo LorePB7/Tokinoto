@@ -24,7 +24,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from 'playwrig
 import { createServer } from 'vite';
 
 const { values } = parseArgs({
-  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' } },
+  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false } },
 });
 const cantidad = Number(values.jugadores);
 const carpeta = values.capturas || '';
@@ -57,18 +57,31 @@ const navegador: Browser = await chromium.launch(
   process.env['CHROMIUM_PATH'] ? { executablePath: process.env['CHROMIUM_PATH'] } : {},
 );
 
+/** Pantallas que prueba cada navegador: compu, notebook, tablet, celulares y un celular acostado. */
+const TAMANOS = [
+  { ancho: 1280, alto: 800 },
+  { ancho: 390, alto: 844 },
+  { ancho: 360, alto: 640 },
+  { ancho: 1366, alto: 768 },
+  { ancho: 1024, alto: 768 },
+  { ancho: 844, alto: 390 },
+  { ancho: 1920, alto: 1080 },
+];
+
 interface Jugador {
   nombre: string;
   contexto: BrowserContext;
   pagina: Page;
   movil: boolean;
+  tamano: string;
 }
 
 const jugadores: Jugador[] = [];
 for (let i = 0; i < cantidad; i++) {
-  const movil = i === cantidad - 1;
+  const t = TAMANOS[i]!;
+  const movil = t.ancho <= 820;
   const contexto = await navegador.newContext({
-    viewport: movil ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+    viewport: { width: t.ancho, height: t.alto },
     permissions: ['clipboard-read', 'clipboard-write'],
   });
   const pagina = await contexto.newPage();
@@ -76,12 +89,34 @@ for (let i = 0; i < cantidad; i++) {
   pagina.on('console', (m) => {
     if (m.type() === 'error') problemas.push(`Consola (${i}): ${m.text()}`);
   });
-  jugadores.push({ nombre: `Jugador ${i + 1}`, contexto, pagina, movil });
+  jugadores.push({ nombre: `Jugador ${i + 1}`, contexto, pagina, movil, tamano: `${t.ancho}x${t.alto}` });
 }
 
 /** Cuánto se pasa la página del alto de la pantalla (si es más de 0, hay que hacer scroll). */
 async function excesoDeScroll(j: Jugador): Promise<number> {
   return j.pagina.evaluate(() => document.documentElement.scrollHeight - window.innerHeight);
+}
+
+/** Peor exceso de scroll visto en cada combinación de pantalla y vista. */
+const peor = new Map<string, number>();
+const medidas = new Set<string>();
+
+/** Mide una sola vez por jugador y vista cuánto se pasa la página (o su ventana) del alto de la pantalla. */
+async function medir(j: Jugador, vista: string, exceso?: number, repetida = vista): Promise<void> {
+  const clave = `${j.nombre}|${repetida}`;
+  if (medidas.has(clave)) return;
+  medidas.add(clave);
+  const valor = exceso ?? (await excesoDeScroll(j));
+  const k = `${j.tamano} · ${vista}`;
+  peor.set(k, Math.max(peor.get(k) ?? -Infinity, valor));
+}
+
+/** Cuánto se pasa el contenido de un elemento de su propio alto (0 si no existe o entra). */
+async function excesoDe(j: Jugador, selector: string): Promise<number> {
+  return j.pagina.evaluate((sel) => {
+    const e = document.querySelector(sel);
+    return e ? e.scrollHeight - e.clientHeight : 0;
+  }, selector);
 }
 
 async function captura(j: Jugador, nombre: string): Promise<void> {
@@ -93,10 +128,7 @@ async function captura(j: Jugador, nombre: string): Promise<void> {
 const [anfitrion, ...invitados] = jugadores as [Jugador, ...Jugador[]];
 await anfitrion.pagina.goto(urlCliente);
 await captura(anfitrion, '1-inicio');
-{
-  const exceso = await excesoDeScroll(anfitrion);
-  verificar(exceso <= 0, `El inicio de ${anfitrion.nombre} hace scroll (${exceso} px de más).`);
-}
+await medir(anfitrion, 'inicio');
 await anfitrion.pagina.getByLabel('Tu nombre').fill(anfitrion.nombre);
 await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
@@ -104,16 +136,26 @@ verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"
 
 for (const j of invitados) {
   await j.pagina.goto(`${urlCliente}?sala=${codigo}`);
-  {
-    const exceso = await excesoDeScroll(j);
-    verificar(exceso <= 0, `El inicio con ?sala= de ${j.nombre} hace scroll (${exceso} px de más).`);
-  }
+  await medir(j, 'inicio con ?sala=');
   await j.pagina.getByLabel('Tu nombre').fill(j.nombre);
   await j.pagina.getByRole('button', { name: 'Unirme' }).click();
   await j.pagina.getByTestId('codigo').waitFor();
 }
 await anfitrion.pagina.getByText(`Jugadores (${cantidad} de 7)`).waitFor();
 await captura(anfitrion, '2-sala-de-espera');
+for (const j of jugadores) {
+  await medir(j, `sala de espera (${cantidad} jugadores)`);
+  await captura(j, `2-sala-${j.tamano}`);
+  await j.pagina.getByRole('button', { name: 'Reglas' }).click();
+  await j.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor();
+  for (const pestana of ['Juego', 'Cartas', 'Puntos', 'El Pié']) {
+    await j.pagina.getByRole('tab', { name: pestana }).click();
+    await medir(j, `reglas: ${pestana}`, await excesoDe(j, '.panel-reglas'));
+    await captura(j, `2c-reglas-${pestana.slice(0, 3)}-${j.tamano}`);
+  }
+  await j.pagina.keyboard.press('Escape');
+  await j.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor({ state: 'detached' });
+}
 
 // Copiar: el código y el enlace llegan bien al portapapeles.
 await anfitrion.pagina.getByRole('button', { name: 'Copiar código' }).click();
@@ -127,16 +169,79 @@ verificar(enlace.origin === new URL(urlCliente).origin && enlace.searchParams.ge
 // Reglas: el botón abre un panel al costado con el valor de las cartas, y se cierra.
 await anfitrion.pagina.getByRole('button', { name: 'Reglas' }).click();
 await anfitrion.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor();
+await anfitrion.pagina.getByRole('tab', { name: 'Cartas' }).click();
 verificar((await anfitrion.pagina.locator('.panel-reglas .carta').count()) === 14, 'El panel de reglas no muestra las 14 cartas');
 await captura(anfitrion, '2b-reglas');
 await anfitrion.pagina.keyboard.press('Escape');
 await anfitrion.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor({ state: 'detached' });
+
+if (values.corto) {
+  // Modo rápido: solo la entrada, la sala de espera y las reglas.
+  console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
+  for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
+  await navegador.close();
+  await vite.close();
+  await servidor.cerrar();
+  process.exit([...peor.values()].some((v) => v > 0) ? 1 : 0);
+}
+
 await anfitrion.pagina.getByRole('button', { name: 'Iniciar juego' }).click();
 
 // Juego: cada jugador mira su pantalla y actúa cuando le toca.
 const capturado = new Set<string>();
+async function auditarVista(j: Jugador): Promise<void> {
+  const p = j.pagina;
+  const cartas = await p.locator('.mano .carta').count();
+  if ((await p.locator('.superposicion').count()) > 0) {
+    const final = (await p.locator('.ranking').count()) > 0;
+    const vista = final ? 'resultado final' : 'resumen de partida';
+    await medir(j, vista, Math.max(await excesoDeScroll(j), await excesoDe(j, '.superposicion')));
+    if (final) {
+      await captura(j, '6-resultado-final-' + j.tamano);
+      if (!capturado.has(`${j.nombre}-det`)) {
+        capturado.add(`${j.nombre}-det`);
+        await p.getByText('Puntos de cada partida').click();
+        await medir(j, 'resultado final con la tabla abierta', Math.max(await excesoDeScroll(j), await excesoDe(j, '.superposicion')));
+        await captura(j, '6b-tabla-' + j.tamano);
+        await p.getByText('Puntos de cada partida').click();
+      }
+    }
+    else if (!capturado.has(`${j.nombre}-res`)) {
+      capturado.add(`${j.nombre}-res`);
+      await captura(j, '5-resumen-' + j.tamano);
+    }
+    return;
+  }
+  if ((await p.locator('.pantalla-mesa').count()) === 0) return;
+  const botones = await p.locator('.boton-apuesta').count();
+  const vista = botones > 0 ? `apostar (${botones - 1} cartas)` : 'mesa';
+  await medir(j, vista, undefined, `${vista}-${cartas}`);
+  if (!capturado.has(`${j.nombre}-v-${vista}`) && (botones === 8 || botones === 2 || (botones === 0 && cartas === 7))) {
+    capturado.add(`${j.nombre}-v-${vista}`);
+    await captura(j, `m-${vista.replace(/[ ()]/g, '-')}-${j.tamano}`);
+  }
+  if (!capturado.has(`${j.nombre}-salir`) && botones === 0) {
+    // El cartel de confirmación de "Salir" tampoco debe hacer scroll.
+    capturado.add(`${j.nombre}-salir`);
+    const salir = p.getByRole('button', { name: 'Salir', exact: true });
+    if ((await salir.count()) > 0) {
+      await salir.click();
+      await medir(j, 'confirmar salida', await excesoDeScroll(j));
+      await p.getByRole('button', { name: 'Seguir jugando' }).click();
+    }
+    const registro = p.getByRole('button', { name: 'Registro', exact: true });
+    if (await registro.isVisible()) {
+      await registro.click();
+      await medir(j, 'registro (cajón)', await excesoDeScroll(j));
+      await captura(j, `registro-${j.tamano}`);
+      await p.getByRole('button', { name: 'Cerrar' }).click();
+    }
+  }
+}
+
 async function actuar(j: Jugador): Promise<void> {
   const p = j.pagina;
+  await auditarVista(j);
   const fichas = p.locator('.boton-apuesta:not([disabled])');
   if ((await fichas.count()) > 0) {
     if (!capturado.has(`${j.nombre}-apuesta`) && (await p.locator('.boton-apuesta').count()) >= 3) {
@@ -148,7 +253,7 @@ async function actuar(j: Jugador): Promise<void> {
       await captura(j, '3b-apuesta-con-7-cartas');
     }
     // En pantallas de computadora, apostar y ver tu mano no debe pedir scroll.
-    if (!j.movil && !capturado.has(`${j.nombre}-sin-scroll-${await p.locator('.boton-apuesta').count()}`)) {
+    if (false && !capturado.has(`${j.nombre}-sin-scroll-${await p.locator('.boton-apuesta').count()}`)) {
       capturado.add(`${j.nombre}-sin-scroll-${await p.locator('.boton-apuesta').count()}`);
       const exceso = await excesoDeScroll(j);
       console.log(`Apuesta con ${(await p.locator('.boton-apuesta').count()) - 1} cartas: exceso de scroll ${exceso} px`);
@@ -227,6 +332,10 @@ while (!terminado && Date.now() < limite) {
   await new Promise((r) => setTimeout(r, 60));
 }
 verificar(terminado, 'El juego no terminó a tiempo');
+
+console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
+for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
+for (const [k, v] of peor) verificar(v <= 0, `Hay que hacer scroll en ${k} (${v} px de más)`);
 
 if (terminado) {
   await captura(anfitrion, '6-resultado-final');
