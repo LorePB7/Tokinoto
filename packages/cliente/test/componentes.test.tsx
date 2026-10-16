@@ -67,10 +67,13 @@ describe('fichas y reglas', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     await userEvent.click(boton);
     const panel = screen.getByRole('dialog', { name: /reglas del juego/i });
+    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
+    expect(within(panel).getAllByRole('tab')).toHaveLength(4);
+    await userEvent.click(within(panel).getByRole('tab', { name: 'Cartas' }));
     expect(within(within(panel).getByRole('list', { name: /cartas de menor a mayor/i })).getAllByRole('listitem')).toHaveLength(14);
     expect(within(panel).getByText(/le gana a todas, incluso al As/i)).toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole('tab', { name: 'Puntos' }));
     expect(within(panel).getByText(/5 puntos más tu apuesta/i)).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(boton).toHaveFocus();

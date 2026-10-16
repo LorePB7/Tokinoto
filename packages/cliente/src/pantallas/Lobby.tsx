@@ -37,6 +37,7 @@ export function Lobby() {
       <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <div className="hoja">
+       <div className="lobby-info">
         <h2>Sala de espera</h2>
         <p className="invitacion">
           Pasales este código a tus amigos: <strong className="codigo-sala" data-testid="codigo">{sala.codigo}</strong>
@@ -73,6 +74,8 @@ export function Lobby() {
           va o se le vence el tiempo, el piloto automático juega por él.
         </p>
 
+       </div>
+       <div className="lobby-jugadores">
         <h3>
           Jugadores ({sala.jugadores.length} de {sala.maxJugadores})
         </h3>
@@ -89,23 +92,23 @@ export function Lobby() {
           ))}
         </ul>
 
-        {soyAnfitrion ? (
-          <>
-            {faltan > 0 && (
-              <p className="nota">
-                Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
-              </p>
-            )}
+        {soyAnfitrion && faltan > 0 && (
+          <p className="nota">
+            Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
+          </p>
+        )}
+        {!soyAnfitrion && <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>}
+        <div className="acciones fila">
+          {soyAnfitrion && (
             <button type="button" className="boton" disabled={faltan > 0 || ocupado} onClick={() => void iniciar()}>
               Iniciar juego
             </button>
-          </>
-        ) : (
-          <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>
-        )}
-        <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void salir()}>
-          Salir de la sala
-        </button>
+          )}
+          <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void salir()}>
+            Salir de la sala
+          </button>
+        </div>
+       </div>
       </div>
     </main>
   );

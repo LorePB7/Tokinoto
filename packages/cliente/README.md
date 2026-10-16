@@ -36,7 +36,7 @@ src/
   pantallas/   Inicio, Lobby, Mesa
   util/        cartas.ts, geometria.ts (asientos alrededor de la mesa), preferencias.ts
 test/          pruebas con Vitest y Testing Library
-e2e/           prueba de punta a punta con navegadores reales (incluye copiar código y enlace, reglas y que el inicio y apostar no pidan scroll)
+e2e/           prueba de punta a punta con navegadores reales (incluye copiar código y enlace, reglas y que ninguna pantalla pida scroll, en 7 tamaños de pantalla)
 ```
 
 ## Cómo funciona
@@ -57,6 +57,7 @@ e2e/           prueba de punta a punta con navegadores reales (incluye copiar c�
 
 - **Reconexión:** el token de la sesión se guarda en la pestaña (`sessionStorage`). Si se corta la conexión, la tienda reintenta sola y vuelve al asiento con `sala.reconectar`; al recargar la página, también. Mientras tanto se muestra "Volviendo a la mesa…".
 - **Inicio sin scroll.** La pantalla de entrada muestra una sola acción a la vez (pestañas "Crear una sala" / "Tengo código"), con los dos selectores en una fila, y se compacta en pantallas bajas. Entra completa en 1280×800 y en celulares de 360×640 o más; con un enlace `?sala=CODIGO` abre directo "Tengo código" con el código cargado.
+- **Todo entra en la pantalla.** Ninguna vista pide scroll, en computadora ni en celular (incluido el celular acostado): inicio, sala de espera, mesa, apuesta, resumen, resultado final y reglas. La mesa ocupa el alto que sobra y se achica si hace falta (los asientos escalan con ella); en pantallas angostas el registro de la mesa pasa a un cajón (botón "Registro") y las reglas se reparten en pestañas. El e2e lo mide en 1280×800, 1366×768, 1024×768, 1920×1080, 390×844, 360×640 y 844×390.
 - **Otra pestaña:** la última sesión también queda en `localStorage`, y la pantalla de inicio ofrece "Volver a esa partida" (por ejemplo, si se cerró la pestaña). Si la misma sesión se abre en dos pestañas, la anterior se desconecta y ofrece "Jugar en esta pestaña".
 - **Tiempo límite:** el turno muestra la cuenta regresiva, corregida con la hora del servidor. Al crear la sala se elige 30 s, 60 s o sin límite.
 - **Piloto automático:** quien está ausente lleva la insignia "Piloto". Si a mí se me vence el tiempo 3 veces seguidas, aparece "Retomar el control".
