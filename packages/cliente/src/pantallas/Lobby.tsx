@@ -62,7 +62,7 @@ export function Lobby() {
           </label>
         )}
         {esDireccionLocal(window.location.hostname) && (
-          <p className="nota">
+          <p className="nota nota-local">
             Estás jugando en tu propia computadora: el enlace solo abre en ella. Para invitar a otras personas hay que
             publicar el juego (o usar la dirección de red de tu PC).
           </p>
