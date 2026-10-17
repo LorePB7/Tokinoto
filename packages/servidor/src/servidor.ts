@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type Server as ServidorHttp } from 
 import type { AddressInfo } from 'node:net';
 import { Server, type Socket } from 'socket.io';
 import type { Repositorio } from '@tokinoto/persistencia';
+import { cabecerasDeSeguridad, crearAtenderEstaticos } from './estaticos';
 import { GestorSalas, type OpcionesGestor } from './gestor';
 import { GuardadorHistorial, MOTIVO_ABORTO_REINICIO, type OpcionesGuardador } from './guardador';
 import { LIMITE_POR_DEFECTO, Limitador, type OpcionesLimite } from './limitador';
@@ -40,6 +41,15 @@ export interface OpcionesServidor extends OpcionesGestor {
   repositorio?: Repositorio;
   /** Opciones del guardado (reintentos, aviso de errores). */
   guardador?: OpcionesGuardador;
+  /**
+   * Carpeta con el cliente web ya construido (`packages/cliente/dist`). Si se
+   * pasa, el servidor también entrega la página del juego.
+   */
+  carpetaCliente?: string;
+  /** Modo producción: agrega HSTS a las cabeceras de seguridad. */
+  produccion?: boolean;
+  /** Límite de conexiones simultáneas en todo el servidor, para no quedarse sin memoria. */
+  maxConexiones?: number;
 }
 
 export interface ServidorTokinoto {
@@ -61,13 +71,20 @@ export function crearServidor(opciones: OpcionesServidor = {}): ServidorTokinoto
   const origenes = opciones.origenes ?? '*';
   const limite = opciones.limite ?? LIMITE_POR_DEFECTO;
 
+  const seguridad = cabecerasDeSeguridad(opciones.produccion ?? false);
+  const atenderEstaticos = opciones.carpetaCliente
+    ? crearAtenderEstaticos(opciones.carpetaCliente, opciones.produccion ?? false)
+    : null;
+  const maxConexiones = opciones.maxConexiones ?? 300;
+
   const http = createServer((pedido, respuesta) => {
     if (pedido.url === '/salud') {
-      respuesta.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+      respuesta.writeHead(200, { ...seguridad, 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
       respuesta.end('ok');
       return;
     }
-    respuesta.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    if (atenderEstaticos?.(pedido, respuesta)) return;
+    respuesta.writeHead(404, { ...seguridad, 'content-type': 'text/plain; charset=utf-8' });
     respuesta.end('No encontrado');
   });
 
@@ -75,7 +92,9 @@ export function crearServidor(opciones: OpcionesServidor = {}): ServidorTokinoto
     serveClient: false,
     maxHttpBufferSize: opciones.maxBytesMensaje ?? 16 * 1024,
     cors: { origin: origenes === '*' ? true : [...origenes] },
-    allowRequest: (pedido: IncomingMessage, decidir) => decidir(null, origenPermitido(origenes, pedido.headers.origin)),
+    // Se consulta solo al abrir una conexión nueva (no en cada mensaje).
+    allowRequest: (pedido: IncomingMessage, decidir) =>
+      decidir(null, origenPermitido(origenes, pedido.headers.origin) && io.engine.clientsCount < maxConexiones),
   });
 
   const guardador = opciones.repositorio ? new GuardadorHistorial(opciones.repositorio, opciones.guardador) : null;

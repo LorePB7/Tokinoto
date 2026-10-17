@@ -10,13 +10,20 @@
  * Uso (desde la raíz del repositorio):
  *   npm run e2e -w @tokinoto/cliente -- [--jugadores 4] [--capturas carpeta]
  *
+ * Con --publicado prueba la versión publicada: no usa Vite sino la carpeta
+ * dist (hay que correr antes `npm run build`) y el mismo servidor entrega la
+ * página en modo producción, con los orígenes limitados a su propia dirección
+ * y la política de contenido activa.
+ *
  * Si está definida DATABASE_URL, el servidor guarda el historial en esa base
  * (etapa 7) y al final se verifica que el juego quedó guardado y es consistente.
  *
  * Necesita un Chromium instalado (npx playwright-core install chromium) o la
  * variable CHROMIUM_PATH apuntando a uno.
  */
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { createServer as crearServidorTcp, type AddressInfo } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { abrirRepositorioPostgres, verificarJuego } from '@tokinoto/persistencia';
 import { crearServidor } from '@tokinoto/servidor';
@@ -24,7 +31,7 @@ import { chromium, devices, type Browser, type BrowserContext, type Page } from 
 import { createServer } from 'vite';
 
 const { values } = parseArgs({
-  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false }, barrido: { type: 'boolean', default: false }, dispositivos: { type: 'boolean', default: false }, ventanas: { type: 'string', default: '' } },
+  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false }, barrido: { type: 'boolean', default: false }, dispositivos: { type: 'boolean', default: false }, ventanas: { type: 'string', default: '' }, publicado: { type: 'boolean', default: false } },
 });
 const cantidad = Number(values.jugadores);
 const carpeta = values.capturas || '';
@@ -38,19 +45,44 @@ const verificar = (condicion: boolean, mensaje: string) => {
 
 const urlBase = process.env['DATABASE_URL'];
 const repositorio = urlBase ? await abrirRepositorioPostgres(urlBase) : null;
-const servidor = crearServidor({
-  sala: { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300 },
-  ...(repositorio ? { repositorio } : {}),
-});
-const puertoServidor = await servidor.escuchar(0, '127.0.0.1');
-process.env['VITE_SERVIDOR'] = `http://127.0.0.1:${puertoServidor}`;
-const vite = await createServer({
-  root: new URL('..', import.meta.url).pathname,
-  server: { port: 0, host: '127.0.0.1' },
-  logLevel: 'error',
-});
-await vite.listen();
-const urlCliente: string | undefined = vite.resolvedUrls?.local[0];
+/** Un puerto libre (para saber la dirección propia antes de crear el servidor). */
+async function puertoLibre(): Promise<number> {
+  const tcp = crearServidorTcp();
+  await new Promise<void>((resolver) => tcp.listen(0, '127.0.0.1', resolver));
+  const { port } = tcp.address() as AddressInfo;
+  await new Promise<void>((resolver) => tcp.close(() => resolver()));
+  return port;
+}
+
+const pausas = { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300 };
+let vite: Awaited<ReturnType<typeof createServer>> | null = null;
+let urlCliente: string | undefined;
+let servidor: ReturnType<typeof crearServidor>;
+if (values.publicado) {
+  const dist = fileURLToPath(new URL('../dist', import.meta.url));
+  if (!existsSync(dist)) throw new Error('Falta construir el cliente: npm run build');
+  const puerto = await puertoLibre();
+  urlCliente = `http://127.0.0.1:${puerto}/`;
+  servidor = crearServidor({
+    sala: pausas,
+    produccion: true,
+    carpetaCliente: dist,
+    origenes: [`http://127.0.0.1:${puerto}`],
+    ...(repositorio ? { repositorio } : {}),
+  });
+  await servidor.escuchar(puerto, '127.0.0.1');
+} else {
+  servidor = crearServidor({ sala: pausas, ...(repositorio ? { repositorio } : {}) });
+  const puertoServidor = await servidor.escuchar(0, '127.0.0.1');
+  process.env['VITE_SERVIDOR'] = `http://127.0.0.1:${puertoServidor}`;
+  vite = await createServer({
+    root: new URL('..', import.meta.url).pathname,
+    server: { port: 0, host: '127.0.0.1' },
+    logLevel: 'error',
+  });
+  await vite.listen();
+  urlCliente = vite.resolvedUrls?.local[0];
+}
 if (!urlCliente) throw new Error('Vite no devolvió su dirección');
 
 const navegador: Browser = await chromium.launch(
@@ -355,7 +387,7 @@ if (values.corto) {
   console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
   for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
   await navegador.close();
-  await vite.close();
+  await vite?.close();
   await servidor.cerrar();
   process.exit([...peor.values()].some((v) => v > 0) ? 1 : 0);
 }
@@ -540,7 +572,7 @@ if (terminado) {
 }
 
 await navegador.close();
-await vite.close();
+await vite?.close();
 await servidor.cerrar();
 
 if (repositorio) {
