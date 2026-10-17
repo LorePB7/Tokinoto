@@ -63,11 +63,9 @@ function BotonSalir({ enCurso }: { enCurso: boolean }) {
 }
 
 /** Aviso de que el piloto automático juega por mí, con la opción de retomar el control. */
-function MiPiloto({ sala }: { sala: VistaSala }) {
+function MiPiloto() {
   const retomarControl = useTienda((s) => s.retomarControl);
   const ocupado = useTienda((s) => s.ocupado || s.conexion !== 'conectada');
-  const yo = sala.jugadores.find((j) => j.idJugador === sala.yo);
-  if (!yo?.piloto || sala.estado !== 'JUGANDO') return null;
   return (
     <div className="mi-piloto" role="status">
       <p>Se te venció el tiempo varias veces: el piloto automático está jugando por vos.</p>
@@ -78,11 +76,20 @@ function MiPiloto({ sala }: { sala: VistaSala }) {
   );
 }
 
-/** Mesa de juego: la mesa redonda, mis cartas, la apuesta y el registro. */
+/**
+ * Mesa de juego. La pantalla se reparte en lugares fijos: la barra arriba, la mesa en el medio y,
+ * abajo, la zona de juego (un recuadro de alto fijo para el turno o la apuesta, y tu mano).
+ * Así, apostar o tirar una carta nunca mueve ni achica la mesa.
+ */
 export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
   const meToca = juego.turno?.asiento === juego.miAsiento;
   const miFechaLimite = meToca ? (juego.turno?.fechaLimite ?? null) : null;
   const enCurso = sala.estado === 'JUGANDO';
+  const [registroAbierto, setRegistroAbierto] = useState(false);
+  const yo = sala.jugadores.find((j) => j.idJugador === sala.yo);
+  const conPiloto = Boolean(yo?.piloto) && enCurso;
+  const apostando = !conPiloto && juego.fase === 'APUESTAS' && juego.turno?.tipo === 'apuesta' && meToca;
+  const tirando = !conPiloto && juego.fase === 'TIRADAS' && juego.turno?.tipo === 'carta' && meToca;
   return (
     <div className="pantalla-mesa">
       <header className="barra">
@@ -101,24 +108,43 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
           <p className="sala-codigo">
             Sala <strong>{sala.codigo}</strong>
           </p>
+          <button
+            type="button"
+            className="boton chico secundario boton-registro"
+            aria-expanded={registroAbierto}
+            aria-controls="registro-mesa"
+            onClick={() => setRegistroAbierto((abierto) => !abierto)}
+          >
+            Registro
+          </button>
           <BotonReglas />
           <BotonSalir enCurso={enCurso} />
         </div>
       </header>
 
-      <MesaRedonda sala={sala} juego={juego} />
+      <div className="zona-mesa">
+        <MesaRedonda sala={sala} juego={juego} />
+      </div>
 
-      <footer className="inferior">
-        <MiPiloto sala={sala} />
-        <p className={`turno ${meToca ? 'mio' : ''}`} role="status" aria-live="polite">
-          {mensajeDeTurno(juego)}
-          {miFechaLimite !== null && <CuentaRegresiva fechaLimite={miFechaLimite} />}
-        </p>
-        <PanelApuesta juego={juego} />
+      <section className="zona-juego" aria-label="Tu turno y tus cartas">
+        <div className="acciones-turno">
+          {/* El turno siempre se anuncia; mientras apostás, el cartel de apuesta ocupa su lugar en pantalla. */}
+          <p
+            className={`turno ${meToca ? 'mio' : ''} ${apostando || conPiloto ? 'solo-lectores' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            {mensajeDeTurno(juego)}
+            {miFechaLimite !== null && <CuentaRegresiva fechaLimite={miFechaLimite} />}
+          </p>
+          {conPiloto && <MiPiloto />}
+          {apostando && <PanelApuesta juego={juego} />}
+          {tirando && <p className="pista">Tocá la carta que querés jugar.</p>}
+        </div>
         <Mano juego={juego} />
-      </footer>
+      </section>
 
-      <Registro />
+      <Registro abierto={registroAbierto} alCerrar={() => setRegistroAbierto(false)} />
 
       <Resumen sala={sala} juego={juego} />
       <Resultados sala={sala} juego={juego} />

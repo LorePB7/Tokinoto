@@ -13,19 +13,16 @@ export function Mano({ juego }: { juego: VistaJuego }) {
   if (cartas.length === 0) return <div className="mano vacia" aria-label="No tenés cartas en la mano" />;
 
   return (
-    <>
-      {meToca && <p className="pista">Tocá la carta que querés jugar.</p>}
-      <div className={`mano ${meToca ? 'activa' : ''}`} role="group" aria-label="Tu mano">
-        {cartas.map((id) => (
-          <Carta
-            key={id}
-            id={id}
-            tamano="m"
-            onClick={meToca ? () => void jugarCarta(id) : undefined}
-            deshabilitada={ocupado}
-          />
-        ))}
-      </div>
-    </>
+    <div className={`mano ${meToca ? 'activa' : ''}`} role="group" aria-label="Tu mano">
+      {cartas.map((id) => (
+        <Carta
+          key={id}
+          id={id}
+          tamano="m"
+          onClick={meToca ? () => void jugarCarta(id) : undefined}
+          deshabilitada={ocupado}
+        />
+      ))}
+    </div>
   );
 }

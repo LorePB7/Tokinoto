@@ -34,12 +34,17 @@ export function PanelApuesta({ juego }: { juego: VistaJuego }) {
           );
         })}
       </div>
-      <p className="nota">Hasta ahora la mesa apostó {apostado} en total.</p>
-      {turno.valorProhibido !== null && (
-        <p className="nota aviso-pie">
-          Sos el Pié: no podés apostar {turno.valorProhibido}, porque la suma daría {total}.
-        </p>
-      )}
+      <p className="nota">
+        Hasta ahora la mesa apostó {apostado} en total.
+        {turno.valorProhibido !== null && (
+          <>
+            {' '}
+            <b className="aviso-pie">
+              Sos el Pié: no podés apostar {turno.valorProhibido}, porque la suma daría {total}.
+            </b>
+          </>
+        )}
+      </p>
     </section>
   );
 }

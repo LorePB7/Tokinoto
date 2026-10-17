@@ -67,10 +67,13 @@ describe('fichas y reglas', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     await userEvent.click(boton);
     const panel = screen.getByRole('dialog', { name: /reglas del juego/i });
+    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
+    expect(within(panel).getAllByRole('tab')).toHaveLength(4);
+    await userEvent.click(within(panel).getByRole('tab', { name: 'Cartas' }));
     expect(within(within(panel).getByRole('list', { name: /cartas de menor a mayor/i })).getAllByRole('listitem')).toHaveLength(14);
     expect(within(panel).getByText(/le gana a todas, incluso al As/i)).toBeInTheDocument();
+    await userEvent.click(within(panel).getByRole('tab', { name: 'Puntos' }));
     expect(within(panel).getByText(/5 puntos más tu apuesta/i)).toBeInTheDocument();
-    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(boton).toHaveFocus();
@@ -158,7 +161,8 @@ describe('con un servidor real', () => {
     expect(screen.queryByText(/tocá la carta que querés jugar/i)).toBeNull();
     a.unmount();
 
-    con(conTurno, <Mano juego={juegoDe(conTurno)!} />);
+    // La pista va en el recuadro fijo del turno, en la pantalla de la mesa.
+    con(conTurno, <Mesa sala={salaDe(conTurno)!} juego={juegoDe(conTurno)!} />);
     expect(mensajeDeTurno(juegoDe(conTurno)!)).toBe('Te toca jugar una carta');
     expect(screen.getByText(/tocá la carta que querés jugar/i)).toBeInTheDocument();
     const botones = within(screen.getByRole('group', { name: /tu mano/i })).getAllByRole('button');

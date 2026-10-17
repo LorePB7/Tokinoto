@@ -44,58 +44,63 @@ export function Lobby() {
       <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <div className="hoja">
-        <h2>Sala de espera</h2>
-        <p className="invitacion">
-          Pasales este código a tus amigos: <strong className="codigo-sala" data-testid="codigo">{sala.codigo}</strong>
-        </p>
-        <div className="acciones">
-          <button type="button" className="boton secundario" onClick={() => void copiar(sala.codigo, 'codigo')}>
-            {copiado === 'codigo' ? 'Código copiado' : 'Copiar código'}
-          </button>
-          <button type="button" className="boton secundario" onClick={() => void copiar(enlaceDeLaSala(sala.codigo), 'enlace')}>
-            {copiado === 'enlace' ? 'Enlace copiado' : 'Copiar enlace'}
-          </button>
+        <div className="lobby-info">
+          <h2>Sala de espera</h2>
+          <p className="invitacion">
+            Pasales este código a tus amigos: <strong className="codigo-sala" data-testid="codigo">{sala.codigo}</strong>
+          </p>
+          <div className="acciones">
+            <button type="button" className="boton secundario" onClick={() => void copiar(sala.codigo, 'codigo')}>
+              {copiado === 'codigo' ? 'Código copiado' : 'Copiar código'}
+            </button>
+            <button
+              type="button"
+              className="boton secundario"
+              onClick={() => void copiar(enlaceDeLaSala(sala.codigo), 'enlace')}
+            >
+              {copiado === 'enlace' ? 'Enlace copiado' : 'Copiar enlace'}
+            </button>
+          </div>
+          <p className="nota">
+            Tiempo por jugada:{' '}
+            {sala.tiempoTurnoMs === null ? 'sin límite' : `${Math.round(sala.tiempoTurnoMs / 1000)} segundos`}. Si alguien
+            se va o se le vence el tiempo, el piloto automático juega por él.
+          </p>
         </div>
 
-        <p className="nota">
-          Tiempo por jugada:{' '}
-          {sala.tiempoTurnoMs === null ? 'sin límite' : `${Math.round(sala.tiempoTurnoMs / 1000)} segundos`}. Si alguien se
-          va o se le vence el tiempo, el piloto automático juega por él.
-        </p>
-
-        <h3>
-          Jugadores ({sala.jugadores.length} de {sala.maxJugadores})
-        </h3>
-        <ul className="jugadores">
-          {sala.jugadores.map((j) => (
-            <li key={j.idJugador} className={j.idJugador === sala.yo ? 'yo' : ''}>
-              <span className="nombre">
-                {j.nombre}
-                {j.idJugador === sala.yo ? ' (vos)' : ''}
-              </span>
-              {j.idJugador === sala.anfitrion && <i className="insignia">Anfitrión</i>}
-              {!j.conectado && <i className="insignia alerta">Sin conexión</i>}
-            </li>
-          ))}
-        </ul>
-
-        {soyAnfitrion ? (
-          <>
-            {faltan > 0 && (
-              <p className="nota">
-                Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
-              </p>
+        <div className="lobby-jugadores">
+          <h3>
+            Jugadores ({sala.jugadores.length} de {sala.maxJugadores})
+          </h3>
+          <ul className="jugadores">
+            {sala.jugadores.map((j) => (
+              <li key={j.idJugador} className={j.idJugador === sala.yo ? 'yo' : ''}>
+                <span className="nombre">
+                  {j.nombre}
+                  {j.idJugador === sala.yo ? ' (vos)' : ''}
+                </span>
+                {j.idJugador === sala.anfitrion && <i className="insignia">Anfitrión</i>}
+                {!j.conectado && <i className="insignia alerta">Sin conexión</i>}
+              </li>
+            ))}
+          </ul>
+          {soyAnfitrion && faltan > 0 && (
+            <p className="nota">
+              Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
+            </p>
+          )}
+          {!soyAnfitrion && <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>}
+          <div className="acciones fila">
+            {soyAnfitrion && (
+              <button type="button" className="boton" disabled={faltan > 0 || ocupado} onClick={() => void iniciar()}>
+                Iniciar juego
+              </button>
             )}
-            <button type="button" className="boton" disabled={faltan > 0 || ocupado} onClick={() => void iniciar()}>
-              Iniciar juego
+            <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void salir()}>
+              Salir de la sala
             </button>
-          </>
-        ) : (
-          <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>
-        )}
-        <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void salir()}>
-          Salir de la sala
-        </button>
+          </div>
+        </div>
       </div>
     </main>
   );

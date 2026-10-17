@@ -89,51 +89,55 @@ export function Inicio() {
           />
         </label>
 
-        <form onSubmit={alCrear} className="bloque">
-          <h2>Crear una sala</h2>
-          <label className="campo corto">
-            <span>Jugadores como máximo</span>
-            <select value={cupo} onChange={(e) => setCupo(Number(e.target.value))}>
-              {[4, 5, 6, 7].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="campo corto">
-            <span>Tiempo por jugada</span>
-            <select value={tiempo} onChange={(e) => setTiempo(Number(e.target.value))}>
-              {TIEMPOS.map((t) => (
-                <option key={t} value={t}>
-                  {t === 0 ? 'Sin límite' : `${t} segundos`}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
-            Crear sala
-          </button>
-        </form>
+        <div className="bloques">
+          <form onSubmit={alCrear} className="bloque">
+            <h2>Crear una sala</h2>
+            <div className="fila-campos">
+              <label className="campo corto">
+                <span>Jugadores como máximo</span>
+                <select value={cupo} onChange={(e) => setCupo(Number(e.target.value))}>
+                  {[4, 5, 6, 7].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="campo corto">
+                <span>Tiempo por jugada</span>
+                <select value={tiempo} onChange={(e) => setTiempo(Number(e.target.value))}>
+                  {TIEMPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t === 0 ? 'Sin límite' : `${t} segundos`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
+              Crear sala
+            </button>
+          </form>
 
-        <form onSubmit={alUnirse} className="bloque">
-          <h2>Unirme a una sala</h2>
-          <label className="campo">
-            <span>Código de la sala</span>
-            <input
-              className="codigo"
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-              maxLength={LARGO_CODIGO_SALA}
-              autoCapitalize="characters"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </label>
-          <button type="submit" className="boton" disabled={!nombreLimpio || !codigoValido || ocupado}>
-            Unirme
-          </button>
-        </form>
+          <form onSubmit={alUnirse} className="bloque">
+            <h2>Unirme a una sala</h2>
+            <label className="campo">
+              <span>Código de la sala</span>
+              <input
+                className="codigo"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                maxLength={LARGO_CODIGO_SALA}
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </label>
+            <button type="submit" className="boton" disabled={!nombreLimpio || !codigoValido || ocupado}>
+              Unirme
+            </button>
+          </form>
+        </div>
       </div>
     </main>
   );
