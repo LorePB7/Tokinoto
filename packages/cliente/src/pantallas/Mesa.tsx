@@ -83,11 +83,8 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
   const meToca = juego.turno?.asiento === juego.miAsiento;
   const miFechaLimite = meToca ? (juego.turno?.fechaLimite ?? null) : null;
   const enCurso = sala.estado === 'JUGANDO';
-  // Mientras apostás, la mesa se achica un poco para que entren el cartel de apuesta y tus cartas sin scroll.
-  const [registroAbierto, setRegistroAbierto] = useState(false);
-  const apostando = juego.fase === 'APUESTAS' && juego.turno?.tipo === 'apuesta' && meToca;
   return (
-    <div className={`pantalla-mesa ${apostando ? 'apostando' : ''}`}>
+    <div className="pantalla-mesa">
       <header className="barra">
         <h1 className="marca">Tokinoto</h1>
         <p className="datos-partida">
@@ -104,27 +101,16 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
           <p className="sala-codigo">
             Sala <strong>{sala.codigo}</strong>
           </p>
-          <button
-            type="button"
-            className="boton chico secundario boton-registro"
-            aria-expanded={registroAbierto}
-            aria-controls="registro-mesa"
-            onClick={() => setRegistroAbierto((a) => !a)}
-          >
-            Registro
-          </button>
           <BotonReglas />
           <BotonSalir enCurso={enCurso} />
         </div>
       </header>
 
-      <div className="zona-mesa">
-        <MesaRedonda sala={sala} juego={juego} />
-      </div>
+      <MesaRedonda sala={sala} juego={juego} />
 
       <footer className="inferior">
         <MiPiloto sala={sala} />
-        <p className={`turno ${meToca ? 'mio' : ''} ${apostando ? 'solo-lectores' : ''}`} role="status" aria-live="polite">
+        <p className={`turno ${meToca ? 'mio' : ''}`} role="status" aria-live="polite">
           {mensajeDeTurno(juego)}
           {miFechaLimite !== null && <CuentaRegresiva fechaLimite={miFechaLimite} />}
         </p>
@@ -132,7 +118,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
         <Mano juego={juego} />
       </footer>
 
-      <Registro abierto={registroAbierto} alCerrar={() => setRegistroAbierto(false)} />
+      <Registro />
 
       <Resumen sala={sala} juego={juego} />
       <Resultados sala={sala} juego={juego} />

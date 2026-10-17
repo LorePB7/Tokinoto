@@ -67,13 +67,10 @@ describe('fichas y reglas', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     await userEvent.click(boton);
     const panel = screen.getByRole('dialog', { name: /reglas del juego/i });
-    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
-    expect(within(panel).getAllByRole('tab')).toHaveLength(4);
-    await userEvent.click(within(panel).getByRole('tab', { name: 'Cartas' }));
     expect(within(within(panel).getByRole('list', { name: /cartas de menor a mayor/i })).getAllByRole('listitem')).toHaveLength(14);
     expect(within(panel).getByText(/le gana a todas, incluso al As/i)).toBeInTheDocument();
-    await userEvent.click(within(panel).getByRole('tab', { name: 'Puntos' }));
     expect(within(panel).getByText(/5 puntos más tu apuesta/i)).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Cerrar' })).toHaveFocus();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(boton).toHaveFocus();
@@ -95,33 +92,6 @@ describe('pantallas iniciales', () => {
     expect(crear).toBeDisabled();
     await userEvent.type(screen.getByLabelText(/tu nombre/i), 'Ana');
     expect(crear).toBeEnabled();
-  });
-
-  it('Inicio muestra una sola acción a la vez, con pestañas', async () => {
-    const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
-    con(tienda, <Inicio />);
-    const [crearTab, unirmeTab] = screen.getAllByRole('tab');
-    expect(crearTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByRole('button', { name: 'Unirme' })).toBeNull();
-    await userEvent.click(unirmeTab!);
-    expect(unirmeTab).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Unirme' })).toBeDisabled();
-    expect(screen.queryByRole('button', { name: /crear sala/i })).toBeNull();
-    await userEvent.type(screen.getByLabelText(/tu nombre/i), 'Ana');
-    await userEvent.type(screen.getByLabelText(/código de la sala/i), 'ABCD2345');
-    expect(screen.getByRole('button', { name: 'Unirme' })).toBeEnabled();
-  });
-
-  it('Inicio abre "Unirme" con el código ya cargado si el enlace trae ?sala=', () => {
-    window.history.pushState({}, '', '/?sala=abcd2345');
-    try {
-      const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
-      con(tienda, <Inicio />);
-      expect(screen.getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true');
-      expect(screen.getByLabelText(/código de la sala/i)).toHaveValue('ABCD2345');
-    } finally {
-      window.history.pushState({}, '', '/');
-    }
   });
 });
 

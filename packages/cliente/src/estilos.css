@@ -24,8 +24,8 @@
   --rojo-carta: #a3232c;
   --negro-carta: #251a13;
   --alerta: #e58a6c;
-  --cartel: 'Lora', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  --serif: 'Lora', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --cartel: 'Abril Fatface', 'Playfair Display', Georgia, serif;
+  --serif: 'Playfair Display', 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --carta-m: 70px;
   --carta-s: 50px;
@@ -84,10 +84,10 @@ select {
 .marca,
 .titulo-mesa {
   font-family: var(--cartel);
-  font-weight: 700;
+  font-weight: 400;
   color: var(--papel);
   text-shadow:
-    1px 2px 0 var(--bordo),
+    2px 2px 0 var(--bordo),
     0 6px 18px rgba(0, 0, 0, 0.5);
 }
 
@@ -191,8 +191,8 @@ select {
 }
 
 .logo {
-  font-size: clamp(44px, 9vw, 72px);
-  letter-spacing: 0.04em;
+  font-size: clamp(44px, 9vw, 80px);
+  letter-spacing: 0.1em;
   line-height: 1;
 }
 
@@ -217,8 +217,8 @@ select {
 
 .hoja h2 {
   font-family: var(--cartel);
-  font-weight: 700;
-  font-size: 24px;
+  font-weight: 400;
+  font-size: 26px;
   color: var(--bordo);
 }
 
@@ -230,54 +230,12 @@ select {
 .formulario .bloque {
   display: grid;
   gap: 10px;
+  padding-top: 14px;
+  border-top: 2px dotted rgba(109, 74, 38, 0.45);
 }
 
-/* Franja de guarda (rombos, como en un poncho) en lugar de una línea. */
-.guarda {
-  height: 10px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='10'%3E%3Cpath d='M8 0 16 5 8 10 0 5Z' fill='%237b1e2c'/%3E%3Cpath d='M8 3 12 5 8 7 4 5Z' fill='%23c08a3e'/%3E%3C/svg%3E");
-  background-repeat: repeat-x;
-  background-position: center;
-}
-
-/* Elegir qué hacer: crear una sala o entrar con un código. */
-.pestanas {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.pestana {
-  appearance: none;
-  min-height: 44px;
-  padding: 6px 10px;
-  border: 2px solid var(--bordo);
-  border-radius: 10px;
-  background: transparent;
-  color: var(--bordo);
-  font-family: var(--serif);
-  font-weight: 700;
-  font-size: 16px;
-  cursor: pointer;
-}
-
-.pestana.activa {
-  background: var(--bordo);
-  color: var(--papel);
-}
-
-.pestana:not(.activa):hover {
-  background: rgba(123, 30, 44, 0.1);
-}
-
-.fila-campos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.fila-campos .campo.corto select {
-  width: 100%;
+.formulario .bloque h2 {
+  font-size: 21px;
 }
 
 .acciones {
@@ -342,18 +300,15 @@ select {
 .pantalla-mesa {
   max-width: 1280px;
   margin: 0 auto;
-  /* Todo entra en la pantalla: la mesa ocupa el alto que sobra y se achica si hace falta. */
-  height: 100dvh;
-  padding: 8px 16px 10px;
+  padding: 10px 16px 18px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 250px;
-  grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas:
     'barra barra'
     'mesa registro'
     'inferior registro';
   column-gap: 16px;
-  row-gap: 6px;
+  row-gap: 8px;
   align-items: start;
 }
 
@@ -387,24 +342,15 @@ select {
   color: var(--texto);
 }
 
-.zona-mesa {
-  grid-area: mesa;
-  align-self: stretch;
-  min-width: 0;
-  min-height: 0;
-  /* La mesa se mide contra este espacio: el alto que sobra entre la barra y tus cartas. */
-  container-type: size;
-  display: grid;
-  place-items: center;
-  /* Lugar para los asientos y los montones que sobresalen de la mesa. */
-  padding: 34px 0 40px;
-}
-
 .mesa {
+  --alto-disponible: calc(100dvh - 390px);
+  grid-area: mesa;
   position: relative;
   container-type: inline-size;
-  width: min(100cqw, 100cqh, 700px);
+  width: min(100%, var(--alto-disponible), 700px);
+  min-width: 300px;
   aspect-ratio: 1;
+  margin: 36px auto 44px;
   /* Las cartas y los montones crecen o se achican junto con la mesa. */
   --carta-s: clamp(40px, 10.5cqw, 76px);
   --carta-xs: clamp(22px, 5.4cqw, 34px);
@@ -477,8 +423,6 @@ select {
 /* ---------- Asientos ---------- */
 
 .asiento {
-  /* Todo el asiento se mide en em: crece o se achica junto con la mesa. */
-  font-size: clamp(10px, 3.5cqw, 15px);
   position: absolute;
   transform: translate(-50%, -50%);
   display: grid;
@@ -487,15 +431,15 @@ select {
 }
 
 .placa {
-  min-width: 6.4em;
-  max-width: 10em;
+  min-width: 96px;
+  max-width: 150px;
   display: grid;
   justify-items: center;
-  gap: 0.2em;
-  padding: 0.4em 0.65em 0.45em;
+  gap: 3px;
+  padding: 6px 10px 7px;
   background: linear-gradient(180deg, #3b2616, #26160b);
   border: 2px solid var(--laton-oscuro);
-  border-radius: 0.65em;
+  border-radius: 10px;
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
   text-align: center;
 }
@@ -523,7 +467,7 @@ select {
   font-family: var(--serif);
   font-weight: 700;
   color: var(--texto);
-  font-size: 1em;
+  font-size: 15px;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -541,9 +485,9 @@ select {
   display: flex;
   align-items: center;
   white-space: nowrap;
-  gap: 0.45em;
-  min-height: 1.4em;
-  font-size: 0.87em;
+  gap: 6px;
+  min-height: 20px;
+  font-size: 13px;
   color: var(--texto-suave);
 }
 
@@ -564,40 +508,22 @@ select {
 }
 
 .dorsos .cuenta {
-  margin-left: 0.45em;
-  font-size: 0.87em;
+  margin-left: 6px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--texto-suave);
 }
 
-.asiento .insignias i {
-  font-size: 0.8em;
-  padding: 0.25em 0.6em;
-}
-
-.asiento .ficha-s {
-  --lado: 1.5em;
-}
-
 .montones {
-  /* Cada pila es una carta chica con su ficha; van en una sola fila, tapándose un poco, para ocupar poco alto. */
-  --carta-pila: clamp(15px, 3.6cqw, 26px);
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  gap: 3px;
   width: max-content;
   max-width: 230px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: center;
-}
-
-.montones .carta {
-  --cw: var(--carta-pila);
-}
-
-.montones .monton + .monton {
-  margin-left: calc(var(--carta-pila) * -0.45);
 }
 
 .montones.abajo {
@@ -606,6 +532,7 @@ select {
 
 .montones.arriba {
   bottom: calc(100% + 4px);
+  flex-wrap: wrap-reverse;
 }
 
 .monton {
@@ -919,6 +846,7 @@ button.carta:disabled {
 
 .panel-apuesta .aviso-pie {
   color: var(--bordo);
+  font-weight: 600;
 }
 
 .botones-apuesta {
@@ -996,27 +924,12 @@ button.carta:disabled {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 6px;
-  align-self: stretch;
-  min-height: 0;
-  max-height: 560px;
-  overflow: hidden;
+  height: min(calc(100dvh - 120px), 560px);
+  min-height: 200px;
   padding: 10px 12px;
   background: rgba(20, 12, 7, 0.55);
   border: 2px solid rgba(192, 138, 62, 0.4);
   border-radius: 12px;
-}
-
-.encabezado-registro {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-/* El botón y el cierre del registro solo existen cuando el registro es un cajón. */
-.boton-registro,
-.cerrar-registro {
-  display: none;
 }
 
 .registro h2 {
@@ -1276,98 +1189,6 @@ button.carta:disabled {
   margin-bottom: 10px;
 }
 
-/* ---------- Ayudas de lectura y de tamaño ---------- */
-
-.solo-lectores {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-/* Al apostar, la mesa cede un poco de alto al cartel de apuesta. */
-
-/* ---------- Pantallas bajas ---------- */
-
-@media (max-height: 760px) {
-  .inicio {
-    gap: 10px;
-    padding-top: 18px;
-  }
-
-  .inicio .lema {
-    display: none;
-  }
-
-  .hoja {
-    padding: 18px;
-    gap: 12px;
-  }
-
-  .hoja.volver {
-    margin-bottom: 8px;
-    padding: 12px 16px;
-    gap: 8px;
-  }
-}
-
-/* Celulares muy bajos: logo más chico y "Volver a esa partida" en una sola fila. */
-@media (max-height: 680px) {
-  .inicio .logo {
-    font-size: 36px;
-  }
-
-  .hoja.volver {
-    grid-template-columns: 1fr auto;
-    align-items: center;
-    justify-items: stretch;
-    font-size: 14px;
-  }
-
-  .hoja.volver .boton {
-    min-height: 40px;
-    padding: 6px 12px;
-    font-size: 14px;
-  }
-}
-
-/* En pantallas angostas el botón Reglas flotante no debe tapar el logo. */
-@media (max-width: 520px) {
-  /* Solo el signo "?": así el botón flotante no tapa el logo. */
-  .boton-reglas.flotante .texto-boton {
-    display: none;
-  }
-
-  .logo,
-  .lobby .logo {
-    font-size: 34px;
-  }
-
-  .inicio {
-    padding-top: 14px;
-  }
-}
-
-@media (max-width: 360px) {
-  .hoja {
-    padding: 14px;
-  }
-
-  .pestana {
-    font-size: 14px;
-    padding: 6px;
-  }
-
-  .fila-campos .campo.corto span {
-    font-size: 13px;
-  }
-}
-
 /* ---------- Reglas ---------- */
 
 .boton-reglas {
@@ -1422,8 +1243,8 @@ button.carta:disabled {
 
 .panel-reglas h2 {
   font-family: var(--cartel);
-  font-weight: 700;
-  font-size: 26px;
+  font-weight: 400;
+  font-size: 28px;
   color: var(--bordo);
 }
 
@@ -1463,45 +1284,67 @@ button.carta:disabled {
 
   .pantalla-mesa {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-areas:
       'barra'
       'mesa'
-      'inferior';
-    padding: 6px 10px 8px;
+      'inferior'
+      'registro';
   }
 
-  .zona-mesa {
-    padding: 34px 0 40px;
+  .registro {
+    height: 150px;
+    min-height: 0;
   }
 
-  /* Los números de la apuesta van siempre en una sola fila, aunque sean ocho. */
-  .botones-apuesta {
-    flex-wrap: nowrap;
-    gap: 5px;
-    width: 100%;
+  .mesa {
+    width: min(100%, 520px);
+    min-width: 0;
+    margin: 46px auto 44px;
   }
 
   .boton-apuesta {
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 48px;
-    width: auto;
-    height: 48px;
-    font-size: 22px;
-  }
-
-  .panel-apuesta {
-    padding: 10px 12px;
-    gap: 5px;
+    width: 48px;
+    height: 54px;
+    font-size: 24px;
   }
 
   .panel-apuesta .instruccion {
-    font-size: 16px;
+    font-size: 17px;
+  }
+
+  .placa {
+    min-width: 72px;
+    max-width: 96px;
+    padding: 4px 6px;
+  }
+
+  .nombre {
+    font-size: 12px;
+  }
+
+  .insignias i {
+    font-size: 10px;
+    padding: 2px 5px;
+  }
+
+  .marcador {
+    font-size: 11px;
+  }
+
+  .dorsos .mini:nth-child(n + 2) {
+    display: none;
   }
 
   .dorsos {
     padding-left: 0;
+  }
+
+  .dorsos .mini {
+    margin-left: 0;
+  }
+
+  .dorsos .cuenta {
+    font-size: 11px;
   }
 
   .montones {
@@ -1510,643 +1353,6 @@ button.carta:disabled {
 
   .titulo-mesa {
     font-size: 24px;
-  }
-}
-
-/* ---------- Barra superior en celulares ---------- */
-
-@media (max-width: 820px) {
-  .marca {
-    display: none;
-  }
-
-  .barra {
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-auto-columns: auto;
-    align-items: center;
-    column-gap: 6px;
-    row-gap: 0;
-    font-size: 12px;
-    line-height: 1.3;
-  }
-
-  .barra-derecha {
-    display: contents;
-  }
-
-  .datos-partida {
-    grid-column: 1;
-    grid-row: 1;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .sala-codigo {
-    grid-column: 1;
-    grid-row: 2;
-    white-space: nowrap;
-  }
-
-  .barra .boton.chico {
-    grid-row: 1 / span 2;
-    min-height: 34px;
-    padding: 4px 9px;
-    font-size: 13px;
-  }
-
-  .barra .boton-reglas .texto-boton {
-    display: none;
-  }
-
-  .dorsos .mini {
-    display: none;
-  }
-}
-
-/* ---------- Registro como cajón (celulares y pantallas muy bajas) ---------- */
-
-@media (max-width: 820px), (max-height: 500px) {
-  .boton-registro,
-  .cerrar-registro {
-    display: inline-block;
-  }
-
-  .registro {
-    position: fixed;
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    z-index: 70;
-    height: min(55dvh, 340px);
-    max-height: none;
-    background: #1d130b;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7);
-    transform: translateY(calc(100% + 16px));
-    visibility: hidden;
-  }
-
-  .registro.abierto {
-    transform: none;
-    visibility: visible;
-  }
-}
-
-/* ---------- Pantallas bajas ---------- */
-
-@media (max-height: 760px) {
-  :root {
-    --carta-m: 56px;
-  }
-
-  .zona-mesa {
-    padding: 34px 0 40px;
-  }
-
-  .panel-apuesta {
-    padding: 8px 14px;
-    gap: 4px;
-  }
-
-  .panel-apuesta .instruccion {
-    font-size: 16px;
-  }
-
-  .boton-apuesta {
-    height: 48px;
-  }
-}
-
-@media (max-height: 640px) {
-  :root {
-    --carta-m: 46px;
-  }
-
-  .zona-mesa {
-    padding: 34px 0 40px;
-  }
-
-  .mano {
-    padding-top: 8px;
-  }
-}
-
-/* ---------- Celular acostado: la mesa a la izquierda y tus cartas a la derecha ---------- */
-
-@media (max-height: 500px) and (min-width: 560px) {
-  :root {
-    --carta-m: 46px;
-  }
-
-  .pantalla-mesa {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 40%);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      'barra barra'
-      'mesa inferior';
-    padding: 4px 10px 6px;
-  }
-
-  .zona-mesa {
-    padding: 36px 0 46px;
-  }
-
-  .inferior {
-    align-self: center;
-  }
-
-  .dorsos .mini {
-    display: none;
-  }
-}
-
-/* ---------- Sala de espera, reglas y resultados: todo entra en la pantalla ---------- */
-
-.lobby {
-  gap: 10px;
-  padding-top: clamp(14px, 3vh, 28px);
-  padding-bottom: 12px;
-}
-
-.lobby .logo {
-  font-size: clamp(34px, 6vh, 56px);
-}
-
-.lobby .hoja {
-  width: min(100%, 560px);
-  gap: 10px;
-  padding: 16px 20px;
-}
-
-.lobby-info,
-.lobby-jugadores {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  min-width: 0;
-}
-
-.lobby .jugadores {
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 5px;
-}
-
-.lobby .jugadores li {
-  min-width: 0;
-  padding: 6px 10px;
-}
-
-.lobby .jugadores .nombre {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.acciones.fila {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 8px;
-}
-
-.acciones.fila .boton {
-  padding: 8px 10px;
-}
-
-.contenido-reglas {
-  display: grid;
-  gap: 14px;
-  align-content: start;
-}
-
-.pestanas-reglas {
-  grid-template-columns: repeat(4, 1fr);
-  gap: 4px;
-}
-
-.pestanas-reglas .pestana {
-  min-height: 40px;
-  font-size: 14px;
-  padding: 4px 6px;
-}
-
-@media (max-height: 760px) {
-  .lobby .hoja {
-    padding: 12px 16px;
-  }
-
-  .lobby .hoja h2 {
-    font-size: 21px;
-  }
-
-  .lobby .invitacion {
-    line-height: 1.4;
-  }
-
-  .lobby .boton {
-    min-height: 42px;
-  }
-
-  .panel-reglas {
-    gap: 10px;
-    padding: 12px 18px 16px;
-    font-size: 14px;
-  }
-
-  .panel-reglas h2 {
-    font-size: 22px;
-  }
-
-  .panel-reglas h3 {
-    font-size: 16px;
-  }
-
-  .contenido-reglas {
-    gap: 10px;
-  }
-
-  .panel-reglas ol {
-    gap: 5px;
-  }
-
-  .panel-reglas .valores-cartas {
-    gap: 4px;
-  }
-
-  .superposicion {
-    padding: 8px;
-  }
-
-  .hoja.resumen,
-  .hoja.final {
-    padding: 14px 16px;
-    gap: 8px;
-  }
-
-  .hoja.resumen h2,
-  .hoja.final h2 {
-    font-size: 20px;
-  }
-
-  .hoja.resumen th,
-  .hoja.resumen td {
-    padding: 3px 6px;
-  }
-
-  .ranking {
-    gap: 4px;
-  }
-
-  .ranking li {
-    padding: 5px 10px;
-    font-size: 16px;
-  }
-}
-
-/* Los puntos de cada partida son una tabla grande: se mira dentro de su propio recuadro. */
-.tabla-ancha {
-  max-height: max(60px, calc(100dvh - 600px));
-  overflow: auto;
-}
-
-@media (max-width: 520px) {
-  .lobby .logo {
-    font-size: 32px;
-  }
-
-  .lobby .hoja {
-    padding: 12px;
-    gap: 8px;
-  }
-
-  .lobby .jugadores {
-    grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
-  }
-
-  .lobby-info .acciones {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .lobby-info .acciones .boton {
-    padding: 6px 8px;
-    font-size: 15px;
-  }
-
-  .lobby .nota {
-    font-size: 12px;
-    line-height: 1.3;
-  }
-
-  .lobby .invitacion {
-    font-size: 14px;
-  }
-
-  .lobby .codigo-sala {
-    font-size: 22px;
-  }
-}
-
-@media (max-height: 520px) and (min-width: 560px) {
-  .inicio {
-    padding-top: 8px;
-    gap: 6px;
-  }
-
-  .inicio .logo {
-    font-size: 28px;
-  }
-
-  .hoja {
-    padding: 12px 16px;
-    gap: 8px;
-  }
-
-  .lobby {
-    padding-top: 6px;
-    gap: 4px;
-  }
-
-  .lobby .hoja {
-    width: min(100%, 820px);
-    grid-template-columns: 1fr 1fr;
-    column-gap: 22px;
-    padding: 10px 16px;
-  }
-
-  .lobby .invitacion {
-    line-height: 1.3;
-  }
-
-  .lobby .boton {
-    min-height: 38px;
-  }
-
-  .lobby .jugadores {
-    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-  }
-
-  .lobby-info .acciones {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-
-  .lobby-info .acciones .boton {
-    padding: 4px 8px;
-    font-size: 14px;
-  }
-
-  .boton-reglas.flotante .texto-boton {
-    display: none;
-  }
-
-  .panel-reglas {
-    width: min(800px, 100vw);
-  }
-
-  .contenido-reglas {
-    display: block;
-    column-count: 2;
-    column-gap: 22px;
-  }
-
-  .contenido-reglas > section {
-    break-inside: avoid;
-    margin-bottom: 10px;
-  }
-
-  .panel-reglas {
-    --carta-s: 34px;
-    gap: 8px;
-    padding: 8px 18px 10px;
-    font-size: 13px;
-    line-height: 1.35;
-  }
-
-  .panel-reglas h2 {
-    font-size: 20px;
-  }
-
-  .panel-reglas .valores-cartas {
-    flex-wrap: nowrap;
-    gap: 3px;
-  }
-
-  .hoja.resumen th,
-  .hoja.resumen td {
-    padding: 2px 6px;
-    font-size: 13px;
-  }
-
-  .hoja.resumen .boton {
-    min-height: 36px;
-  }
-
-  .hoja.final {
-    width: min(100%, 780px);
-    grid-template-columns: minmax(220px, auto) minmax(0, 1fr);
-    column-gap: 20px;
-  }
-
-  .ranking li {
-    grid-template-columns: 2.2em 1fr auto;
-    white-space: nowrap;
-  }
-
-  .hoja.final > h2 {
-    grid-column: 1 / -1;
-  }
-
-  .hoja.final .ranking {
-    grid-column: 1;
-    grid-row: 2 / span 3;
-  }
-
-  .hoja.final > :not(h2):not(.ranking) {
-    grid-column: 2;
-  }
-
-  .hoja.final .boton {
-    min-height: 38px;
-  }
-
-  .tabla-ancha {
-    max-height: max(60px, calc(100dvh - 260px));
-  }
-
-  .ranking li {
-    padding: 3px 10px;
-    font-size: 14px;
-  }
-}
-
-/* ---------- Pantallas muy bajas: notebooks con barras, celulares chicos y celulares acostados ---------- */
-
-@media (max-height: 620px) {
-  .inicio .logo,
-  .lobby .logo {
-    font-size: 28px;
-  }
-
-  .inicio {
-    padding-top: 8px;
-    gap: 6px;
-  }
-
-  .lobby .hoja {
-    padding: 10px 14px;
-    gap: 6px;
-  }
-
-  .lobby .boton {
-    min-height: 38px;
-  }
-
-  .lobby .nota {
-    font-size: 12px;
-    line-height: 1.3;
-  }
-
-  .lobby .jugadores li {
-    padding: 4px 10px;
-  }
-
-  .lobby .invitacion {
-    line-height: 1.25;
-  }
-}
-
-@media (max-height: 600px) and (max-width: 520px) {
-  .inicio .logo,
-  .lobby .logo {
-    display: none;
-  }
-}
-
-@media (max-height: 600px) {
-  .panel-reglas {
-    font-size: 13px;
-    line-height: 1.3;
-  }
-}
-
-@media (max-height: 420px) {
-  .inicio .logo,
-  .lobby .logo {
-    display: none;
-  }
-
-  /* Aviso solo para quien juega en su propia computadora: no hace falta en pantallas tan bajas. */
-  .nota-local {
-    display: none;
-  }
-
-  .panel-reglas {
-    font-size: 12px;
-    line-height: 1.3;
-    --carta-s: 28px;
-  }
-
-  .panel-reglas h2 {
-    font-size: 18px;
-  }
-
-  .panel-reglas h3 {
-    font-size: 14px;
-  }
-
-  .pestanas-reglas .pestana {
-    min-height: 32px;
-  }
-
-  .tabla-ancha {
-    max-height: max(60px, calc(100dvh - 260px));
-  }
-
-  .hoja .boton,
-  .hoja .pestana {
-    min-height: 36px;
-  }
-}
-
-@media (max-height: 360px) {
-  .hoja,
-  .lobby .hoja {
-    padding: 8px 12px;
-    gap: 5px;
-  }
-
-  .hoja .campo input,
-  .hoja .campo select {
-    padding: 5px 10px;
-  }
-
-  .hoja .boton,
-  .hoja .pestana {
-    min-height: 32px;
-    padding-block: 3px;
-  }
-
-  .hoja.resumen {
-    padding: 6px 12px;
-    gap: 3px;
-  }
-
-  .hoja.resumen h2 {
-    font-size: 16px;
-  }
-
-  .hoja.resumen th,
-  .hoja.resumen td {
-    padding: 1px 6px;
-    font-size: 12px;
-  }
-
-  .hoja.resumen .nota {
-    font-size: 12px;
-  }
-
-  .superposicion {
-    padding: 4px;
-  }
-
-  .panel-reglas {
-    font-size: 11px;
-  }
-
-  .contenido-reglas {
-    column-count: 3;
-    column-gap: 14px;
-  }
-
-  .contenido-reglas > section {
-    break-inside: auto;
-  }
-
-  .panel-reglas li {
-    break-inside: avoid;
-  }
-
-  .encabezado-reglas .boton {
-    min-height: 28px;
-    padding: 2px 10px;
-  }
-}
-
-/* Siete cartas en la mano entran siempre en el ancho de la pantalla, aun en celulares de 320 px. */
-@media (max-width: 820px) {
-  .mano {
-    --carta-tope: calc((100vw - 44px) / 5.3);
-  }
-
-  .mano .carta {
-    --cw: min(var(--carta-m), var(--carta-tope));
-  }
-
-  .zona-mesa {
-    padding-inline: 6px;
   }
 }
 
