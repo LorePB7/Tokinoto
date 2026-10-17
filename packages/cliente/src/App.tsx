@@ -59,6 +59,9 @@ export function App() {
         </p>
       )}
       <Aviso />
+      <div className="girar-telefono" role="alert">
+        <p>Girá el teléfono para jugar.</p>
+      </div>
     </>
   );
 }

@@ -22,7 +22,12 @@ npm run e2e -w @tokinoto/cliente -- --jugadores 7 --capturas ./capturas
 ```
 
 - Las pruebas de tienda y de componentes usan un **servidor real** en un puerto libre, con pausas cortas. No hay maquetas del servidor.
-- `e2e` levanta el servidor y Vite, abre un Chromium por jugador (el último con pantalla de celular), juega un juego completo tocando la pantalla y verifica que todos vean el mismo ranking, sin avisos de error ni errores de consola. A mitad del juego, un jugador recarga la página y otro cierra la pestaña (juega el piloto) y vuelve desde una nueva con "Volver a esa partida". Al final prueba la revancha. Con `--capturas` guarda imágenes de cada pantalla.
+- `e2e` levanta el servidor y Vite, abre un Chromium por jugador, cada uno con un tamaño de pantalla distinto (computadora, notebook, tablet, celulares), juega un juego completo tocando la pantalla y verifica que todos vean el mismo ranking, sin avisos de error ni errores de consola. A mitad del juego, un jugador recarga la página y otro cierra la pestaña (juega el piloto) y vuelve desde una nueva con "Volver a esa partida". Al final prueba la revancha. Con `--capturas` guarda imágenes de cada pantalla.
+- Además mide, durante toda la partida, que ninguna pantalla pida scroll (vertical ni horizontal), que el recuadro del turno no recorte nada y que **la mesa no se mueva ni cambie de tamaño** entre apostar, tirar y esperar. Opciones:
+  - `--ventanas escritorio`: ventanas reales de computadora (con barras, notebook con zoom, ventanas en mosaico de 960×470).
+  - `--ventanas 320x568,750x342,...`: los tamaños que quieras.
+  - `--dispositivos`: equipos emulados (iPhone SE, iPhone 13, Pixel 7, Galaxy S9+, iPad Mini vertical y acostado, notebook al 125 %).
+  - `--barrido`: cambia la ventana por 38 tamaños en cada vista. `--corto`: solo inicio, sala de espera y reglas.
 - Hace falta Chromium: el que instala Playwright (`npx playwright-core install chromium`) o uno propio indicado en `CHROMIUM_PATH`.
 
 ## Estructura
@@ -34,7 +39,7 @@ src/
   pantallas/   Inicio, Lobby, Mesa
   util/        cartas.ts, geometria.ts (asientos alrededor de la mesa), preferencias.ts
 test/          pruebas con Vitest y Testing Library
-e2e/           prueba de punta a punta con navegadores reales
+e2e/           prueba de punta a punta con navegadores reales (incluye la auditoría de scroll y de mesa fija)
 ```
 
 ## Cómo funciona
@@ -49,7 +54,8 @@ e2e/           prueba de punta a punta con navegadores reales
 - **Estilo.** Todo el aspecto vive en `src/estilos.css`, con los colores y tipografías definidos como variables al principio. Los títulos usan Abril Fatface y los nombres y números, Playfair Display (paquetes `@fontsource`, que viajan con la aplicación: no se piden a Internet). El texto corrido usa la letra del sistema, por legibilidad.
 - **Fichas.** Todas son iguales (bordó); lo que cambia es el número.
 - **Acciones claras.** Cuando te toca apostar aparece un cartel con un botón por cada número posible; el que el Pié no puede elegir queda tachado. Cuando te toca jugar, tus cartas se marcan con un borde y una indicación ("Tocá la carta que querés jugar"). El turno propio se ve en una etiqueta destacada.
-- **Reglas.** El botón "Reglas" (arriba a la derecha, en todas las pantallas) abre un panel al costado con cómo se juega, el valor de las cartas de menor a mayor (incluido el Comodín), la restricción del Pié, los puntos y el desempate. Se cierra con "Cerrar" o con Escape. El texto sigue la especificación aprobada (v4).
+- **Pantalla completa, sin scroll.** Cada pantalla entra entera en computadora y en celular. La mesa tiene lugares fijos: la barra arriba, la mesa en el medio y, abajo, la zona de juego con un recuadro de alto fijo (turno, apuesta o aviso del piloto) y tu mano. Por eso apostar o tirar una carta nunca mueve ni achica la mesa. En celulares, el registro de la mesa se abre con el botón "Registro". En ventanas de computadora muy bajas, la zona de juego pasa al costado de la mesa. Con el celular acostado se pide girarlo.
+- **Reglas.** El botón "Reglas" (arriba a la derecha, en todas las pantallas) abre un panel al costado con cómo se juega, el valor de las cartas de menor a mayor (incluido el Comodín), la restricción del Pié, los puntos y el desempate. Está repartido en pestañas (Juego, Cartas, Puntos, El Pié) para que cada una entre sin scroll. Se cierra con "Cerrar" o con Escape. El texto sigue la especificación aprobada (v4).
 
 ## Ausencias (etapa 6)
 
