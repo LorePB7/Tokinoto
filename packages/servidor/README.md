@@ -15,9 +15,11 @@ npm run iniciar -w @tokinoto/servidor
 
 | Variable de entorno | Significado | Por defecto |
 |---|---|---|
-| `PUERTO` | Puerto HTTP | `3001` |
-| `TOKINOTO_ORIGENES` | Sitios web permitidos, separados por coma (por ejemplo `https://tokinoto.com`) | `*` (cualquiera; solo para desarrollo) |
-| `DATABASE_URL` | Conexión a PostgreSQL para guardar el historial de los juegos (etapa 7) | sin definir: no se guarda nada |
+| `PUERTO` o `PORT` | Puerto HTTP (Render define `PORT`) | `3001` |
+| `NODE_ENV` | `production`: entrega también el cliente web (`packages/cliente/dist`), agrega HSTS y exige orígenes definidos | sin definir: desarrollo |
+| `TOKINOTO_ORIGENES` | Sitios web permitidos, separados por coma (por ejemplo `https://tokinoto.com`) | en Render, `RENDER_EXTERNAL_URL`; en desarrollo, `*` (cualquiera). En producción `*` no se permite |
+| `TOKINOTO_CLIENTE` | Carpeta del cliente construido | en producción, `packages/cliente/dist` |
+| `DATABASE_URL` | Conexión a PostgreSQL para guardar el historial de los juegos (etapa 7). `sslmode=require` se convierte en `verify-full` | sin definir: no se guarda nada |
 
 `GET /salud` responde `ok`. Sirve para que el alojamiento compruebe que el servidor está vivo.
 
@@ -65,3 +67,4 @@ npm test -w @tokinoto/servidor
 ## Límites actuales
 
 - El estado vive en memoria: un reinicio del servidor termina las salas activas (la persistencia llega en la **etapa 7**).
+- **Publicación (etapa 9).** En producción el mismo servidor entrega la página (cargada en memoria, comprimida con gzip, con política de contenido y cabeceras de seguridad), responde `/salud` para la vigilancia de Render y limita las conexiones simultáneas (300). Guía en [`docs/despliegue.md`](../../docs/despliegue.md).

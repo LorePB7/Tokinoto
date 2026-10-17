@@ -26,6 +26,7 @@ npm run e2e -w @tokinoto/cliente -- --jugadores 7 --capturas ./capturas
 - Además mide, durante toda la partida, que ninguna pantalla pida scroll (vertical ni horizontal), que el recuadro del turno no recorte nada y que **la mesa no se mueva ni cambie de tamaño** entre apostar, tirar y esperar. Opciones:
   - `--ventanas escritorio`: ventanas reales de computadora (con barras, notebook con zoom, ventanas en mosaico de 960×470).
   - `--ventanas 320x568,750x342,...`: los tamaños que quieras.
+  - `--publicado`: prueba la versión publicada (antes, `npm run build`): el servidor entrega `dist` en modo producción, con los orígenes limitados y la política de contenido activa; cualquier recurso bloqueado aparece como error de consola.
   - `--dispositivos`: equipos emulados (iPhone SE, iPhone 13, Pixel 7, Galaxy S9+, iPad Mini vertical y acostado, notebook al 125 %).
   - `--barrido`: cambia la ventana por 38 tamaños en cada vista. `--corto`: solo inicio, sala de espera y reglas.
 - Hace falta Chromium: el que instala Playwright (`npx playwright-core install chromium`) o uno propio indicado en `CHROMIUM_PATH`.

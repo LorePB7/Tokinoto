@@ -3,10 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "description": "Tokinoto Online: juego de cartas multijugador",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
+    "build": "npm run build -w @tokinoto/cliente",
+    "start": "node --import tsx packages/servidor/src/principal.ts",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=22"
+  }
 }

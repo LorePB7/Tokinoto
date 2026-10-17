@@ -1,0 +1,24 @@
+# Plano de Render (Blueprint) para publicar Tokinoto.
+# Un solo servicio web gratuito: entrega la página del juego y atiende Socket.IO
+# en la misma dirección. El historial va a una base PostgreSQL de Neon.
+# Guía paso a paso: docs/despliegue.md
+services:
+  - type: web
+    name: tokinoto
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    autoDeploy: true
+    # --include=dev: hacen falta Vite y TypeScript para construir el cliente.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /salud
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # Se carga a mano en Render (nunca en el repositorio): la cadena de conexión de Neon.
+      - key: DATABASE_URL
+        sync: false

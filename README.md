@@ -7,6 +7,7 @@ Juego de cartas **Tokinoto** en versión online multijugador (4 a 7 jugadores, 1
 - [`docs/especificacion-tecnica.md`](docs/especificacion-tecnica.md): reglas del juego y decisiones aprobadas (fuente de verdad).
 - [`docs/diseno-tecnico.md`](docs/diseno-tecnico.md): tecnologías, arquitectura, modelo de datos y protocolo cliente-servidor.
 - [`docs/protocolo.md`](docs/protocolo.md): mensajes que implementa el servidor, con un ejemplo de cada uno.
+- [`docs/despliegue.md`](docs/despliegue.md): cómo publicar el juego gratis en Render + Neon (etapa 9).
 - [`packages/persistencia/README.md`](packages/persistencia/README.md): qué se guarda en la base, cómo consultarlo y cómo cambiar el esquema.
 
 ## Estructura
@@ -34,11 +35,11 @@ docs/         Especificación y diseño
 | 6 | Reconexión, temporizadores y piloto automático | Hecho |
 | 7 | Persistencia (PostgreSQL) | Hecho |
 | 8 | Pulido de interfaz | Hecho |
-| 9 | Despliegue | Pendiente |
+| 9 | Despliegue (Render + Neon) | Hecho: falta publicarlo ([guía](docs/despliegue.md)) |
 
 ## Desarrollo
 
-Requiere Node.js 20 o superior.
+Requiere Node.js 22 o superior.
 
 ```bash
 npm install
@@ -56,6 +57,10 @@ npm run historial -w @tokinoto/persistencia -- listar
 
 # Cliente web (http://localhost:5173; busca el servidor en el puerto 3001 del mismo equipo)
 npm run dev -w @tokinoto/cliente
+
+# Versión publicada en tu PC: construye el cliente y el servidor entrega todo en http://localhost:3001
+npm run build
+$env:NODE_ENV="production"; $env:TOKINOTO_ORIGENES="http://localhost:3001"; npm start   # PowerShell
 
 # Prueba de punta a punta: abre un navegador por jugador y juega un juego entero
 npm run e2e -w @tokinoto/cliente -- --jugadores 4
