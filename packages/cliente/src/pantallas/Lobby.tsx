@@ -1,10 +1,20 @@
 import { BotonReglas } from '../componentes/Reglas';
 import { useState } from 'react';
 import { useTienda } from '../estado/contexto';
-import { enlaceDeLaSala, esDireccionLocal } from '../util/enlace';
-import { copiarAlPortapapeles } from '../util/portapapeles';
 
 const MINIMO = 4;
+
+function enlaceDeLaSala(codigo: string): string {
+  try {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('sala', codigo);
+    return url.toString();
+  } catch {
+    return codigo;
+  }
+}
 
 /** Sala de espera: se ve quién entró y el anfitrión inicia el juego. */
 export function Lobby() {
@@ -13,8 +23,6 @@ export function Lobby() {
   const salir = useTienda((s) => s.salir);
   const ocupado = useTienda((s) => s.ocupado);
   const [copiado, setCopiado] = useState<'codigo' | 'enlace' | null>(null);
-  /** Si no se pudo copiar solo, se muestra el texto para copiarlo a mano. */
-  const [paraCopiar, setParaCopiar] = useState<string | null>(null);
   if (!sala) return null;
 
   const soyAnfitrion = sala.anfitrion === sala.yo;
@@ -22,13 +30,12 @@ export function Lobby() {
   const faltan = Math.max(0, MINIMO - sala.jugadores.length);
 
   async function copiar(texto: string, que: 'codigo' | 'enlace') {
-    if (await copiarAlPortapapeles(texto)) {
-      setParaCopiar(null);
+    try {
+      await navigator.clipboard.writeText(texto);
       setCopiado(que);
       setTimeout(() => setCopiado(null), 2000);
-    } else {
+    } catch {
       setCopiado(null);
-      setParaCopiar(texto);
     }
   }
 
@@ -37,7 +44,6 @@ export function Lobby() {
       <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <div className="hoja">
-       <div className="lobby-info">
         <h2>Sala de espera</h2>
         <p className="invitacion">
           Pasales este código a tus amigos: <strong className="codigo-sala" data-testid="codigo">{sala.codigo}</strong>
@@ -51,31 +57,12 @@ export function Lobby() {
           </button>
         </div>
 
-        <p className="solo-lectores" role="status">
-          {copiado === 'codigo' && 'El código quedó copiado.'}
-          {copiado === 'enlace' && 'El enlace quedó copiado.'}
-        </p>
-        {paraCopiar !== null && (
-          <label className="campo">
-            <span>No se pudo copiar solo. Copialo desde acá:</span>
-            <input readOnly value={paraCopiar} onFocus={(e) => e.currentTarget.select()} autoFocus />
-          </label>
-        )}
-        {esDireccionLocal(window.location.hostname) && (
-          <p className="nota nota-local">
-            Estás jugando en tu propia computadora: el enlace solo abre en ella. Para invitar a otras personas hay que
-            publicar el juego (o usar la dirección de red de tu PC).
-          </p>
-        )}
-
         <p className="nota">
           Tiempo por jugada:{' '}
           {sala.tiempoTurnoMs === null ? 'sin límite' : `${Math.round(sala.tiempoTurnoMs / 1000)} segundos`}. Si alguien se
           va o se le vence el tiempo, el piloto automático juega por él.
         </p>
 
-       </div>
-       <div className="lobby-jugadores">
         <h3>
           Jugadores ({sala.jugadores.length} de {sala.maxJugadores})
         </h3>
@@ -92,23 +79,23 @@ export function Lobby() {
           ))}
         </ul>
 
-        {soyAnfitrion && faltan > 0 && (
-          <p className="nota">
-            Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
-          </p>
-        )}
-        {!soyAnfitrion && <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>}
-        <div className="acciones fila">
-          {soyAnfitrion && (
+        {soyAnfitrion ? (
+          <>
+            {faltan > 0 && (
+              <p className="nota">
+                Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
+              </p>
+            )}
             <button type="button" className="boton" disabled={faltan > 0 || ocupado} onClick={() => void iniciar()}>
               Iniciar juego
             </button>
-          )}
-          <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void salir()}>
-            Salir de la sala
-          </button>
-        </div>
-       </div>
+          </>
+        ) : (
+          <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>
+        )}
+        <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void salir()}>
+          Salir de la sala
+        </button>
       </div>
     </main>
   );
