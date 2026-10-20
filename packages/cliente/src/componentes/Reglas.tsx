@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent as TeclaReact } from 'react';
+import { useRef, useState, type KeyboardEvent as TeclaReact } from 'react';
 import { Carta } from './Carta';
+import { Panel } from './Panel';
 
 /** De menor a mayor. Los palos no cuentan, así que se muestran todas con el mismo. */
 const VALORES = [
@@ -17,18 +18,8 @@ const PESTANAS: { id: Pestana; nombre: string }[] = [
 ];
 
 function PanelReglas({ alCerrar }: { alCerrar: () => void }) {
-  const cerrar = useRef<HTMLButtonElement>(null);
   // Las reglas se reparten en pestañas para que cada una entre en la pantalla sin scroll.
   const [pestana, setPestana] = useState<Pestana>('juego');
-
-  useEffect(() => {
-    cerrar.current?.focus();
-    const alTeclear = (evento: KeyboardEvent) => {
-      if (evento.key === 'Escape') alCerrar();
-    };
-    document.addEventListener('keydown', alTeclear);
-    return () => document.removeEventListener('keydown', alTeclear);
-  }, [alCerrar]);
 
   function alTeclearPestana(evento: TeclaReact<HTMLDivElement>) {
     const paso = evento.key === 'ArrowRight' ? 1 : evento.key === 'ArrowLeft' ? -1 : 0;
@@ -41,14 +32,7 @@ function PanelReglas({ alCerrar }: { alCerrar: () => void }) {
   }
 
   return (
-    <aside id="panel-reglas" className="panel-reglas" role="dialog" aria-label="Reglas del juego">
-      <header className="encabezado-reglas">
-        <h2>Reglas del juego</h2>
-        <button ref={cerrar} type="button" className="boton chico" onClick={alCerrar}>
-          Cerrar
-        </button>
-      </header>
-
+    <Panel id="panel-reglas" titulo="Reglas del juego" alCerrar={alCerrar} clase="panel-reglas" claseEncabezado="encabezado-reglas">
       <div className="pestanas pestanas-reglas" role="tablist" aria-label="Temas de las reglas" onKeyDown={alTeclearPestana}>
         {PESTANAS.map((p) => (
           <button
@@ -158,7 +142,7 @@ function PanelReglas({ alCerrar }: { alCerrar: () => void }) {
           </>
         )}
       </div>
-    </aside>
+    </Panel>
   );
 }
 

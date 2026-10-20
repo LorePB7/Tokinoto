@@ -21,7 +21,7 @@
  * Necesita un Chromium instalado (npx playwright-core install chromium) o la
  * variable CHROMIUM_PATH apuntando a uno.
  */
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createServer as crearServidorTcp, type AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -31,7 +31,7 @@ import { chromium, devices, type Browser, type BrowserContext, type Page } from 
 import { createServer } from 'vite';
 
 const { values } = parseArgs({
-  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false }, barrido: { type: 'boolean', default: false }, dispositivos: { type: 'boolean', default: false }, ventanas: { type: 'string', default: '' }, publicado: { type: 'boolean', default: false } },
+  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false }, barrido: { type: 'boolean', default: false }, dispositivos: { type: 'boolean', default: false }, ventanas: { type: 'string', default: '' }, publicado: { type: 'boolean', default: false }, auditoria: { type: 'boolean', default: false } },
 });
 const cantidad = Number(values.jugadores);
 const carpeta = values.capturas || '';
@@ -147,6 +147,8 @@ for (let i = 0; i < cantidad; i++) {
     viewport: vp,
     permissions: ['clipboard-read', 'clipboard-write'],
   });
+  // tsx agrega una ayuda interna (__name) a las funciones; el navegador no la tiene y hay que dársela.
+  await contexto.addInitScript('globalThis.__name = (f) => f;');
   const pagina = await contexto.newPage();
   pagina.on('pageerror', (e) => problemas.push(`Error de página (${i}): ${e.message}`));
   pagina.on('console', (m) => {
@@ -172,7 +174,10 @@ async function medir(j: Jugador, vista: string, exceso?: number, repetida = vist
   const valor = exceso ?? (await excesoDeScroll(j));
   const k = `${j.tamano} · ${vista}`;
   peor.set(k, Math.max(peor.get(k) ?? -Infinity, valor));
-  if (j === jugadores[0]) await barrer(j, repetida);
+  if (j === jugadores[0]) {
+    await barrer(j, repetida);
+    await barrerAuditoria(j, repetida);
+  }
 }
 
 /** Tamaños de ventana reales: notebooks con zoom, navegadores con barras, celulares con y sin barra de direcciones. */
@@ -301,6 +306,141 @@ async function muestrear(j: Jugador, vista: string): Promise<void> {
   if (!antes || r.v > antes.v || r.h > antes.h || r.mano > antes.mano) muestreos.set(k, { v: Math.max(r.v, antes?.v ?? -9e9), h: Math.max(r.h, antes?.h ?? -9e9), mano: Math.max(r.mano, antes?.mano ?? 0), culpables: r.culpables.length ? r.culpables : (antes?.culpables ?? []) });
 }
 
+
+/**
+ * Auditoría de diseño (--auditoria): no hace fallar la prueba, solo mide y informa.
+ * Mira tres cosas en cada vista: elementos que se pisan entre sí, textos más chicos
+ * que el mínimo legible y botones más chicos que el mínimo táctil.
+ */
+const MINIMO_TEXTO_PX = 12;
+const MINIMO_TOQUE_PX = 44;
+interface HallazgosAuditoria {
+  solapes: Set<string>;
+  textos: Set<string>;
+  toques: Set<string>;
+}
+const hallazgos = new Map<string, HallazgosAuditoria>();
+
+async function auditarMedidas(j: Jugador, vista: string, tamano = j.tamano): Promise<void> {
+  if (!values.auditoria) return;
+  const r = await j.pagina.evaluate(
+    ([minimoTexto, minimoToque]) => {
+      const visible = (e: Element) => {
+        const c = e.getBoundingClientRect();
+        const est = getComputedStyle(e);
+        return c.width > 0 && c.height > 0 && est.visibility !== 'hidden' && est.display !== 'none';
+      };
+      const interseccion = (a: DOMRect, b: DOMRect) => {
+        const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+        const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        return w > 1 && h > 1 ? { w: Math.round(w), h: Math.round(h) } : null;
+      };
+      const solapes: string[] = [];
+      const textos: string[] = [];
+      const toques: string[] = [];
+      const placas = Array.from(document.querySelectorAll<HTMLElement>('.asiento')).filter(visible);
+      const etiqueta = (e: Element) => `${e.className.toString().split(' ')[0]}`;
+      const nombreDe = (e: HTMLElement) => `asiento ${e.dataset['asiento'] ?? '?'}`;
+      for (let i = 0; i < placas.length; i++) {
+        for (let k = i + 1; k < placas.length; k++) {
+          const a = placas[i]!.querySelector('.placa') ?? placas[i]!;
+          const b = placas[k]!.querySelector('.placa') ?? placas[k]!;
+          const x = interseccion(a.getBoundingClientRect(), b.getBoundingClientRect());
+          if (x) solapes.push(`${nombreDe(placas[i]!)} pisa a ${nombreDe(placas[k]!)} (${x.w}×${x.h} px)`);
+        }
+      }
+      for (const asiento of placas) {
+        const placa = asiento.querySelector('.placa');
+        if (!placa) continue;
+        const caja = placa.getBoundingClientRect();
+        const partes = Array.from(placa.querySelectorAll('.nombre, .insignias, .cuenta-regresiva, .marcador, .dorsos')).filter(visible);
+        for (let i = 0; i < partes.length; i++) {
+          const c = partes[i]!.getBoundingClientRect();
+          if (c.left < caja.left - 1 || c.right > caja.right + 1 || c.top < caja.top - 1 || c.bottom > caja.bottom + 1) {
+            solapes.push(`${nombreDe(asiento)}: ${etiqueta(partes[i]!)} sobresale de su placa`);
+          }
+          for (let k = i + 1; k < partes.length; k++) {
+            const x = interseccion(c, partes[k]!.getBoundingClientRect());
+            if (x) solapes.push(`${nombreDe(asiento)}: ${etiqueta(partes[i]!)} pisa a ${etiqueta(partes[k]!)} (${x.w}×${x.h} px)`);
+          }
+        }
+        for (const el of Array.from(placa.querySelectorAll('.nombre, .marcador, .bazas, .insignias i, .cuenta-regresiva')).filter(visible)) {
+          const px = parseFloat(getComputedStyle(el).fontSize);
+          if (px < minimoTexto) textos.push(`${etiqueta(el)} ${px}px`);
+        }
+      }
+      const tiradas = Array.from(document.querySelectorAll('.tirada')).filter(visible);
+      for (const t of tiradas) {
+        for (const asiento of placas) {
+          const placa = asiento.querySelector('.placa') ?? asiento;
+          const x = interseccion(t.getBoundingClientRect(), placa.getBoundingClientRect());
+          if (x) solapes.push(`carta de la baza pisa a ${nombreDe(asiento)} (${x.w}×${x.h} px)`);
+        }
+      }
+      for (const m of Array.from(document.querySelectorAll('.montones')).filter(visible)) {
+        const dueno = m.closest('.asiento');
+        for (const asiento of placas) {
+          if (asiento === dueno) continue;
+          const placa = asiento.querySelector('.placa') ?? asiento;
+          const x = interseccion(m.getBoundingClientRect(), placa.getBoundingClientRect());
+          if (x) solapes.push(`montón pisa a ${nombreDe(asiento)} (${x.w}×${x.h} px)`);
+        }
+      }
+      for (const b of Array.from(document.querySelectorAll('button, a[href]')).filter(visible)) {
+        if (b.closest('.mano')) continue;
+        const c = b.getBoundingClientRect();
+        const lado = Math.min(c.width, c.height);
+        if (lado < minimoToque) {
+          const texto = (b.getAttribute('aria-label') ?? b.textContent ?? '').trim().slice(0, 18);
+          toques.push(`"${texto}" ${Math.round(c.width)}×${Math.round(c.height)}`);
+        }
+      }
+      for (const t of Array.from(document.querySelectorAll('.turno, .acciones-turno button, .datos-partida span')).filter(visible)) {
+        const px = parseFloat(getComputedStyle(t).fontSize);
+        if (px < minimoTexto) textos.push(`${etiqueta(t)} ${px}px`);
+      }
+      return { solapes, textos, toques };
+    },
+    [MINIMO_TEXTO_PX, MINIMO_TOQUE_PX] as const,
+  );
+  const k = `${tamano} · ${vista}`;
+  const h = hallazgos.get(k) ?? { solapes: new Set<string>(), textos: new Set<string>(), toques: new Set<string>() };
+  r.solapes.forEach((x) => h.solapes.add(x));
+  r.textos.forEach((x) => h.textos.add(x));
+  r.toques.forEach((x) => h.toques.add(x));
+  hallazgos.set(k, h);
+}
+
+/** Con --auditoria, repite la medición de diseño en todos los tamaños del barrido. */
+async function barrerAuditoria(j: Jugador, vista: string): Promise<void> {
+  if (!values.auditoria) return;
+  const original = j.pagina.viewportSize()!;
+  for (const [w, h] of BARRIDO) {
+    await j.pagina.setViewportSize({ width: w, height: h });
+    await j.pagina.waitForTimeout(120);
+    await auditarMedidas(j, vista, `${w}x${h}`);
+  }
+  await j.pagina.setViewportSize(original);
+  await j.pagina.waitForTimeout(100);
+}
+
+function informarAuditoria(): void {
+  if (!values.auditoria) return;
+  const filas = [...hallazgos].sort(([a], [b]) => a.localeCompare(b));
+  const conProblemas = filas.filter(([, h]) => h.solapes.size + h.textos.size + h.toques.size > 0);
+  console.log(`\nAuditoría de diseño: ${filas.length} combinaciones medidas, ${conProblemas.length} con hallazgos.`);
+  for (const [k, h] of conProblemas) {
+    console.log(`  ${k}: ${h.solapes.size} solapes, ${h.textos.size} textos chicos, ${h.toques.size} toques chicos`);
+    for (const x of [...h.solapes].slice(0, 4)) console.log(`      solape: ${x}`);
+    for (const x of [...h.textos].slice(0, 4)) console.log(`      texto: ${x}`);
+    for (const x of [...h.toques].slice(0, 4)) console.log(`      toque: ${x}`);
+  }
+  if (carpeta) {
+    const salida = Object.fromEntries(filas.map(([k, h]) => [k, { solapes: [...h.solapes], textos: [...h.textos], toques: [...h.toques] }]));
+    writeFileSync(`${carpeta}/auditoria.json`, JSON.stringify(salida, null, 2));
+  }
+}
+
 /** Cuánto se pasa el contenido de un elemento de su propio alto (0 si no existe o entra). */
 async function excesoDe(j: Jugador, selector: string): Promise<number> {
   return j.pagina.evaluate((sel) => {
@@ -386,6 +526,7 @@ if (values.corto) {
   for (const [k, r] of malos) console.log(`  MAL ${k}: vertical ${r.v} px, horizontal ${r.h} px  ${r.culpables.join(' | ')}`);
   console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
   for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
+  informarAuditoria();
   await navegador.close();
   await vite?.close();
   await servidor.cerrar();
@@ -423,6 +564,11 @@ async function auditarVista(j: Jugador): Promise<void> {
   const botones = await p.locator('.boton-apuesta').count();
   const vista = botones > 0 ? `apostar (${botones - 1} cartas)` : 'mesa';
   await muestrear(j, vista);
+  if (values.auditoria && !capturado.has(`${j.nombre}-aud-${vista}`) && (botones === 8 || botones === 2 || (botones === 0 && (await p.locator('.tirada').count()) >= Math.min(3, cantidad - 1) && (await p.locator('.monton').count()) >= 2))) {
+    capturado.add(`${j.nombre}-aud-${vista}`);
+    await auditarMedidas(j, vista);
+    if (j === jugadores[0]) await barrerAuditoria(j, vista);
+  }
   if (!capturado.has(`${j.nombre}-v-${vista}`) && (botones === 8 || botones === 2 || (botones === 0 && cartas === 7))) {
     capturado.add(`${j.nombre}-v-${vista}`);
     await captura(j, `m-${vista.replace(/[ ()]/g, '-')}-${j.tamano}`);
@@ -552,6 +698,7 @@ if (values.barrido) {
   for (const [k, r] of malos) console.log(`  MAL ${k}: vertical ${r.v} px, horizontal ${r.h} px, mano ${r.mano} px  ${r.culpables.join(' | ')}`);
   for (const [k, r] of malos) verificar(false, `Muestreo: ${k} (v ${r.v}, h ${r.h}, mano ${r.mano})`);
 }
+informarAuditoria();
 console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
 for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
 for (const [k, v] of peor) verificar(v <= 0, `Hay que hacer scroll en ${k} (${v} px de más)`);
