@@ -230,6 +230,14 @@ async function barrer(j: Jugador, vista: string): Promise<void> {
           }
         }
       }
+      // Los botones de la barra (Puntos, Sonido, Menú…) tienen que entrar enteros en el ancho.
+      for (const e of Array.from(document.querySelectorAll('.barra button'))) {
+        const c = e.getBoundingClientRect();
+        if (c.width && (c.right > W + 1 || c.left < -1)) {
+          culpables.unshift(`botón de la barra afuera: ${String(e.className)} der=${Math.round(c.right)}`);
+          h = Math.max(h, Math.round(c.right - W));
+        }
+      }
       return { v, h, culpables: culpables.slice(0, 3) };
     });
     const k = `${w}x${h} · ${vista}`;
