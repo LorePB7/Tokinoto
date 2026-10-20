@@ -1350,7 +1350,8 @@ button.carta:disabled {
 
 .boton-reglas,
 .boton-puntos,
-.boton-menu {
+.boton-menu,
+.boton-sonido {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1361,7 +1362,8 @@ button.carta:disabled {
 
 .boton-reglas .signo,
 .boton-puntos .signo,
-.boton-menu .signo {
+.boton-menu .signo,
+.boton-sonido .signo {
   display: inline-grid;
   place-items: center;
   width: 20px;
@@ -2622,26 +2624,8 @@ button.carta:disabled {
   position: relative;
 }
 
-.boton-sonido {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 4px 12px;
-  font-size: 15px;
-}
-
 .boton-sonido .signo {
   position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--laton-claro);
-  color: var(--tinta);
-  font-size: 14px;
-  line-height: 1;
 }
 
 /* Silenciado: una raya cruza el ícono. */
@@ -2724,11 +2708,7 @@ button.carta:disabled {
     grid-row: 1 / span 2;
   }
 
-  .control-sonido.flotante .boton-sonido {
-    min-height: 44px;
-    min-width: 44px;
-    justify-content: center;
-  }
+
 }
 
 /* ---------- Prueba de sonidos (#sonidos) ---------- */
@@ -2762,5 +2742,12 @@ button.carta:disabled {
   .barra .boton-puntos,
   .barra .boton-menu {
     justify-content: center;
+  }
+}
+
+/* El botón de sonido flotante muestra o esconde su texto igual que el de Reglas flotante. */
+@media (max-height: 560px) and (min-width: 560px) {
+  .control-sonido.flotante .texto-boton {
+    display: none;
   }
 }
