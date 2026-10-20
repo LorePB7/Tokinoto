@@ -37,6 +37,9 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const montones = juego.bazasCerradas.filter((b) => b.ganador === asiento);
   // Los montones van hacia afuera de la mesa, para no tapar las cartas de la baza.
   const arriba = y < 42;
+  // Los asientos de la cima de la mesa: en pantallas anchas sus montones van al costado de afuera,
+  // para no subir hasta la barra de arriba.
+  const cima = (y - 50) / RADIO < -0.75 ? (x < 50 - 0.5 ? 'cima izq' : 'cima der') : '';
   const jugando = juego.fase === 'APUESTAS' || juego.fase === 'TIRADAS' || juego.fase === 'BAZA_RESUELTA';
   const esMano = jugando && juego.mano === asiento;
   const reparte = juego.partida > 0 && juego.repartidor === asiento;
@@ -87,7 +90,7 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
         )}
       </div>
       {montones.length > 0 && (
-        <div className={`montones ${arriba ? 'arriba' : 'abajo'}`} aria-label={`Bazas ganadas por ${datos.nombre}`}>
+        <div className={['montones', arriba ? 'arriba' : 'abajo', cima].filter(Boolean).join(' ')} aria-label={`Bazas ganadas por ${datos.nombre}`}>
           {montones.map((b) => (
             <span className="monton" key={b.baza} data-baza={b.baza}>
               <Carta id={b.cartaGanadora} tamano="xs" />

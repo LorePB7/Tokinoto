@@ -633,6 +633,38 @@ select {
   bottom: calc(100% + 4px);
 }
 
+/* Computadoras altas: el panel de apuesta entra en una fila, así que la zona del turno se ajusta a él
+   y la mesa aprovecha ese alto. */
+@media (min-width: 821px) and (min-height: 761px) {
+  .pantalla-mesa {
+    --alto-acciones: 128px;
+  }
+
+  /* La placa de arriba crece con la letra: más aire para que no toque la barra. */
+  .zona-mesa {
+    padding-top: 54px;
+  }
+}
+
+/* En pantallas anchas sobra lugar a los costados: los montones de los asientos de arriba van al lado
+   de la placa (hacia afuera) y no tapan la barra. */
+@media (min-width: 821px) {
+  .montones.cima {
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+  }
+
+  .montones.cima.der {
+    left: calc(100% + 6px);
+  }
+
+  .montones.cima.izq {
+    left: auto;
+    right: calc(100% + 6px);
+  }
+}
+
 .monton {
   position: relative;
   display: inline-block;
@@ -2527,5 +2559,59 @@ button.carta:disabled {
 @media (max-height: 640px) {
   .firma {
     display: none;
+  }
+}
+
+/* Celulares angostos: el resumen entra a lo ancho, sin scroll horizontal. */
+.superposicion > .hoja {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 480px) {
+  .hoja.resumen {
+    padding-inline: 12px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hoja.resumen h2 {
+    font-size: 20px;
+  }
+
+  /* Anchos fijos: los números ocupan lo justo y el nombre se recorta con "…" si no entra. */
+  .hoja.resumen table {
+    table-layout: fixed;
+    font-size: 15px;
+  }
+
+  .hoja.resumen th,
+  .hoja.resumen td {
+    padding-inline: 3px;
+  }
+
+  .hoja.resumen th:first-child {
+    width: 2.6em;
+    text-align: center;
+  }
+
+  .hoja.resumen th:nth-child(n + 3) {
+    width: 3.5em;
+  }
+
+  .hoja.resumen thead th:nth-child(2) {
+    text-align: left;
+  }
+
+  .hoja.resumen thead th {
+    font-size: 12px;
+  }
+
+  .hoja.resumen tbody td:first-child {
+    text-align: center;
+  }
+
+  .hoja.resumen tbody th[scope='row'] {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
