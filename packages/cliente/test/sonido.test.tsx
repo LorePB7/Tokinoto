@@ -235,3 +235,26 @@ describe('sonidos en un juego real', () => {
     expect(cuenta('baza')).toBeLessThanOrEqual(56);
   }, 90_000);
 });
+
+describe('instrumentos', () => {
+  it('la cuerda suena en su nota, se apaga y no satura', async () => {
+    const { cuerda, sala } = await import('../src/sonido/instrumentos');
+    const tasa = 8000;
+    const x = cuerda({ tasa, frecuencia: 200, duracion: 1 });
+    expect(x.length).toBe(tasa);
+    expect(x.every((v) => Number.isFinite(v) && Math.abs(v) <= 1)).toBe(true);
+    const energia = (a: number, b: number) => x.slice(a, b).reduce((s, v) => s + v * v, 0);
+    expect(energia(0, 800)).toBeGreaterThan(energia(7000, 7800) * 5);
+    // El período coincide con la nota: la señal se parece a sí misma 40 muestras después (8000 / 200).
+    let corr = 0;
+    let norma = 0;
+    for (let i = 100; i < 900; i++) {
+      corr += x[i]! * x[i + 40]!;
+      norma += x[i]! * x[i]!;
+    }
+    expect(corr / norma).toBeGreaterThan(0.8);
+    const s = sala(tasa);
+    expect(s.every((v) => Number.isFinite(v))).toBe(true);
+    expect(Math.abs(s.at(-1)!)).toBeLessThan(1e-3);
+  });
+});
