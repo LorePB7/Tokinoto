@@ -360,6 +360,8 @@ async function auditarMedidas(j: Jugador, vista: string, tamano = j.tamano): Pro
             solapes.push(`${nombreDe(asiento)}: ${etiqueta(partes[i]!)} sobresale de su placa`);
           }
           for (let k = i + 1; k < partes.length; k++) {
+            // Una parte dentro de otra (la cuenta regresiva dentro de las insignias) no es un solape.
+            if (partes[i]!.contains(partes[k]!) || partes[k]!.contains(partes[i]!)) continue;
             const x = interseccion(c, partes[k]!.getBoundingClientRect());
             if (x) solapes.push(`${nombreDe(asiento)}: ${etiqueta(partes[i]!)} pisa a ${etiqueta(partes[k]!)} (${x.w}×${x.h} px)`);
           }
