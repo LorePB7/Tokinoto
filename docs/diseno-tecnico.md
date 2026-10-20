@@ -290,7 +290,7 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 
 | Tipo | Datos | Cuándo |
 |---|---|---|
-| `sala.crear` | nombre del jugador, cantidad de jugadores, configuración de tiempos | Lobby |
+| `sala.crear` | nombre del jugador | Lobby (el tiempo por jugada se elige después con `sala.configurar`) |
 | `sala.unirse` | código, nombre del jugador | Lobby |
 | `sala.reconectar` | token de sesión | Al volver |
 | `sala.salir` | — | Lobby (en juego, el piloto automático toma el asiento) |

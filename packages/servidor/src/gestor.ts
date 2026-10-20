@@ -3,7 +3,7 @@
  * olvida cuando quedan vacías.
  */
 import { randomInt } from 'node:crypto';
-import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, respuestaError, type Respuesta } from '@tokinoto/protocolo';
+import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, respuestaError, respuestaOk, type Respuesta } from '@tokinoto/protocolo';
 import { Sala, type Destino, type OpcionesSala } from './sala';
 
 export interface OpcionesGestor {
@@ -52,7 +52,6 @@ export class GestorSalas {
    */
   crear(
     nombre: string,
-    maxJugadores: number,
     destino: Destino,
     responder: AlResponderIngreso,
     tiempoTurno?: number | null,
@@ -64,7 +63,7 @@ export class GestorSalas {
     let codigo = generarCodigoSala();
     while (this.salas.has(codigo)) codigo = generarCodigoSala();
 
-    const opciones: Partial<OpcionesSala> = { ...this.opcionesSala, maxJugadores };
+    const opciones: Partial<OpcionesSala> = { ...this.opcionesSala };
     if (tiempoTurno !== undefined) opciones.tiempoTurnoMs = tiempoTurno === null ? null : tiempoTurno * 1000;
     const sala = new Sala(codigo, opciones, (vacia) => this.olvidar(vacia));
     this.salas.set(codigo, sala);
@@ -92,6 +91,19 @@ export class GestorSalas {
       return;
     }
     sala.reconectar(token, destino, (respuesta) => responder(respuesta, respuesta.ok ? sala : null));
+  }
+
+  /**
+   * ¿Sigue vigente el lugar de este token? Vigente = la sala existe, el jugador sigue en ella
+   * y el juego no terminó. No conecta a nadie: solo responde.
+   */
+  consultar(token: string, responder: (respuesta: Respuesta) => void): void {
+    const sala = this.buscar(token.split('.')[0] ?? '');
+    if (!sala) {
+      responder(respuestaOk({ vigente: false }));
+      return;
+    }
+    sala.consultar(token, responder);
   }
 
   /** Cierra todas las salas (al apagar el servidor). */

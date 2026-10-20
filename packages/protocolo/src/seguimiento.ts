@@ -89,6 +89,9 @@ function aplicarEvento(sala: VistaSala, evento: MensajeEvento): boolean {
     case 'sala.resumenPausado':
       sala.resumenPausado = evento.datos.pausado;
       return true;
+    case 'sala.configuracion':
+      sala.tiempoTurnoMs = evento.datos.tiempoTurnoMs;
+      return true;
     case 'jugador.conexion': {
       const jugador = sala.jugadores.find((j) => j.idJugador === evento.datos.idJugador);
       if (!jugador) return false;

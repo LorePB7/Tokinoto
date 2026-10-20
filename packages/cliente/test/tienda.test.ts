@@ -18,7 +18,7 @@ describe('tienda contra un servidor real', () => {
     const ana = tiendaDePrueba(mundo.url);
     const beto = tiendaDePrueba(mundo.url);
     mundo.tiendas.push(ana, beto);
-    expect(await ana.getState().crearSala('Ana', 4)).toBe(true);
+    expect(await ana.getState().crearSala('Ana')).toBe(true);
     const codigo = salaDe(ana)?.codigo ?? '';
     expect(codigo).toMatch(/^[A-Z0-9]+$/);
     expect(await beto.getState().unirse(codigo, 'Beto')).toBe(true);
@@ -37,14 +37,14 @@ describe('tienda contra un servidor real', () => {
 
   it('avisa si no hay servidor', async () => {
     const t = crearTienda({ url: 'http://127.0.0.1:1' });
-    expect(await t.getState().crearSala('Ana', 4)).toBe(false);
+    expect(await t.getState().crearSala('Ana')).toBe(false);
     expect(t.getState().aviso?.texto).toMatch(/conectar/);
   });
 
   it('no deja iniciar con menos de 4 jugadores', async () => {
     const ana = tiendaDePrueba(mundo.url);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana', 4);
+    await ana.getState().crearSala('Ana');
     expect(await ana.getState().iniciar()).toBe(false);
     expect(ana.getState().aviso).not.toBeNull();
   });
@@ -97,7 +97,7 @@ describe('tienda contra un servidor real', () => {
   it('salir devuelve a la pantalla de inicio', async () => {
     const ana = tiendaDePrueba(mundo.url);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana', 4);
+    await ana.getState().crearSala('Ana');
     expect(await ana.getState().salir()).toBe(true);
     expect(salaDe(ana)).toBeNull();
     expect(ana.getState().conexion).toBe('inactiva');
@@ -109,10 +109,39 @@ describe('ausencias (etapa 6)', () => {
   it('la sala usa 30 s por jugada, o ninguno si se pide', async () => {
     const [ana, beto] = [tiendaDePrueba(mundo.url), tiendaDePrueba(mundo.url)];
     mundo.tiendas.push(ana, beto);
-    await ana.getState().crearSala('Ana', 4);
+    await ana.getState().crearSala('Ana');
     expect(salaDe(ana)?.tiempoTurnoMs).toBe(30_000);
-    await beto.getState().crearSala('Beto', 4, null);
-    expect(salaDe(beto)?.tiempoTurnoMs).toBeNull();
+    await beto.getState().crearSala('Beto');
+    expect(await beto.getState().configurarTiempo(null)).toBe(true);
+    await esperar(() => salaDe(beto)?.tiempoTurnoMs === null);
+  });
+
+  it('solo el anfitrión cambia el tiempo, y solo antes de empezar; todos se enteran', async () => {
+    const [ana, beto] = [tiendaDePrueba(mundo.url), tiendaDePrueba(mundo.url)];
+    mundo.tiendas.push(ana, beto);
+    await ana.getState().crearSala('Ana');
+    await beto.getState().unirse(salaDe(ana)!.codigo, 'Beto');
+    expect(await ana.getState().configurarTiempo(60)).toBe(true);
+    await esperar(() => salaDe(beto)?.tiempoTurnoMs === 60_000);
+    expect(await beto.getState().configurarTiempo(null)).toBe(false);
+    expect(salaDe(ana)?.tiempoTurnoMs).toBe(60_000);
+  });
+
+  it('"volver a esa partida" solo se ofrece si la partida sigue; si no, se olvida', async () => {
+    const almacen = almacenEnMemoria();
+    const ana = tiendaDePrueba(mundo.url, almacen);
+    mundo.tiendas.push(ana);
+    await ana.getState().crearSala('Ana');
+    const token = almacen.ultima!.token;
+    // Otra pestaña del mismo navegador: la sala sigue, se ofrece volver.
+    const otra = tiendaDePrueba(mundo.url, almacen);
+    mundo.tiendas.push(otra);
+    expect((await otra.getState().consultarUltima())?.token).toBe(token);
+    expect(otra.getState().conexion).toBe('inactiva');
+    // Un token de una sala que ya no existe: no se ofrece y se borra.
+    almacen.ultima = { token: 'ZZZZZZZZ.inexistente-123456', codigo: 'ZZZZZZZZ', nombre: 'Ana' };
+    expect(await otra.getState().consultarUltima()).toBeNull();
+    expect(almacen.ultima).toBeNull();
   });
 
   it('el turno trae fecha límite y la tienda mide el desfase del reloj', async () => {
@@ -140,7 +169,7 @@ describe('ausencias (etapa 6)', () => {
     const almacen = almacenEnMemoria();
     const ana = tiendaDePrueba(mundo.url, almacen);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana', 4);
+    await ana.getState().crearSala('Ana');
     const codigo = salaDe(ana)!.codigo;
     expect(almacen.leer()).toMatchObject({ codigo, nombre: 'Ana', token: ana.getState().token });
 
@@ -159,7 +188,7 @@ describe('ausencias (etapa 6)', () => {
     const primera = tiendaDePrueba(mundo.url, almacen);
     const segunda = tiendaDePrueba(mundo.url, almacenEnMemoria());
     mundo.tiendas.push(primera, segunda);
-    await primera.getState().crearSala('Ana', 4);
+    await primera.getState().crearSala('Ana');
     expect(await segunda.getState().reconectar(primera.getState().token!)).toBe(true);
     await esperar(() => primera.getState().conexion === 'reemplazada');
     // Y puede volver a jugar desde la primera.
@@ -171,7 +200,7 @@ describe('ausencias (etapa 6)', () => {
     const almacen = almacenEnMemoria();
     const ana = tiendaDePrueba(mundo.url, almacen);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana', 4);
+    await ana.getState().crearSala('Ana');
     const puerto = Number(new URL(mundo.url).port);
     await mundo.servidor.cerrar();
     await esperar(() => ana.getState().conexion === 'reconectando');
