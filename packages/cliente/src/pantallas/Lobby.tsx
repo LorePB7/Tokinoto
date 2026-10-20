@@ -1,3 +1,4 @@
+import { Firma } from '../componentes/Firma';
 import { BotonReglas } from '../componentes/Reglas';
 import { useState } from 'react';
 import { useTienda } from '../estado/contexto';
@@ -102,6 +103,7 @@ export function Lobby() {
           </div>
         </div>
       </div>
+      <Firma />
     </main>
   );
 }

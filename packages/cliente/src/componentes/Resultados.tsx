@@ -1,5 +1,6 @@
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { useTienda } from '../estado/contexto';
+import { TablaPuntos } from './TablaPuntos';
 
 /** Resultado final del juego: ranking con podio compartido y puntaje de cada partida. */
 export function Resultados({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
@@ -47,30 +48,7 @@ export function Resultados({ sala, juego }: { sala: VistaSala; juego: VistaJuego
         </ol>
         <details>
           <summary>Puntos de cada partida</summary>
-          <div className="tabla-ancha">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Jugador</th>
-                  {Array.from({ length: juego.totalPartidas }, (_, i) => (
-                    <th scope="col" key={i}>
-                      {i + 1}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {ranking.map((r) => (
-                  <tr key={r.asiento}>
-                    <th scope="row">{nombreDe(r.asiento)}</th>
-                    {Array.from({ length: juego.totalPartidas }, (_, i) => (
-                      <td key={i}>{juego.puntajes[r.asiento]?.[i] ?? 0}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <TablaPuntos juego={juego} />
         </details>
         <div className="acciones">
           {soyAnfitrion ? (

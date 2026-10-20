@@ -17,7 +17,7 @@ const PESTANAS: { id: Pestana; nombre: string }[] = [
   { id: 'pie', nombre: 'El Pié' },
 ];
 
-function PanelReglas({ alCerrar }: { alCerrar: () => void }) {
+export function PanelReglas({ alCerrar }: { alCerrar: () => void }) {
   // Las reglas se reparten en pestañas para que cada una entre en la pantalla sin scroll.
   const [pestana, setPestana] = useState<Pestana>('juego');
 

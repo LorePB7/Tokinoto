@@ -1,3 +1,4 @@
+import { Firma } from '../componentes/Firma';
 import { BotonReglas } from '../componentes/Reglas';
 import {
   ALFABETO_CODIGO,
@@ -139,6 +140,7 @@ export function Inicio() {
           </form>
         </div>
       </div>
+      <Firma />
     </main>
   );
 }

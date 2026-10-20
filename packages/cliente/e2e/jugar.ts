@@ -456,23 +456,48 @@ async function captura(j: Jugador, nombre: string): Promise<void> {
   await j.pagina.screenshot({ path: `${carpeta}/${j.movil ? 'movil-' : ''}${nombre}.png` });
 }
 
+/** Abre la página y espera a que se vaya la pantalla de carga (si no, tapa los botones). */
+async function irA(pagina: Page, url: string): Promise<void> {
+  await pagina.goto(url);
+  await pagina.locator('.carga').waitFor({ state: 'detached', timeout: 10_000 });
+}
+
+/** Un botón de la barra de la mesa: directo en pantallas anchas, dentro del Menú en celulares. */
+async function abrirDesdeBarra(p: Page, nombre: string): Promise<void> {
+  const directo = p.getByRole('button', { name: nombre, exact: true });
+  if (await directo.isVisible()) {
+    await directo.click();
+    return;
+  }
+  await p.getByRole('button', { name: 'Menú', exact: true }).click();
+  await p.getByRole('menuitem', { name: nombre, exact: true }).click();
+}
+
 // Celular acostado: se pide girar el teléfono en lugar de mostrar la pantalla apretada.
 {
   const acostado = await navegador.newContext(devices['iPhone 13 landscape']!);
   const pagina = await acostado.newPage();
-  await pagina.goto(urlCliente);
+  await irA(pagina, urlCliente);
   verificar(await pagina.getByText('Girá el teléfono para jugar.').isVisible(), 'Con el celular acostado no aparece el aviso de girar');
   await acostado.close();
   const parado = await navegador.newContext(devices['iPhone 13']!);
   const otra = await parado.newPage();
-  await otra.goto(urlCliente);
+  await irA(otra, urlCliente);
   verificar(!(await otra.getByText('Girá el teléfono para jugar.').isVisible()), 'Con el celular parado aparece el aviso de girar');
   await parado.close();
 }
 
 // Entrada: el primero crea la sala y los demás se unen con el código.
 const [anfitrion, ...invitados] = jugadores as [Jugador, ...Jugador[]];
+// Pantalla de carga: al abrir el juego se ve el nombre del estudio y el lema, y se va sola.
 await anfitrion.pagina.goto(urlCliente);
+{
+  const carga = anfitrion.pagina.locator('.carga');
+  await carga.waitFor({ state: 'visible', timeout: 5000 });
+  verificar((await carga.innerText()).includes('El Niño Games') && (await carga.innerText()).includes('Un juego 100% argentino'), 'La pantalla de carga no muestra el estudio y el lema');
+  await captura(anfitrion, '0-carga');
+  await carga.waitFor({ state: 'detached', timeout: 10_000 });
+}
 await captura(anfitrion, '1-inicio');
 await medir(anfitrion, 'inicio');
 await anfitrion.pagina.getByLabel('Tu nombre').fill(anfitrion.nombre);
@@ -481,7 +506,7 @@ const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.tri
 verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"`);
 
 for (const j of invitados) {
-  await j.pagina.goto(`${urlCliente}?sala=${codigo}`);
+  await irA(j.pagina, `${urlCliente}?sala=${codigo}`);
   await medir(j, 'inicio con ?sala=');
   await j.pagina.getByLabel('Tu nombre').fill(j.nombre);
   await j.pagina.getByRole('button', { name: 'Unirme' }).click();
@@ -578,14 +603,26 @@ async function auditarVista(j: Jugador): Promise<void> {
   if (!capturado.has(`${j.nombre}-salir`) && botones === 0) {
     // El cartel de confirmación de "Salir" tampoco debe hacer scroll.
     capturado.add(`${j.nombre}-salir`);
-    const salir = p.getByRole('button', { name: 'Salir', exact: true });
-    if ((await salir.count()) > 0) {
-      await salir.click();
+    const compacto = await p.getByRole('button', { name: 'Menú', exact: true }).isVisible();
+    if (compacto) {
+      // En celulares la barra muestra Puntos y Menú, cada uno de al menos 44 px.
+      await p.getByRole('button', { name: 'Menú', exact: true }).click();
+      await medir(j, 'menú abierto', await excesoDeScroll(j));
+      await captura(j, `2e-menu-${j.tamano}`);
+      for (const nombre of ['Puntos', 'Menú']) {
+        const caja = await p.getByRole('button', { name: nombre, exact: true }).boundingBox();
+        verificar(!!caja && caja.width >= 43.5 && caja.height >= 43.5, `${j.nombre}: el botón ${nombre} mide ${caja?.width}×${caja?.height} (mínimo 44)`);
+      }
+      await p.keyboard.press('Escape');
+    }
+    // Salir: la confirmación tampoco debe hacer scroll.
+    if ((await p.getByRole('button', { name: 'Salir', exact: true }).count()) > 0 || compacto) {
+      await abrirDesdeBarra(p, 'Salir');
       await medir(j, 'confirmar salida', await excesoDeScroll(j));
       await p.getByRole('button', { name: 'Seguir jugando' }).click();
     }
     // Reglas abierto en plena partida: el panel no puede heredar los estilos de la barra de la mesa.
-    await p.getByRole('button', { name: 'Reglas' }).click();
+    await abrirDesdeBarra(p, 'Reglas');
     const reglas = p.getByRole('dialog', { name: 'Reglas del juego' });
     await reglas.waitFor();
     const heredado = await reglas.evaluate((e) => ({
@@ -598,9 +635,21 @@ async function auditarVista(j: Jugador): Promise<void> {
     await captura(j, `2d-reglas-en-mesa-${j.tamano}`);
     await p.keyboard.press('Escape');
     await reglas.waitFor({ state: 'detached' });
-    const registro = p.getByRole('button', { name: 'Registro', exact: true });
-    if (await registro.isVisible()) {
-      await registro.click();
+    // Puntos: tabla ordenada de mayor a menor total, dentro de la pantalla.
+    await p.getByRole('button', { name: 'Puntos', exact: true }).click();
+    const puntos = p.getByRole('dialog', { name: 'Puntos' });
+    await puntos.waitFor();
+    const totales = await puntos.locator('tbody tr td.total').allInnerTexts();
+    const numeros = totales.map(Number);
+    verificar(numeros.length === cantidad && numeros.every((n, i) => i === 0 || numeros[i - 1]! >= n), `${j.nombre}: la tabla de Puntos no está ordenada de mayor a menor (${totales.join(', ')})`);
+    const dentroPuntos = await puntos.evaluate((e) => e.parentElement === document.body && e.getBoundingClientRect().right <= window.innerWidth + 1 && e.getBoundingClientRect().left >= -1);
+    verificar(dentroPuntos, `${j.nombre}: el panel de Puntos no entra en la pantalla`);
+    await medir(j, 'puntos durante la partida', await excesoDe(j, '.panel-puntos'));
+    await captura(j, `2f-puntos-${j.tamano}`);
+    await p.keyboard.press('Escape');
+    await puntos.waitFor({ state: 'detached' });
+    if (compacto) {
+      await abrirDesdeBarra(p, 'Registro');
       await medir(j, 'registro (cajón)', await excesoDeScroll(j));
       await captura(j, `registro-${j.tamano}`);
       await p.getByRole('button', { name: 'Cerrar' }).click();
@@ -667,6 +716,7 @@ async function probarAusencias(): Promise<void> {
     etapaAusencias = 1;
     ausentes.add(recarga);
     await recarga.pagina.reload();
+    await recarga.pagina.locator('.carga').waitFor({ state: 'detached', timeout: 10_000 });
     await recarga.pagina.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
     const yo = await recarga.pagina.locator('.asiento.yo .nombre').innerText();
     verificar(yo.includes(recarga.nombre), `Tras recargar volvió con otro nombre: "${yo}"`);
@@ -683,7 +733,7 @@ async function probarAusencias(): Promise<void> {
     etapaAusencias = 3;
     ausente.pagina = await ausente.contexto.newPage();
     ausente.pagina.on('pageerror', (e) => problemas.push(`Error de página (${ausente.nombre}): ${e.message}`));
-    await ausente.pagina.goto(urlCliente!);
+    await irA(ausente.pagina, urlCliente!);
     await ausente.pagina.getByRole('button', { name: 'Volver a esa partida' }).click();
     await ausente.pagina.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
     await anfitrion.pagina.locator('.asiento .insignias i.piloto').waitFor({ state: 'detached', timeout: 10_000 });

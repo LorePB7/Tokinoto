@@ -1104,6 +1104,7 @@ button.carta:disabled {
 .hoja th:first-child {
   text-align: left;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .hoja thead th {
@@ -1315,7 +1316,9 @@ button.carta:disabled {
 
 /* ---------- Reglas ---------- */
 
-.boton-reglas {
+.boton-reglas,
+.boton-puntos,
+.boton-menu {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1324,7 +1327,9 @@ button.carta:disabled {
   font-size: 15px;
 }
 
-.boton-reglas .signo {
+.boton-reglas .signo,
+.boton-puntos .signo,
+.boton-menu .signo {
   display: inline-grid;
   place-items: center;
   width: 20px;
@@ -1592,12 +1597,21 @@ button.carta:disabled {
 
   .barra .boton.chico {
     grid-row: 1 / span 2;
-    min-height: 34px;
+    /* 44 px: la medida mínima cómoda para tocar con el dedo. */
+    min-height: 44px;
+    min-width: 44px;
     padding: 4px 9px;
     font-size: 13px;
+    justify-content: center;
   }
 
-  .boton-reglas .texto-boton {
+  .barra .menu {
+    grid-row: 1 / span 2;
+  }
+
+  .boton-reglas .texto-boton,
+  .boton-puntos .texto-boton,
+  .boton-menu .texto-boton {
     display: none;
   }
 
@@ -1689,6 +1703,13 @@ button.carta:disabled {
   .boton-registro,
   .cerrar-registro {
     display: inline-block;
+  }
+
+  /* Celulares acostados incluidos: los botones de la barra miden 44 px para tocar con el dedo. */
+  .barra .boton.chico,
+  .barra .boton-menu {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   .registro {
@@ -2286,5 +2307,225 @@ button.carta:disabled {
   to {
     transform: none;
     opacity: 1;
+  }
+}
+
+/* ---------- Menú de la barra y panel de Puntos ---------- */
+
+.menu {
+  position: relative;
+}
+
+.menu-lista {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  min-width: 170px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  background: var(--fondo-claro);
+  border: 1px solid var(--laton-oscuro);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.menu-item {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 14px;
+  text-align: left;
+  font: inherit;
+  font-size: 16px;
+  color: var(--texto);
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: rgba(232, 197, 122, 0.18);
+}
+
+@media (min-width: 821px) {
+  .panel-puntos {
+    width: min(560px, 100vw);
+  }
+}
+
+.panel-puntos .contenido-puntos {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  align-content: start;
+}
+
+.panel-puntos .nota {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 14px;
+}
+
+.tabla-puntos {
+  overflow: auto;
+  margin-top: 0;
+}
+
+.panel .tabla-puntos {
+  max-height: none;
+}
+
+.tabla-puntos table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabla-puntos th,
+.tabla-puntos td {
+  padding: 8px 8px;
+  text-align: right;
+  border-bottom: 1px solid rgba(43, 27, 16, 0.16);
+  min-width: 2.2em;
+}
+
+.tabla-puntos th[scope='row'],
+.tabla-puntos thead th:nth-child(2) {
+  text-align: left;
+  font-weight: 600;
+  max-width: 9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabla-puntos thead th {
+  color: var(--texto-suave);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tabla-puntos td.total {
+  font-weight: 700;
+  color: var(--bordo);
+}
+
+.tabla-puntos td.pendiente {
+  color: var(--texto-suave);
+  opacity: 0.6;
+}
+
+.tabla-puntos tr.yo {
+  background: rgba(123, 30, 44, 0.1);
+}
+
+.tabla-puntos tr[data-puesto='1'] td:first-child {
+  font-weight: 700;
+  color: var(--bordo);
+}
+
+/* ---------- Pantalla de carga y firma ---------- */
+
+.carga {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  background:
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.14) 0 2px, transparent 2px 46px),
+    radial-gradient(ellipse at 50% 40%, #3a2415, var(--fondo) 70%);
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.45s ease;
+}
+
+.carga.saliendo {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.carga .estudio {
+  margin: 0;
+  font-family: var(--cartel);
+  font-weight: 400;
+  font-size: clamp(34px, 10vw, 76px);
+  line-height: 1.05;
+  letter-spacing: 0.06em;
+  color: var(--papel);
+  text-shadow:
+    2px 2px 0 var(--bordo),
+    0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.carga .regla {
+  width: min(280px, 60vw);
+  height: 0;
+  border-top: 2px solid var(--laton);
+  border-bottom: 1px solid var(--laton-oscuro);
+  padding-top: 3px;
+}
+
+.carga .lema-carga {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: clamp(17px, 4.4vw, 24px);
+  color: var(--laton-claro);
+}
+
+.carga .toque {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--texto-suave);
+  opacity: 0;
+  animation: carga-aparece 0.6s ease 0.9s forwards;
+}
+
+@keyframes carga-aparece {
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carga {
+    transition: none;
+  }
+
+  .carga .toque {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+.firma {
+  margin: 4px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+  text-align: center;
+}
+
+.firma strong {
+  font-family: var(--serif);
+  font-weight: 700;
+  color: var(--laton-claro);
+}
+
+/* En pantallas bajas la firma no se muestra: ahí no hay lugar sin hacer scroll. */
+@media (max-height: 640px) {
+  .firma {
+    display: none;
   }
 }
