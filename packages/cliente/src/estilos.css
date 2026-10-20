@@ -405,6 +405,29 @@ select {
   /* Las cartas y los montones crecen o se achican junto con la mesa. */
   --carta-s: clamp(40px, 10.5cqw, 76px);
   --carta-xs: clamp(22px, 5.4cqw, 34px);
+  /* Los asientos van sobre una elipse: más ancha que la mesa si la pantalla es ancha, y más alta si sobra alto.
+     Las medidas se resuelven aquí, contra la zona de la mesa (por eso las propiedades están registradas). */
+  --lado: min(100cqw, 100cqh, 700px);
+  --rx: clamp(var(--lado) * 0.41, 50cqw - 52px, var(--lado) * 0.7);
+  --ry: clamp(var(--lado) * 0.41, 50cqh - 24px, var(--lado) * 0.5);
+}
+
+@property --lado {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --rx {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+@property --ry {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
 }
 
 .riel {
@@ -475,8 +498,11 @@ select {
 
 .asiento {
   /* Todo el asiento se mide en em: crece o se achica junto con la mesa. */
-  font-size: clamp(10px, 3.5cqw, 15px);
+  /* Nunca menos de 12 px: es lo más chico que se lee bien en un celular. */
+  font-size: clamp(12px, 3.6cqw, 16px);
   position: absolute;
+  left: calc(50% + var(--ux) * var(--rx));
+  top: calc(50% + var(--uy) * var(--ry));
   transform: translate(-50%, -50%);
   display: grid;
   justify-items: center;
@@ -484,12 +510,13 @@ select {
 }
 
 .placa {
-  min-width: 6.4em;
-  max-width: 10em;
+  min-width: 5.6em;
+  max-width: 7.8em;
+  line-height: 1.2;
   display: grid;
   justify-items: center;
   gap: 0.2em;
-  padding: 0.4em 0.65em 0.45em;
+  padding: 0.3em 0.5em 0.35em;
   background: linear-gradient(180deg, #3b2616, #26160b);
   border: 2px solid var(--laton-oscuro);
   border-radius: 0.65em;
@@ -538,15 +565,22 @@ select {
   display: flex;
   align-items: center;
   white-space: nowrap;
-  gap: 0.45em;
+  gap: 0.35em;
   min-height: 1.4em;
-  font-size: 0.87em;
   color: var(--texto-suave);
 }
 
-.marcador .bazas {
+/* "Apostó N" y "Ganó M" en dos renglones, al lado de la ficha. */
+.marcador .cuentas {
+  display: grid;
+  justify-items: start;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.marcador .ganado {
   color: var(--texto);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .dorsos {
@@ -560,20 +594,15 @@ select {
   margin-left: -12px;
 }
 
-.dorsos .cuenta {
-  margin-left: 0.45em;
-  font-size: 0.87em;
-  font-weight: 600;
-  color: var(--texto-suave);
-}
-
 .asiento .insignias i {
-  font-size: 0.8em;
-  padding: 0.25em 0.6em;
+  flex: none;
+  white-space: nowrap;
+  font-size: max(12px, 0.8em);
+  padding: 0.2em 0.55em;
 }
 
 .asiento .ficha-s {
-  --lado: 1.5em;
+  --lado: 1.7em;
 }
 
 /* Bazas ganadas: una carta chica por baza, en una sola fila y algo encimadas, para ocupar poco alto. */
@@ -1217,6 +1246,8 @@ button.carta:disabled {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
   font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
   font-weight: 700;
   color: var(--laton-claro);
 }
@@ -1937,7 +1968,7 @@ button.carta:disabled {
   }
 
   .zona-mesa {
-    padding: 30px 4px 34px;
+    padding: 26px 4px 30px;
   }
 
   .dorsos .mini {

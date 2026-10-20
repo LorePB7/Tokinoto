@@ -360,6 +360,8 @@ async function auditarMedidas(j: Jugador, vista: string, tamano = j.tamano): Pro
             solapes.push(`${nombreDe(asiento)}: ${etiqueta(partes[i]!)} sobresale de su placa`);
           }
           for (let k = i + 1; k < partes.length; k++) {
+            // Una parte dentro de otra (la cuenta regresiva dentro de las insignias) no es un solape.
+            if (partes[i]!.contains(partes[k]!) || partes[k]!.contains(partes[i]!)) continue;
             const x = interseccion(c, partes[k]!.getBoundingClientRect());
             if (x) solapes.push(`${nombreDe(asiento)}: ${etiqueta(partes[i]!)} pisa a ${etiqueta(partes[k]!)} (${x.w}×${x.h} px)`);
           }
@@ -582,6 +584,20 @@ async function auditarVista(j: Jugador): Promise<void> {
       await medir(j, 'confirmar salida', await excesoDeScroll(j));
       await p.getByRole('button', { name: 'Seguir jugando' }).click();
     }
+    // Reglas abierto en plena partida: el panel no puede heredar los estilos de la barra de la mesa.
+    await p.getByRole('button', { name: 'Reglas' }).click();
+    const reglas = p.getByRole('dialog', { name: 'Reglas del juego' });
+    await reglas.waitFor();
+    const heredado = await reglas.evaluate((e) => ({
+      enBody: e.parentElement === document.body,
+      sinCortes: getComputedStyle(e).whiteSpace !== 'nowrap',
+      dentro: e.getBoundingClientRect().right <= window.innerWidth + 1 && e.getBoundingClientRect().left >= -1,
+    }));
+    verificar(heredado.enBody && heredado.sinCortes && heredado.dentro, `${j.nombre}: el panel de Reglas durante la partida se ve mal (${JSON.stringify(heredado)})`);
+    await medir(j, 'reglas durante la partida', await excesoDe(j, '.panel-reglas'));
+    await captura(j, `2d-reglas-en-mesa-${j.tamano}`);
+    await p.keyboard.press('Escape');
+    await reglas.waitFor({ state: 'detached' });
     const registro = p.getByRole('button', { name: 'Registro', exact: true });
     if (await registro.isVisible()) {
       await registro.click();

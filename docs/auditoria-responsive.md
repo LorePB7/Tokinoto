@@ -1,4 +1,4 @@
-# Auditoría responsive (fase 1)
+# Auditoría responsive (fases 1 y 2)
 
 Medición del diseño que había en `main` antes de la fase 1, para saber dónde está el problema antes de tocarlo.
 Es la base de las fases 2 a 4 del plan de mejoras.
@@ -95,3 +95,25 @@ Queda sin aplicar hasta que se confirme.
 | 3 | Panel de Puntos y pantalla de carga sobre el `Panel` |
 | 4 | Control de sonido en la barra |
 | 7 | Panel de Chat sobre el `Panel` |
+
+## Resultado de la fase 2 (mesa más clara)
+
+Qué cambió en la mesa:
+
+- Cada jugador muestra "Apostó N" y "Ganó M" en dos renglones, al lado de la ficha. El "×N" se eliminó por completo.
+- Los asientos se ubican sobre una elipse que usa el ancho disponible (antes, un círculo del tamaño de la mesa). Las
+  medidas salen de propiedades CSS registradas (`--rx`, `--ry`), así que no hace falta JavaScript.
+- Todo el texto del asiento tiene 12 px o más (antes llegaba a 8 px). La cuenta regresiva va en el renglón de las insignias.
+- Las cartas de la baza se juntan más hacia el centro cuando hay muchos jugadores.
+- La tabla de fin de partida se ordena de mayor a menor total y los empatados comparten lugar.
+
+| Qué se midió | Fase 1 (`main`) | Fase 2 |
+| --- | --- | --- |
+| Mesa con solapes, tamaños del barrido (7 jugadores) | 16 de 39 | 7 de 39 |
+| Mesa con solapes, dispositivos y tamaños propios | 23 de 45 | 11 de 45 |
+| Texto más chico en la mesa | 8 px | 12 px |
+
+Lo que sigue con solapes: celulares muy chicos con 7 jugadores (320 × 568, 568 × 320, iPhone SE), 360 × 560 y 360 × 640,
+y escritorios bajos (1024 × 600 y parecidos) con solapes de 1 a 8 px. Con 7 asientos de 12 px de texto, 320 px de ancho no
+alcanzan y se deja como "que funcione". Los casos de 360 px son el siguiente candidato si hace falta seguir (por ejemplo
+acortando la zona de la mano). Los solapes siguen siendo informativos: el e2e los informa pero no falla por ellos.

@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 interface PropiedadesPanel {
   /** Identificador del elemento (lo usan los botones que lo abren con aria-controls). */
@@ -53,7 +54,8 @@ export function Panel({ id, titulo, alCerrar, clase = '', claseEncabezado = '', 
     return () => document.removeEventListener('keydown', alTeclear);
   }, [alCerrar]);
 
-  return (
+  // Va directo en <body>: si no, hereda los estilos de quien lo abre (la barra de la mesa, por ejemplo).
+  return createPortal(
     <>
       <div className="panel-fondo" aria-hidden="true" onClick={alCerrar} />
       <aside ref={panel} id={id} className={`panel ${clase}`.trim()} role="dialog" aria-modal="true" aria-label={titulo}>
@@ -66,6 +68,7 @@ export function Panel({ id, titulo, alCerrar, clase = '', claseEncabezado = '', 
         </header>
         {children}
       </aside>
-    </>
+    </>,
+    document.body,
   );
 }

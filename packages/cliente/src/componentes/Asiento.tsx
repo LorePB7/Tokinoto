@@ -1,5 +1,6 @@
+import type { CSSProperties } from 'react';
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
-import { posicionAsiento } from '../util/geometria';
+import { posicionAsiento, RADIO } from '../util/geometria';
 import { Carta } from './Carta';
 import { CuentaRegresiva } from './CuentaRegresiva';
 import { Ficha } from './Ficha';
@@ -22,6 +23,8 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const datos = juego.asientos[asiento];
   if (!datos) return null;
   const { x, y } = posicionAsiento(asiento, juego.miAsiento, n);
+  // Dirección del asiento desde el centro (de -1 a 1). El CSS la multiplica por el radio horizontal y el vertical de la mesa.
+  const direccion = { '--ux': (x - 50) / RADIO, '--uy': (y - 50) / RADIO } as CSSProperties;
   const soyYo = asiento === juego.miAsiento;
   const apuesta = juego.apuestas[asiento] ?? null;
   const ganadas = juego.bazasGanadas[asiento] ?? 0;
@@ -43,13 +46,13 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
     .join(' ');
 
   return (
-    <div className={clases} style={{ left: `${x}%`, top: `${y}%` }} data-asiento={asiento}>
+    <div className={clases} style={direccion} data-asiento={asiento}>
       <div className="placa">
         <span className="nombre" title={datos.nombre}>
           {datos.nombre}
           {soyYo ? ' (vos)' : ''}
         </span>
-        {(reparte || esMano || desconectado || piloto) && (
+        {(reparte || esMano || desconectado || piloto || fechaLimite !== null) && (
           <span className="insignias">
             {reparte && <i title="Reparte y apuesta último">Pié</i>}
             {esMano && <i title="Abre la baza">Mano</i>}
@@ -59,17 +62,18 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
                 Piloto
               </i>
             )}
+            {fechaLimite !== null && <CuentaRegresiva fechaLimite={fechaLimite} />}
           </span>
         )}
-        {fechaLimite !== null && <CuentaRegresiva fechaLimite={fechaLimite} />}
         <span className="marcador">
           {apuesta === null ? (
             <span className="sin-apuesta">{juego.fase === 'APUESTAS' ? 'Sin apostar' : ''}</span>
           ) : (
             <>
               <Ficha valor={apuesta} tamano="s" titulo={`Apostó ${apuesta}`} />
-              <span className="bazas" title="Bazas ganadas de las apostadas">
-                {ganadas} de {apuesta}
+              <span className="cuentas">
+                <span className="apostado">Apostó {apuesta}</span>
+                <span className="ganado">Ganó {ganadas}</span>
               </span>
             </>
           )}
@@ -79,9 +83,6 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
             {Array.from({ length: Math.min(cartas, 3) }, (_, i) => (
               <Carta key={i} tamano="xs" className="mini" />
             ))}
-            <span className="cuenta" aria-hidden="true">
-              ×{cartas}
-            </span>
           </span>
         )}
       </div>
