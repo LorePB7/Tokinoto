@@ -1,3 +1,4 @@
+import { buildRanking } from '@tokinoto/reglas';
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { useTienda } from '../estado/contexto';
 
@@ -8,6 +9,8 @@ export function Resumen({ sala, juego }: { sala: VistaSala; juego: VistaJuego })
   if (juego.fase !== 'RESUMEN') return null;
   const soyAnfitrion = sala.anfitrion === sala.yo;
   const ultima = juego.partida === juego.totalPartidas;
+  // De mayor a menor total; los empatados comparten lugar.
+  const filas = buildRanking(juego.puntajes);
 
   return (
     <section className="superposicion" aria-label="Resumen de la partida">
@@ -18,6 +21,7 @@ export function Resumen({ sala, juego }: { sala: VistaSala; juego: VistaJuego })
         <table>
           <thead>
             <tr>
+              <th scope="col">Lugar</th>
               <th scope="col">Jugador</th>
               <th scope="col">Apostó</th>
               <th scope="col">Ganó</th>
@@ -26,13 +30,16 @@ export function Resumen({ sala, juego }: { sala: VistaSala; juego: VistaJuego })
             </tr>
           </thead>
           <tbody>
-            {juego.asientos.map((a) => {
+            {filas.map((fila) => {
+              const a = juego.asientos[fila.seat];
+              if (!a) return null;
               const apuesta = juego.apuestas[a.asiento] ?? 0;
               const ganadas = juego.bazasGanadas[a.asiento] ?? 0;
               const puntos = juego.puntajes[a.asiento]?.[juego.partida - 1] ?? 0;
               const acerto = apuesta === ganadas;
               return (
                 <tr key={a.asiento} className={a.asiento === juego.miAsiento ? 'yo' : ''}>
+                  <td>{fila.position}</td>
                   <th scope="row">{a.nombre}</th>
                   <td>{apuesta}</td>
                   <td>{ganadas}</td>

@@ -26,7 +26,7 @@ export function MesaRedonda({ sala, juego }: PropiedadesMesa) {
 
       <div className="cartas-en-mesa" aria-label="Cartas de la baza">
         {tiradas.map((tirada, orden) => {
-          const punto = haciaElCentro(posicionAsiento(tirada.asiento, juego.miAsiento, n), n >= 6 ? 0.47 : 0.54);
+          const punto = haciaElCentro(posicionAsiento(tirada.asiento, juego.miAsiento, n), n >= 6 ? 0.37 : n === 5 ? 0.46 : 0.5);
           return (
             <div
               key={`${juego.bazaActual?.baza}-${tirada.asiento}`}
