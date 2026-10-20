@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { Carga } from './componentes/Carga';
 import { ProveedorTienda } from './estado/contexto';
 import { crearTienda } from './estado/tienda';
 import { urlDelServidor } from './servidor';
@@ -18,6 +19,7 @@ createRoot(document.getElementById('raiz')!).render(
   <StrictMode>
     <ProveedorTienda tienda={tienda}>
       <App />
+      <Carga />
     </ProveedorTienda>
   </StrictMode>,
 );

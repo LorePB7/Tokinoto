@@ -1,14 +1,18 @@
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CuentaRegresiva } from '../componentes/CuentaRegresiva';
 import { Mano } from '../componentes/Mano';
+import { Menu } from '../componentes/Menu';
+import { Panel } from '../componentes/Panel';
+import { ContenidoPuntos } from '../componentes/TablaPuntos';
 import { PanelApuesta } from '../componentes/PanelApuesta';
 import { MesaRedonda } from '../componentes/MesaRedonda';
 import { Registro } from '../componentes/Registro';
-import { BotonReglas } from '../componentes/Reglas';
+import { PanelReglas } from '../componentes/Reglas';
 import { Resultados } from '../componentes/Resultados';
 import { Resumen } from '../componentes/Resumen';
 import { useTienda } from '../estado/contexto';
+import { CONSULTA_COMPACTA, useConsulta } from '../util/pantalla';
 
 export function mensajeDeTurno(juego: VistaJuego): string {
   const nombre = (asiento: number) => juego.asientos[asiento]?.nombre ?? `Jugador ${asiento + 1}`;
@@ -35,18 +39,9 @@ export function mensajeDeTurno(juego: VistaJuego): string {
 }
 
 /** Salir con el juego en curso: se pide confirmación, porque el asiento queda con el piloto. */
-function BotonSalir({ enCurso }: { enCurso: boolean }) {
+function ConfirmarSalida({ alCancelar }: { alCancelar: () => void }) {
   const salir = useTienda((s) => s.salir);
   const ocupado = useTienda((s) => s.ocupado);
-  const [confirmando, setConfirmando] = useState(false);
-  if (!enCurso) return null;
-  if (!confirmando) {
-    return (
-      <button type="button" className="boton chico secundario" onClick={() => setConfirmando(true)}>
-        Salir
-      </button>
-    );
-  }
   return (
     <div className="confirmar-salida" role="alertdialog" aria-label="Salir del juego">
       <p>¿Dejás la mesa? El piloto automático va a jugar por vos hasta el final.</p>
@@ -54,7 +49,7 @@ function BotonSalir({ enCurso }: { enCurso: boolean }) {
         <button type="button" className="boton chico" disabled={ocupado} onClick={() => void salir()}>
           Sí, salir
         </button>
-        <button type="button" className="boton chico secundario" onClick={() => setConfirmando(false)}>
+        <button type="button" className="boton chico secundario" onClick={alCancelar}>
           Seguir jugando
         </button>
       </div>
@@ -86,6 +81,22 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
   const miFechaLimite = meToca ? (juego.turno?.fechaLimite ?? null) : null;
   const enCurso = sala.estado === 'JUGANDO';
   const [registroAbierto, setRegistroAbierto] = useState(false);
+  const [panel, setPanel] = useState<'reglas' | 'puntos' | null>(null);
+  const [confirmandoSalida, setConfirmandoSalida] = useState(false);
+  const compacto = useConsulta(CONSULTA_COMPACTA);
+  // Al cerrar un panel, el foco vuelve al botón que lo abrió.
+  const retorno = useRef<HTMLElement | null>(null);
+  const botonMenu = useRef<HTMLButtonElement>(null);
+  const botonPuntos = useRef<HTMLButtonElement>(null);
+  const botonReglas = useRef<HTMLButtonElement>(null);
+  const abrirPanel = (cual: 'reglas' | 'puntos', desde: 'menu' | 'directo') => {
+    retorno.current = desde === 'menu' ? botonMenu.current : cual === 'puntos' ? botonPuntos.current : botonReglas.current;
+    setPanel(cual);
+  };
+  const cerrarPanel = () => {
+    setPanel(null);
+    retorno.current?.focus();
+  };
   const yo = sala.jugadores.find((j) => j.idJugador === sala.yo);
   const conPiloto = Boolean(yo?.piloto) && enCurso;
   const apostando = !conPiloto && juego.fase === 'APUESTAS' && juego.turno?.tipo === 'apuesta' && meToca;
@@ -109,16 +120,52 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
             Sala <strong>{sala.codigo}</strong>
           </p>
           <button
+            ref={botonPuntos}
             type="button"
-            className="boton chico secundario boton-registro"
-            aria-expanded={registroAbierto}
-            aria-controls="registro-mesa"
-            onClick={() => setRegistroAbierto((abierto) => !abierto)}
+            aria-label="Puntos"
+            className="boton chico secundario boton-puntos"
+            aria-expanded={panel === 'puntos'}
+            aria-controls="panel-puntos"
+            onClick={() => abrirPanel('puntos', 'directo')}
           >
-            Registro
+            <span className="signo" aria-hidden="true">
+              ★
+            </span>
+            <span className="texto-boton">Puntos</span>
           </button>
-          <BotonReglas />
-          <BotonSalir enCurso={enCurso} />
+          {compacto ? (
+            <Menu
+              ref={botonMenu}
+              elementos={[
+                { clave: 'reglas', texto: 'Reglas', accion: () => abrirPanel('reglas', 'menu') },
+                { clave: 'registro', texto: 'Registro', accion: () => setRegistroAbierto(true) },
+                ...(enCurso ? [{ clave: 'salir', texto: 'Salir', accion: () => setConfirmandoSalida(true) }] : []),
+              ]}
+            />
+          ) : (
+            <>
+              <button
+                ref={botonReglas}
+                type="button"
+                aria-label="Reglas"
+                className="boton chico secundario boton-reglas"
+                aria-expanded={panel === 'reglas'}
+                aria-controls="panel-reglas"
+                onClick={() => abrirPanel('reglas', 'directo')}
+              >
+                <span className="signo" aria-hidden="true">
+                  ?
+                </span>
+                <span className="texto-boton">Reglas</span>
+              </button>
+              {enCurso && (
+                <button type="button" className="boton chico secundario" onClick={() => setConfirmandoSalida(true)}>
+                  Salir
+                </button>
+              )}
+            </>
+          )}
+          {enCurso && confirmandoSalida && <ConfirmarSalida alCancelar={() => setConfirmandoSalida(false)} />}
         </div>
       </header>
 
@@ -143,6 +190,13 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
         </div>
         <Mano juego={juego} />
       </section>
+
+      {panel === 'reglas' && <PanelReglas alCerrar={cerrarPanel} />}
+      {panel === 'puntos' && (
+        <Panel id="panel-puntos" titulo="Puntos" alCerrar={cerrarPanel} clase="panel-puntos panel-reglas" claseEncabezado="encabezado-reglas">
+          <ContenidoPuntos juego={juego} />
+        </Panel>
+      )}
 
       <Registro abierto={registroAbierto} alCerrar={() => setRegistroAbierto(false)} />
 

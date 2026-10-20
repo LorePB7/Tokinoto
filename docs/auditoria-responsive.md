@@ -1,4 +1,4 @@
-# Auditoría responsive (fases 1 y 2)
+# Auditoría responsive (fases 1 a 3)
 
 Medición del diseño que había en `main` antes de la fase 1, para saber dónde está el problema antes de tocarlo.
 Es la base de las fases 2 a 4 del plan de mejoras.
@@ -117,3 +117,16 @@ Lo que sigue con solapes: celulares muy chicos con 7 jugadores (320 × 568, 568 
 y escritorios bajos (1024 × 600 y parecidos) con solapes de 1 a 8 px. Con 7 asientos de 12 px de texto, 320 px de ancho no
 alcanzan y se deja como "que funcione". Los casos de 360 px son el siguiente candidato si hace falta seguir (por ejemplo
 acortando la zona de la mano). Los solapes siguen siendo informativos: el e2e los informa pero no falla por ellos.
+
+## Fase 3: barra, Puntos, pantalla de carga y firma
+
+- **Barra de la mesa.** En pantallas anchas quedan Puntos, Reglas y Salir a la vista. En celulares (hasta 820 px de ancho, o
+  acostados y bajos) quedan **Puntos** y **Menú**, de al menos 44 × 44 px; dentro del Menú van Reglas, Registro y Salir.
+  El e2e comprueba esas medidas. Chat y Sonido se suman a la barra en las fases 4 y 7.
+- **Panel de Puntos.** Usa el `Panel` compartido (cajón en escritorio, hoja en celular). Tabla de mayor a menor total con
+  lugares compartidos; el total va antes de las partidas para verlo sin desplazar, y las partidas que faltan muestran "–".
+  El e2e verifica el orden y que el panel entre en la pantalla.
+- **Pantalla de carga.** "El Niño Games" y "Un juego 100% argentino", una sola vez al abrir el juego: se va a los 1,8 segundos
+  o con un toque, Enter o Escape. Respeta "reducir movimiento".
+- **Firma.** "Hecho por Lorenzo Píccolo · El Niño Games" al pie del inicio y de la sala de espera. En pantallas de menos de
+  640 px de alto no se muestra, porque ahí no hay lugar sin hacer scroll.
