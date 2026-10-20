@@ -513,6 +513,15 @@ for (const j of invitados) {
   await j.pagina.getByTestId('codigo').waitFor();
 }
 await anfitrion.pagina.getByText(`Jugadores (${cantidad} de 7)`).waitFor();
+// El anfitrión elige el tiempo por jugada en la sala; los demás lo ven cambiar (DP-11 / DP-13).
+{
+  const tiempo = anfitrion.pagina.getByLabel('Tiempo por jugada');
+  await tiempo.selectOption('60');
+  for (const j of invitados) await j.pagina.getByText('Tiempo por jugada: 60 segundos.').waitFor({ timeout: 5000 });
+  verificar((await invitados[0]!.pagina.getByLabel('Tiempo por jugada').count()) === 0, 'Un invitado puede cambiar el tiempo por jugada');
+  await tiempo.selectOption('30');
+  for (const j of invitados) await j.pagina.getByText('Tiempo por jugada: 30 segundos.').waitFor({ timeout: 5000 });
+}
 await captura(anfitrion, '2-sala-de-espera');
 for (const j of jugadores) {
   await medir(j, `sala de espera (${cantidad} jugadores)`);

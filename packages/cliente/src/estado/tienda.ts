@@ -60,7 +60,14 @@ export interface EstadoTienda {
   aviso: Aviso | null;
   registro: LineaRegistro[];
 
-  crearSala(nombre: string, maxJugadores: number, tiempoTurno?: number | null): Promise<boolean>;
+  crearSala(nombre: string): Promise<boolean>;
+  /** Anfitrión, antes de iniciar: segundos por jugada (null = sin límite). */
+  configurarTiempo(tiempoTurno: number | null): Promise<boolean>;
+  /**
+   * La última sesión de este navegador, solo si esa partida sigue en curso (lo confirma el servidor).
+   * Si ya no existe, la olvida. Sin conexión, responde null sin olvidarla.
+   */
+  consultarUltima(): Promise<Sesion | null>;
   unirse(codigo: string, nombre: string): Promise<boolean>;
   /** Vuelve a la sala con un token guardado. */
   reconectar(token: string): Promise<boolean>;
@@ -209,8 +216,19 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
     }
 
     /** Abre una conexión. `silencioso` evita el aviso al fallar (en los reintentos). */
-    async function conectar(silencioso = false): Promise<boolean> {
-      if (socket?.connected) return true;
+    // Conexión en curso: si dos acciones piden conectar a la vez, comparten el mismo socket.
+    let conexionEnCurso: Promise<boolean> | null = null;
+
+    function conectar(silencioso = false): Promise<boolean> {
+      if (socket?.connected) return Promise.resolve(true);
+      if (conexionEnCurso) return conexionEnCurso;
+      conexionEnCurso = abrirSocket(silencioso).finally(() => {
+        conexionEnCurso = null;
+      });
+      return conexionEnCurso;
+    }
+
+    function abrirSocket(silencioso: boolean): Promise<boolean> {
       return new Promise((resolver) => {
         const nuevoSocket = crearSocket(opciones.url);
         socket = nuevoSocket;
@@ -332,6 +350,23 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       });
     }
 
+    let consultaEnCurso: Promise<Sesion | null> | null = null;
+
+    async function consultarUltimaAhora(): Promise<Sesion | null> {
+      const ultima = almacen.leerUltima();
+      // Si esta pestaña ya está entrando o volviendo a una sala (por ejemplo, al recargar), no se mete en el medio.
+      if (!ultima || get().conexion !== 'inactiva' || get().seguimiento.sala) return null;
+      if (!(await conectar(true))) return null;
+      const id = nuevoIdPedido();
+      const respuesta = await enviar(id, armarComando('sala.consultar', id, { token: ultima.token }));
+      // Si no entró a una sala mientras tanto, no deja la conexión abierta de más.
+      if (!get().seguimiento.sala && get().conexion !== 'conectando') cerrarConexion();
+      if (respuesta.tipo === 'error') return null;
+      if (respuesta.datos['vigente'] === true) return ultima;
+      almacen.olvidarUltima(ultima.token);
+      return null;
+    }
+
     const aceptado = async (construir: (idPedido: string) => unknown): Promise<boolean> =>
       (await ejecutar(construir)).tipo === 'ok';
 
@@ -345,16 +380,15 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       aviso: null,
       registro: [],
 
-      crearSala: (nombre, maxJugadores, tiempoTurno) =>
-        ingresarAvisando(
-          (id) =>
-            armarComando('sala.crear', id, {
-              nombre,
-              maxJugadores,
-              ...(tiempoTurno === undefined ? {} : { tiempoTurno }),
-            }),
-          nombre,
-        ),
+      crearSala: (nombre) => ingresarAvisando((id) => armarComando('sala.crear', id, { nombre }), nombre),
+      configurarTiempo: (tiempoTurno) => aceptado((id) => armarComando('sala.configurar', id, { tiempoTurno })),
+      consultarUltima() {
+        // Una sola consulta a la vez (React monta dos veces en desarrollo): comparten la respuesta.
+        consultaEnCurso ??= consultarUltimaAhora().finally(() => {
+          consultaEnCurso = null;
+        });
+        return consultaEnCurso;
+      },
       unirse: (codigo, nombre) => ingresarAvisando((id) => armarComando('sala.unirse', id, { codigo, nombre }), nombre),
       reconectar,
       async retomarSesion() {

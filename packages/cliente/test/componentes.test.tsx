@@ -107,12 +107,25 @@ describe('con un servidor real', () => {
     await mundo.cerrar();
   });
 
+  it('Inicio ofrece volver a la última partida solo si sigue en curso', async () => {
+    const almacen = almacenEnMemoria();
+    const ana = tiendaDePrueba(mundo.url, almacen);
+    mundo.tiendas.push(ana);
+    await ana.getState().crearSala('Ana');
+    const otra = tiendaDePrueba(mundo.url, almacen);
+    mundo.tiendas.push(otra);
+    con(otra, <Inicio />);
+    expect(await screen.findByText(/Tenés una partida en la sala/)).toHaveTextContent(`${salaDe(ana)!.codigo} como Ana`);
+    expect(screen.getByRole('button', { name: /volver a esa partida/i })).toBeEnabled();
+  });
+
   it('Lobby muestra el código y bloquea "Iniciar" con menos de 4 jugadores', async () => {
     const ana = tiendaDePrueba(mundo.url);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana', 4);
+    await ana.getState().crearSala('Ana');
     con(ana, <Lobby />);
-    expect(screen.getByText(/Tiempo por jugada: 30 segundos/)).toBeInTheDocument();
+    // El anfitrión elige el tiempo por jugada dentro de la sala.
+    expect(screen.getByLabelText(/tiempo por jugada/i)).toHaveValue('30');
     expect(screen.getByText(salaDe(ana)!.codigo)).toBeInTheDocument();
     expect(screen.getByText(/^Ana/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /iniciar/i })).toBeDisabled();
@@ -210,14 +223,17 @@ describe('ausencias (etapa 6)', () => {
     expect(screen.getByRole('timer')).toHaveTextContent('21 s');
   });
 
-  it('Inicio ofrece volver a la última partida de este navegador', () => {
+  it('Inicio no ofrece volver si no puede confirmar que la partida sigue, y ya no elige cupo ni tiempo', async () => {
     const almacen = almacenEnMemoria();
     almacen.ultima = { token: 'ABCDEFGH.secreto', codigo: 'ABCDEFGH', nombre: 'Ana' };
     const tienda = crearTienda({ url: 'http://127.0.0.1:1', almacen });
     con(tienda, <Inicio />);
-    expect(screen.getByText(/Tenés una partida en la sala/)).toHaveTextContent('ABCDEFGH como Ana');
-    expect(screen.getByRole('button', { name: /volver a esa partida/i })).toBeEnabled();
-    expect(screen.getByLabelText(/tiempo por jugada/i)).toHaveValue('30');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText(/Tenés una partida en la sala/)).toBeNull();
+    expect(screen.queryByLabelText(/jugadores como máximo/i)).toBeNull();
+    expect(screen.queryByLabelText(/tiempo por jugada/i)).toBeNull();
+    // Sin conexión no se sabe si la partida sigue: no se borra.
+    expect(almacen.ultima).not.toBeNull();
   });
 
   it('avisa mientras reconecta y si la sesión se abrió en otra pestaña', () => {

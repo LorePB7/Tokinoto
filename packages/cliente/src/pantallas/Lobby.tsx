@@ -1,9 +1,18 @@
 import { Firma } from '../componentes/Firma';
 import { BotonReglas } from '../componentes/Reglas';
+import { TIEMPO_TURNO_POR_DEFECTO_S } from '@tokinoto/protocolo';
 import { useState } from 'react';
 import { useTienda } from '../estado/contexto';
 
 const MINIMO = 4;
+const MAXIMO = 7;
+
+/** Opciones de tiempo por jugada (DP-13). 0 representa "sin límite". */
+const TIEMPOS = [TIEMPO_TURNO_POR_DEFECTO_S, 60, 0];
+
+function textoTiempo(ms: number | null): string {
+  return ms === null ? 'sin límite' : `${Math.round(ms / 1000)} segundos`;
+}
 
 function enlaceDeLaSala(codigo: string): string {
   try {
@@ -23,6 +32,7 @@ export function Lobby() {
   const iniciar = useTienda((s) => s.iniciar);
   const salir = useTienda((s) => s.salir);
   const ocupado = useTienda((s) => s.ocupado);
+  const configurarTiempo = useTienda((s) => s.configurarTiempo);
   const [copiado, setCopiado] = useState<'codigo' | 'enlace' | null>(null);
   if (!sala) return null;
 
@@ -62,16 +72,33 @@ export function Lobby() {
               {copiado === 'enlace' ? 'Enlace copiado' : 'Copiar enlace'}
             </button>
           </div>
-          <p className="nota">
-            Tiempo por jugada:{' '}
-            {sala.tiempoTurnoMs === null ? 'sin límite' : `${Math.round(sala.tiempoTurnoMs / 1000)} segundos`}. Si alguien
-            se va o se le vence el tiempo, el piloto automático juega por él.
-          </p>
+          {soyAnfitrion ? (
+            <label className="campo tiempo-jugada">
+              <span>Tiempo por jugada</span>
+              <select
+                value={sala.tiempoTurnoMs === null ? 0 : Math.round(sala.tiempoTurnoMs / 1000)}
+                disabled={ocupado}
+                onChange={(e) => {
+                  const segundos = Number(e.target.value);
+                  void configurarTiempo(segundos === 0 ? null : segundos);
+                }}
+              >
+                {TIEMPOS.map((t) => (
+                  <option key={t} value={t}>
+                    {t === 0 ? 'Sin límite' : `${t} segundos`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="nota">Tiempo por jugada: {textoTiempo(sala.tiempoTurnoMs)}.</p>
+          )}
+          <p className="nota">Si alguien se va o se le vence el tiempo, el piloto automático juega por él.</p>
         </div>
 
         <div className="lobby-jugadores">
           <h3>
-            Jugadores ({sala.jugadores.length} de {sala.maxJugadores})
+            Jugadores ({sala.jugadores.length} de {MAXIMO})
           </h3>
           <ul className="jugadores">
             {sala.jugadores.map((j) => (
@@ -87,7 +114,7 @@ export function Lobby() {
           </ul>
           {soyAnfitrion && faltan > 0 && (
             <p className="nota">
-              Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a 7.
+              Faltan {faltan} {faltan === 1 ? 'jugador' : 'jugadores'} para poder empezar: se juega de {MINIMO} a {MAXIMO}.
             </p>
           )}
           {!soyAnfitrion && <p className="nota">Esperando que {anfitrion?.nombre ?? 'el anfitrión'} inicie el juego.</p>}

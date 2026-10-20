@@ -176,6 +176,11 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
         responder(respuestaOk({ horaServidor: Date.now() }));
         return;
 
+      case 'sala.consultar':
+        // No hace falta estar en una sala: solo dice si ese lugar sigue en pie.
+        gestor.consultar(comando.datos.token, responder);
+        return;
+
       case 'sala.crear':
       case 'sala.unirse':
       case 'sala.reconectar': {
@@ -198,8 +203,9 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
           responder(respuesta);
         };
         if (comando.tipo === 'sala.crear') {
-          const { nombre, maxJugadores, tiempoTurno } = comando.datos;
-          gestor.crear(nombre, maxJugadores ?? 7, destino, alResponder, tiempoTurno);
+          // `maxJugadores` ya no se usa (DP-11): toda sala admite hasta 7.
+          const { nombre, tiempoTurno } = comando.datos;
+          gestor.crear(nombre, destino, alResponder, tiempoTurno);
         } else if (comando.tipo === 'sala.unirse') {
           gestor.unirse(comando.datos.codigo, comando.datos.nombre, destino, alResponder);
         } else {

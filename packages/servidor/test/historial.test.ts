@@ -188,7 +188,7 @@ describe('servidor con historial', () => {
     const destino = { enviar: () => {} };
     let sala: ReturnType<typeof servidor.gestor.buscar>;
     const ids: string[] = [];
-    servidor.gestor.crear('Ana', 4, destino, (r, s) => {
+    servidor.gestor.crear('Ana', destino, (r, s) => {
       sala = s ?? undefined;
       if (r.ok) ids.push(r.datos['idJugador'] as string);
     });

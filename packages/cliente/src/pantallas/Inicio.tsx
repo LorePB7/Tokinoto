@@ -1,12 +1,8 @@
 import { Firma } from '../componentes/Firma';
 import { BotonReglas } from '../componentes/Reglas';
-import {
-  ALFABETO_CODIGO,
-  LARGO_CODIGO_SALA,
-  LARGO_MAXIMO_NOMBRE,
-  TIEMPO_TURNO_POR_DEFECTO_S,
-} from '@tokinoto/protocolo';
-import { useState, type FormEvent } from 'react';
+import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, LARGO_MAXIMO_NOMBRE } from '@tokinoto/protocolo';
+import { useEffect, useState, type FormEvent } from 'react';
+import type { Sesion } from '../estado/sesion';
 import { useTienda } from '../estado/contexto';
 import { leerPreferencia, guardarPreferencia } from '../util/preferencias';
 
@@ -18,9 +14,6 @@ function codigoDeLaURL(): string {
   }
 }
 
-/** Opciones de tiempo por jugada (DP-13). 0 representa "sin límite". */
-const TIEMPOS = [TIEMPO_TURNO_POR_DEFECTO_S, 60, 0];
-
 /** Pantalla de entrada: crear una sala nueva, unirse con un código o volver a la última partida. */
 export function Inicio() {
   const crearSala = useTienda((s) => s.crearSala);
@@ -28,12 +21,20 @@ export function Inicio() {
   const reconectar = useTienda((s) => s.reconectar);
   const conectando = useTienda((s) => s.conexion === 'conectando');
   const ocupado = useTienda((s) => s.ocupado) || conectando;
-  const ultimaSesion = useTienda((s) => s.ultimaSesion);
-  const [ultima] = useState(ultimaSesion);
-  const [tiempo, setTiempo] = useState(TIEMPO_TURNO_POR_DEFECTO_S);
+  const consultarUltima = useTienda((s) => s.consultarUltima);
+  // "Volver a esa partida" aparece solo si el servidor confirma que sigue en curso.
+  const [ultima, setUltima] = useState<Sesion | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void consultarUltima().then((sesion) => {
+      if (vigente) setUltima(sesion);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [consultarUltima]);
   const [nombre, setNombre] = useState(() => leerPreferencia('nombre') ?? '');
   const [codigo, setCodigo] = useState(codigoDeLaURL);
-  const [cupo, setCupo] = useState(7);
   const nombreLimpio = nombre.trim();
   const codigoValido = new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`).test(codigo.trim().toUpperCase());
 
@@ -45,7 +46,7 @@ export function Inicio() {
     evento.preventDefault();
     if (!nombreLimpio || ocupado) return;
     recordarNombre();
-    void crearSala(nombreLimpio, cupo, tiempo === 0 ? null : tiempo);
+    void crearSala(nombreLimpio);
   }
 
   function alUnirse(evento: FormEvent) {
@@ -93,28 +94,9 @@ export function Inicio() {
         <div className="bloques">
           <form onSubmit={alCrear} className="bloque">
             <h2>Crear una sala</h2>
-            <div className="fila-campos">
-              <label className="campo corto">
-                <span>Jugadores como máximo</span>
-                <select value={cupo} onChange={(e) => setCupo(Number(e.target.value))}>
-                  {[4, 5, 6, 7].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="campo corto">
-                <span>Tiempo por jugada</span>
-                <select value={tiempo} onChange={(e) => setTiempo(Number(e.target.value))}>
-                  {TIEMPOS.map((t) => (
-                    <option key={t} value={t}>
-                      {t === 0 ? 'Sin límite' : `${t} segundos`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <p className="nota">
+              Invitás a tus amigos con el código y empezás cuando estén todos: de 4 a 7 jugadores.
+            </p>
             <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
               Crear sala
             </button>

@@ -20,6 +20,8 @@ export interface AlmacenSesion {
   leerUltima(): Sesion | null;
   guardar(sesion: Sesion): void;
   borrar(): void;
+  /** Olvida la última sesión si es la de ese token (porque esa partida ya no existe). */
+  olvidarUltima(token: string): void;
 }
 
 const CLAVE = 'tokinoto.sesion';
@@ -61,6 +63,9 @@ export const almacenDelNavegador: AlmacenSesion = {
     const ultima = leerDe(() => window.localStorage);
     if (!ultima || !actual || ultima.token === actual.token) intentar(() => window.localStorage.removeItem(CLAVE));
   },
+  olvidarUltima(token) {
+    if (leerDe(() => window.localStorage)?.token === token) intentar(() => window.localStorage.removeItem(CLAVE));
+  },
 };
 
 /** Almacén en memoria, para pruebas. */
@@ -77,6 +82,9 @@ export function almacenEnMemoria(): AlmacenSesion & { ultima: Sesion | null; act
     borrar() {
       if (almacen.ultima?.token === almacen.actual?.token) almacen.ultima = null;
       almacen.actual = null;
+    },
+    olvidarUltima(token: string) {
+      if (almacen.ultima?.token === token) almacen.ultima = null;
     },
   };
   return almacen;

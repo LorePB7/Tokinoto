@@ -33,7 +33,9 @@ Reglas generales:
 
 | Tipo | Datos | Quién y cuándo |
 |---|---|---|
-| `sala.crear` | `{ nombre, maxJugadores?, tiempoTurno? }` | Cualquiera sin sala. `maxJugadores` es el cupo, de 4 a 7 (por defecto 7). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13) |
+| `sala.crear` | `{ nombre, tiempoTurno? }` | Cualquiera sin sala. La sala admite hasta 7 jugadores y el anfitrión inicia con 4 a 7 (DP-11). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13). `maxJugadores` es **obsoleto**: se acepta y se ignora, para no romper pestañas con un cliente viejo |
+| `sala.configurar` | `{ tiempoTurno }` | Anfitrión, en el lobby, antes de iniciar. Cambia los segundos por jugada (10 a 120, o `null` sin límite) y todos reciben `sala.configuracion` |
+| `sala.consultar` | `{ token }` | Cualquiera, sin estar en una sala. Responde `{ vigente }` (y `codigo` y `estado` si es `true`): si ese lugar sigue en una sala con el juego sin terminar. No conecta a nadie; sirve para ofrecer "volver a tu partida" solo cuando existe |
 | `sala.unirse` | `{ codigo, nombre }` | Cualquiera sin sala, con el lobby abierto |
 | `sala.reconectar` | `{ token }` | Cualquiera sin sala. Vuelve al asiento con el `token` que entregó `sala.crear` o `sala.unirse` (DP-14) |
 | `sala.salir` | — | Cualquier jugador. Con el juego en curso es **abandonar**: el asiento queda y el piloto automático juega por él |
@@ -53,7 +55,7 @@ El cliente **no puede** pedir sortear, barajar, repartir, avanzar ni resolver un
 Ejemplos:
 
 ```json
-{ "v": 1, "tipo": "sala.crear", "idPedido": "a1", "datos": { "nombre": "Ana", "maxJugadores": 5 } }
+{ "v": 1, "tipo": "sala.crear", "idPedido": "a1", "datos": { "nombre": "Ana" } }
 { "v": 1, "tipo": "sala.unirse", "idPedido": "b1", "datos": { "codigo": "K7QM2XPA", "nombre": "Beto" } }
 { "v": 1, "tipo": "sala.reconectar", "idPedido": "b3", "datos": { "token": "K7QM2XPA.…" } }
 { "v": 1, "tipo": "sala.salir", "idPedido": "b2" }
@@ -97,7 +99,7 @@ Si el mensaje no se puede leer, el `error` llega con `idPedido: null`. También 
 | `CANTIDAD_JUGADORES_INVALIDA` | Se intentó iniciar con menos de 4 jugadores |
 | `NO_PERTENECE_A_SALA` | No está en una sala (o no en esta) |
 | `NO_ES_ANFITRION` | Acción reservada al anfitrión |
-| `SALA_LLENA` | La sala alcanzó su cupo |
+| `SALA_LLENA` | La sala ya tiene 7 jugadores |
 | `SALA_NO_EXISTE` | No hay sala con ese código |
 | `JUEGO_YA_INICIADO` | La sala ya está jugando (no se puede entrar ni salir) |
 | `JUEGO_NO_INICIADO` | Comando de juego sin juego en curso |
@@ -124,6 +126,7 @@ Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que e
 { "v": 1, "tipo": "sala.jugadorEntro", "seq": 3, "datos": { "idJugador": "…", "nombre": "Caro" } }
 { "v": 1, "tipo": "sala.jugadorSalio", "seq": 4, "datos": { "idJugador": "…" } }
 { "v": 1, "tipo": "sala.anfitrionCambio", "seq": 5, "datos": { "anfitrion": "…idJugador…" } }
+{ "v": 1, "tipo": "sala.configuracion", "seq": 6, "datos": { "tiempoTurnoMs": 60000 } }
 { "v": 1, "tipo": "jugador.conexion", "seq": 90, "datos": { "idJugador": "…", "asiento": 2, "conectado": false } }
 { "v": 1, "tipo": "jugador.pilotoAutomatico", "seq": 91, "datos": { "idJugador": "…", "asiento": 2, "activado": true, "motivo": "desconexion" } }
 { "v": 1, "tipo": "sala.resumenPausado", "seq": 120, "datos": { "pausado": true } }

@@ -37,6 +37,10 @@ export function describirEvento(
       return `${nombreDeJugador(despues, evento.datos.anfitrion)} es el nuevo anfitrión`;
     case 'sala.resumenPausado':
       return evento.datos.pausado ? 'El anfitrión pausó el resumen' : 'Se reanudó el resumen';
+    case 'sala.configuracion':
+      return evento.datos.tiempoTurnoMs === null
+        ? 'El anfitrión sacó el límite de tiempo por jugada'
+        : `El anfitrión puso ${Math.round(evento.datos.tiempoTurnoMs / 1000)} segundos por jugada`;
     case 'jugador.conexion':
       return `${nombreDeJugador(despues, evento.datos.idJugador)} ${evento.datos.conectado ? 'volvió' : 'se desconectó'}`;
     case 'jugador.pilotoAutomatico': {

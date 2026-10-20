@@ -101,6 +101,44 @@ describe('lobby', () => {
   });
 });
 
+describe('configuración de la sala (DP-11 y DP-13)', () => {
+  it('solo el anfitrión cambia el tiempo por jugada, antes de empezar, y todos se enteran', () => {
+    const mesa = armarMesa(4);
+    const [ana, beto] = mesa.jugadores;
+    expect(mesa.comando(1, { tipo: 'sala.configurar', datos: { tiempoTurno: 60 } })).toMatchObject({
+      ok: false,
+      error: { codigo: 'NO_ES_ANFITRION' },
+    });
+    expect(mesa.comando(0, { tipo: 'sala.configurar', datos: { tiempoTurno: 60 } })).toEqual(OK);
+    expect(beto!.recibidos.at(-1)).toMatchObject({ tipo: 'sala.configuracion', datos: { tiempoTurnoMs: 60_000 } });
+    expect(mesa.sala.vistaPara(ana!.id)?.tiempoTurnoMs).toBe(60_000);
+    expect(mesa.comando(0, { tipo: 'sala.configurar', datos: { tiempoTurno: null } })).toEqual(OK);
+    expect(mesa.sala.vistaPara(beto!.id)?.tiempoTurnoMs).toBeNull();
+    iniciar(mesa);
+    expect(mesa.comando(0, { tipo: 'sala.configurar', datos: { tiempoTurno: 30 } })).toMatchObject({
+      ok: false,
+      error: { codigo: 'JUEGO_YA_INICIADO' },
+    });
+  });
+
+  it('consultar dice si el lugar de un token sigue en pie, sin conectar a nadie', () => {
+    const mesa = armarMesa(4);
+    const respuestas: unknown[] = [];
+    mesa.sala.consultar(mesa.jugadores[1]!.token, (r) => respuestas.push(r));
+    mesa.sala.consultar('PRUEBA23.otro-token-que-no-existe', (r) => respuestas.push(r));
+    expect(respuestas).toEqual([
+      { ok: true, datos: { vigente: true, codigo: 'PRUEBA23', estado: 'ESPERANDO' } },
+      { ok: true, datos: { vigente: false } },
+    ]);
+    expect(mesa.jugadores[1]!.recibidos.at(-1)?.tipo).not.toBe('estado.foto');
+  });
+
+  it('las salas del servidor admiten hasta 7 aunque se pida otro cupo', () => {
+    const mesa = armarMesa(7);
+    expect(mesa.sumar('Octavo').respuesta).toMatchObject({ ok: false, error: { codigo: 'SALA_LLENA' } });
+  });
+});
+
 describe('inicio del juego', () => {
   it('solo el anfitrión inicia, y con 4 a 7 jugadores', () => {
     const mesa = armarMesa(3);

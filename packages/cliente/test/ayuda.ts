@@ -54,7 +54,7 @@ export async function armarMesa(mundo: Mundo, n: number): Promise<Tienda[]> {
   mundo.tiendas.push(...nuevas);
   const [anfitrion, ...resto] = nuevas;
   if (!anfitrion) throw new Error('Hacen falta jugadores');
-  if (!(await anfitrion.getState().crearSala('Jugador 1', n))) throw new Error('No se pudo crear la sala');
+  if (!(await anfitrion.getState().crearSala('Jugador 1'))) throw new Error('No se pudo crear la sala');
   const codigo = salaDe(anfitrion)?.codigo ?? '';
   for (const [i, t] of resto.entries()) {
     if (!(await t.getState().unirse(codigo, `Jugador ${i + 2}`))) throw new Error('No se pudo unir');

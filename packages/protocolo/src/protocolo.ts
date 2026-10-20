@@ -57,7 +57,10 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     tipo: z.literal('sala.crear'),
     datos: z.strictObject({
       nombre,
-      /** Cupo de la sala (4 a 7). El juego empieza con los presentes (4 a 7). */
+      /**
+       * Obsoleto (DP-11): la sala ya no tiene cupo elegible; entran hasta 7 y el anfitrión inicia con 4 a 7.
+       * Se acepta y se ignora, para no romper pestañas con una versión vieja del cliente.
+       */
       maxJugadores: z.int().min(4).max(7).optional(),
       /** Segundos por apuesta y por tirada; null = sin límite. Por defecto, 30. */
       tiempoTurno: z.int().min(TIEMPO_TURNO_MINIMO_S).max(TIEMPO_TURNO_MAXIMO_S).nullable().optional(),
@@ -71,6 +74,18 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     tipo: z.literal('sala.reconectar'),
     /** Secreto que el servidor entregó al crear o unirse. */
     datos: z.strictObject({ token: z.string().min(10).max(100) }),
+  }),
+  z.strictObject({
+    tipo: z.literal('sala.consultar'),
+    /** ¿Sigue vigente el lugar de este token? Sirve para ofrecer "volver a tu partida" solo si existe. */
+    datos: z.strictObject({ token: z.string().min(10).max(100) }),
+  }),
+  z.strictObject({
+    tipo: z.literal('sala.configurar'),
+    /** Solo el anfitrión, antes de iniciar. Segundos por jugada; null = sin límite. */
+    datos: z.strictObject({
+      tiempoTurno: z.int().min(TIEMPO_TURNO_MINIMO_S).max(TIEMPO_TURNO_MAXIMO_S).nullable(),
+    }),
   }),
   z.strictObject({ tipo: z.literal('sala.salir'), datos: sinDatos }),
   z.strictObject({ tipo: z.literal('sala.iniciar'), datos: sinDatos }),
@@ -99,8 +114,11 @@ const comandoSchema = z.discriminatedUnion('tipo', [
 
 export type Comando = z.infer<typeof comandoSchema>;
 export type TipoComando = Comando['tipo'];
-/** Comandos que se ejecutan dentro de una sala (todos menos crear, unirse, reconectar y ping). */
-export type ComandoDeSala = Exclude<Comando, { tipo: 'sala.crear' | 'sala.unirse' | 'sala.reconectar' | 'ping' }>;
+/** Comandos que se ejecutan dentro de una sala (todos menos crear, unirse, reconectar, consultar y ping). */
+export type ComandoDeSala = Exclude<
+  Comando,
+  { tipo: 'sala.crear' | 'sala.unirse' | 'sala.reconectar' | 'sala.consultar' | 'ping' }
+>;
 
 export interface PedidoValido {
   idPedido: string;
@@ -204,6 +222,8 @@ export interface DatosEventos {
   'sala.jugadorSalio': { idJugador: string };
   'sala.anfitrionCambio': { anfitrion: string };
   'sala.resumenPausado': { pausado: boolean };
+  /** El anfitrión cambió el tiempo por jugada (solo antes de iniciar). null = sin límite. */
+  'sala.configuracion': { tiempoTurnoMs: number | null };
   'jugador.conexion': { idJugador: string; asiento: number; conectado: boolean };
   /** El piloto automático toma o deja un asiento. `motivo` es null al desactivarse. */
   'jugador.pilotoAutomatico': { idJugador: string; asiento: number; activado: boolean; motivo: MotivoPiloto | null };

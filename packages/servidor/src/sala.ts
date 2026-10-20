@@ -61,7 +61,7 @@ export interface Destino {
 }
 
 export interface OpcionesSala {
-  /** Cupo de la sala: de 4 a 7. */
+  /** Cupo de la sala: de 4 a 7. Las salas del servidor usan siempre 7 (DP-11); las pruebas pueden usar menos. */
   maxJugadores: number;
   /** Tiempo que la baza resuelta queda a la vista antes de seguir (DP-23: ~3 s). */
   pausaBazaMs: number;
@@ -268,6 +268,15 @@ export class Sala {
    * foto completa y, si el piloto automático jugaba por él, retoma el control.
    * Si estaba conectado desde otra pestaña, esa conexión queda reemplazada.
    */
+  /** Dice si el token tiene un lugar en esta sala con el juego sin terminar (para "volver a tu partida"). */
+  consultar(token: string, responder: (respuesta: Respuesta) => void): void {
+    this.encolar(() => {
+      const jugador = this.cerrada ? undefined : this.jugadores.find((j) => mismoToken(j.token, token));
+      const vigente = Boolean(jugador) && this.estado !== 'TERMINADO';
+      responder(respuestaOk(vigente ? { vigente, codigo: this.codigo, estado: this.estado } : { vigente }));
+    });
+  }
+
   reconectar(token: string, destino: Destino, responder: (respuesta: Respuesta) => void): void {
     this.encolar(() => {
       const jugador = this.cerrada ? undefined : this.jugadores.find((j) => mismoToken(j.token, token));
@@ -613,6 +622,19 @@ export class Sala {
         if (noAnfitrion) return noAnfitrion;
         if (this.juego) return respuestaError('JUEGO_YA_INICIADO', 'El juego ya empezó');
         return this.empezarJuego();
+      }
+
+      case 'sala.configurar': {
+        const noAnfitrion = this.exigirAnfitrion(jugador);
+        if (noAnfitrion) return noAnfitrion;
+        if (this.juego) return respuestaError('JUEGO_YA_INICIADO', 'El tiempo por jugada se elige antes de empezar');
+        const tiempo = comando.datos.tiempoTurno;
+        const ms = tiempo === null ? null : tiempo * 1000;
+        if (ms !== this.opciones.tiempoTurnoMs) {
+          this.opciones.tiempoTurnoMs = ms;
+          this.emitir('sala.configuracion', { tiempoTurnoMs: ms });
+        }
+        return respuestaOk();
       }
 
       case 'sala.pausarResumen': {
