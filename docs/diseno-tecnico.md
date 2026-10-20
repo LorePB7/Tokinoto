@@ -261,6 +261,13 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 - Fuente de azar **criptográficamente segura** para el mezclado.
 - Verificar el origen de las conexiones y usar conexión cifrada.
 
+### 3.10 Sonido (cliente, fase 4)
+- Generado con Web Audio en el navegador (`cliente/src/sonido`): sin archivos de audio, sin cambios en la CSP, sin tocar servidor ni protocolo.
+- `control.ts`: preferencias (sonido, volumen, música) recordadas en el navegador, todo activado al inicio con volumen bajo; no suena hasta el primer toque; separación mínima por sonido para que turno y chat no suenen en cascada; la música se corta con la pestaña en segundo plano.
+- `eventos.ts`: función pura mensaje → sonidos (carta tirada, baza ganada por mí, mi turno, fin de partida, podio). Las fotos no suenan. El chat suma su sonido en la fase 7.
+- `sintetizador.ts`: tonos y música de fondo (La m, Fa, Do, Sol, en loop).
+- Control en la barra de la mesa y flotante en inicio y sala. Prueba de oído: agregar `#sonidos` al final de la dirección.
+
 ---
 
 ## 4. Protocolo de mensajes cliente ↔ servidor

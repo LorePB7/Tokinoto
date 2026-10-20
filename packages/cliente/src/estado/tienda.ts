@@ -95,6 +95,8 @@ export interface OpcionesTienda {
   almacen?: AlmacenSesion;
   /** Esperas entre reintentos de reconexión. */
   esperasDeReconexion?: readonly number[];
+  /** Avisa cada mensaje aplicado, con el estado antes y después (lo usa el sonido). */
+  alMensaje?: (mensaje: MensajeServidor, previo: EstadoCliente, nuevo: EstadoCliente) => void;
 }
 
 export type Tienda = StoreApi<EstadoTienda>;
@@ -211,6 +213,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         }
       }
       set(cambios);
+      opciones.alMensaje?.(mensaje, previo, nuevo);
 
       if (nuevo.desincronizado && !esperandoFoto) pedirFoto();
     }

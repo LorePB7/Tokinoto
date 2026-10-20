@@ -1,5 +1,6 @@
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { useRef, useState } from 'react';
+import { ControlSonido } from '../componentes/ControlSonido';
 import { CuentaRegresiva } from '../componentes/CuentaRegresiva';
 import { Mano } from '../componentes/Mano';
 import { Menu } from '../componentes/Menu';
@@ -133,6 +134,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
             </span>
             <span className="texto-boton">Puntos</span>
           </button>
+          <ControlSonido />
           {compacto ? (
             <Menu
               ref={botonMenu}

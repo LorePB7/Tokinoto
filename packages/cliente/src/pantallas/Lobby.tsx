@@ -1,4 +1,5 @@
 import { Firma } from '../componentes/Firma';
+import { ControlSonido } from '../componentes/ControlSonido';
 import { BotonReglas } from '../componentes/Reglas';
 import { TIEMPO_TURNO_POR_DEFECTO_S } from '@tokinoto/protocolo';
 import { useState } from 'react';
@@ -52,6 +53,7 @@ export function Lobby() {
 
   return (
     <main className="inicio lobby">
+      <ControlSonido flotante />
       <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <div className="hoja">

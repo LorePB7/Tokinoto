@@ -1,4 +1,5 @@
 import { Firma } from '../componentes/Firma';
+import { ControlSonido } from '../componentes/ControlSonido';
 import { BotonReglas } from '../componentes/Reglas';
 import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, LARGO_MAXIMO_NOMBRE } from '@tokinoto/protocolo';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -58,6 +59,7 @@ export function Inicio() {
 
   return (
     <main className="inicio">
+      <ControlSonido flotante />
       <BotonReglas flotante />
       <h1 className="logo">Tokinoto</h1>
       <p className="lema">Un juego de cartas para jugar de 4 a 7 amigos.</p>
