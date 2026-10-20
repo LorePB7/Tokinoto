@@ -39,8 +39,10 @@ describe('control del sonido', () => {
     c.getState().reproducir('carta');
     expect(f.tocados).toEqual([]);
     c.getState().desbloquear();
+    // Cada gesto vuelve a avisar: si el navegador dejó el audio en pausa, lo reanuda.
     c.getState().desbloquear();
-    expect(f.desbloqueos()).toBe(1);
+    expect(f.desbloqueos()).toBe(2);
+    expect(c.getState().desbloqueado).toBe(true);
     expect(f.tocados).toEqual([]);
     c.getState().reproducir('carta');
     expect(f.tocados).toEqual([{ nombre: 'carta', volumen: VOLUMEN_INICIAL }]);
@@ -127,6 +129,16 @@ describe('conexión con la página', () => {
     expect(f.tocados).toEqual([]);
     fireEvent.click(document.getElementById('b')!);
     expect(f.tocados.map((t) => t.nombre)).toEqual(['clic']);
+  });
+
+  it('en celulares, levantar el dedo también reanuda el audio', () => {
+    const f = sintetizadorFalso();
+    const c = crearControlSonido(f.s);
+    desconectar = conectarSonido(c);
+    fireEvent.pointerDown(document.body);
+    fireEvent.pointerUp(document.body);
+    fireEvent.touchEnd(document.body);
+    expect(f.desbloqueos()).toBe(3);
   });
 });
 

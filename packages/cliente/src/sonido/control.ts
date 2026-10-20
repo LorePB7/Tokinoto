@@ -18,7 +18,11 @@ export const SONIDOS: readonly NombreSonido[] = ['clic', 'carta', 'baza', 'turno
 
 /** Lo que genera el audio de verdad. `volumen` va de 0 a 1. */
 export interface Sintetizador {
-  /** Prepara el audio. Se llama en el primer toque de la persona. */
+  /**
+   * Prepara el audio, o lo reanuda si el navegador lo dejó en pausa. Se llama en cada gesto
+   * de la persona: el primero puede no alcanzar (en celulares, apoyar el dedo no cuenta;
+   * levantarlo, sí).
+   */
   desbloquear(): void;
   tocar(nombre: NombreSonido, volumen: number): void;
   /** Prende, apaga o cambia el volumen de la música de fondo. */
@@ -89,9 +93,8 @@ export function crearControlSonido(sintetizador: Sintetizador, ahora: () => numb
       sintetizador.tocar(nombre, volumen);
     },
     desbloquear() {
-      if (get().desbloqueado) return;
       sintetizador.desbloquear();
-      set({ desbloqueado: true });
+      if (!get().desbloqueado) set({ desbloqueado: true });
     },
     setActivado(activado) {
       guardarPreferencia('sonido.activado', activado ? '1' : '0');

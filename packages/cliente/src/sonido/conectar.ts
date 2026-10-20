@@ -9,8 +9,10 @@ import { sonidosDelMensaje } from './eventos';
 export function conectarSonido(control: ControlSonido, documento: Document = document): () => void {
   const sonido = () => control.getState();
 
-  // Los navegadores solo dejan sonar después de un gesto de la persona.
-  const alPrimerGesto = () => sonido().desbloquear();
+  // Los navegadores solo dejan sonar después de un gesto de la persona. Cuál cuenta depende del
+  // navegador (en celulares, levantar el dedo y no apoyarlo), así que se prueba con todos.
+  const alGesto = () => sonido().desbloquear();
+  const GESTOS = ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown'] as const;
   const alCambiarVisibilidad = () => sonido().setVisible(documento.visibilityState !== 'hidden');
   const alClic = (e: Event) => {
     const boton = (e.target as Element | null)?.closest?.('button');
@@ -19,15 +21,13 @@ export function conectarSonido(control: ControlSonido, documento: Document = doc
     sonido().reproducir('clic');
   };
 
-  documento.addEventListener('pointerdown', alPrimerGesto, true);
-  documento.addEventListener('keydown', alPrimerGesto, true);
+  for (const g of GESTOS) documento.addEventListener(g, alGesto, true);
   documento.addEventListener('visibilitychange', alCambiarVisibilidad);
   documento.addEventListener('click', alClic, true);
   alCambiarVisibilidad();
 
   return () => {
-    documento.removeEventListener('pointerdown', alPrimerGesto, true);
-    documento.removeEventListener('keydown', alPrimerGesto, true);
+    for (const g of GESTOS) documento.removeEventListener(g, alGesto, true);
     documento.removeEventListener('visibilitychange', alCambiarVisibilidad);
     documento.removeEventListener('click', alClic, true);
   };

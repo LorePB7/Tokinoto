@@ -214,7 +214,11 @@ export function crearSintetizadorWebAudio(): Sintetizador {
 
   return {
     desbloquear() {
-      if (ctx) return;
+      if (ctx) {
+        // Si el navegador lo dejó en pausa (el primer toque no alcanzó), un gesto nuevo lo reanuda.
+        if (ctx.state !== 'running') void ctx.resume().catch(() => undefined);
+        return;
+      }
       const Ctor = (window.AudioContext ?? (window as unknown as { webkitAudioContext?: CtorAudio }).webkitAudioContext) as
         | CtorAudio
         | undefined;
@@ -308,6 +312,7 @@ export function crearSintetizadorWebAudio(): Sintetizador {
 
     musica(activa, volumen) {
       if (!ctx || !musicaGeneral) return;
+      if (activa && ctx.state !== 'running') void ctx.resume().catch(() => undefined);
       musicaGeneral.gain.setTargetAtTime(activa ? volumen * volumen * 0.4 : 0, ctx.currentTime, 0.3);
       if (!activa) {
         apagarMusica();
