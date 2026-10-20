@@ -184,7 +184,7 @@ async function medir(j: Jugador, vista: string, exceso?: number, repetida = vist
 const BARRIDO = [
   [2560, 1300], [1920, 1080], [1920, 950], [1920, 900], [1680, 900], [1600, 800], [1536, 730], [1536, 864], [1440, 900],
   [1440, 700], [1366, 768], [1366, 650], [1280, 720], [1280, 600], [1280, 560], [1152, 648], [1024, 768], [1024, 600],
-  [820, 1180], [768, 1024], [430, 932], [412, 915], [414, 896], [393, 852], [390, 844], [390, 664], [375, 812], [375, 667],
+  [820, 1180], [768, 1024], [430, 932], [412, 915], [414, 896], [393, 852], [384, 832], [390, 844], [390, 664], [375, 812], [375, 667],
   [360, 800], [360, 740], [360, 640], [360, 560], [320, 568], [932, 430], [844, 390], [740, 360], [667, 375], [568, 320],
 ] as const;
 const barrido = new Map<string, { v: number; h: number; culpables: string[] }>();
@@ -210,11 +210,27 @@ async function barrer(j: Jugador, vista: string): Promise<void> {
         }
       }
       let v = document.documentElement.scrollHeight - H;
+      let h = document.documentElement.scrollWidth - W;
       for (const sel of ['.superposicion', '.panel-reglas']) {
         const e = document.querySelector(sel);
         if (e) v = Math.max(v, e.scrollHeight - e.clientHeight);
       }
-      return { v, h: document.documentElement.scrollWidth - W, culpables: culpables.slice(0, 3) };
+      // El resumen y los resultados van en una capa fija: su scroll horizontal no se ve en la página.
+      for (const e of Array.from(document.querySelectorAll('.superposicion, .superposicion .hoja'))) {
+        h = Math.max(h, e.scrollWidth - e.clientWidth);
+      }
+      // Nada de la mesa puede pisar la barra de arriba (el caso de los montones del asiento de arriba).
+      const barra = document.querySelector('.barra')?.getBoundingClientRect();
+      if (barra) {
+        for (const e of Array.from(document.querySelectorAll('.asiento .placa, .montones'))) {
+          const c = e.getBoundingClientRect();
+          if (c.width && c.top < barra.bottom - 1 && c.bottom > barra.top && c.left < barra.right && c.right > barra.left) {
+            culpables.unshift(`pisa la barra: ${String(e.className)} arriba=${Math.round(c.top)} barra=${Math.round(barra.bottom)}`);
+            v = Math.max(v, Math.round(barra.bottom - c.top));
+          }
+        }
+      }
+      return { v, h, culpables: culpables.slice(0, 3) };
     });
     const k = `${w}x${h} · ${vista}`;
     const antes = barrido.get(k);
