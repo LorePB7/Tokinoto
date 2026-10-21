@@ -265,7 +265,7 @@ describe('ausencias (etapa 6)', () => {
       await esperar(() => quedan.every((t) => salaDe(t)?.jugadores[3]?.piloto === 'abandono'));
       const t = quedan[0]!;
       con(t, <Mesa sala={salaDe(t)!} juego={juegoDe(t)!} />);
-      expect(screen.getByText('Piloto')).toBeInTheDocument();
+      expect(screen.getByRole('img', { name: 'Piloto automático' })).toBeInTheDocument();
       if (juegoDe(t)!.turno?.fechaLimite) expect(screen.getAllByRole('timer').length).toBeGreaterThan(0);
     });
 

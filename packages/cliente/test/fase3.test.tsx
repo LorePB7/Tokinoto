@@ -51,18 +51,17 @@ describe('Pantalla de carga', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it('muestra el estudio y el lema, y se va sola', () => {
-    render(<Carga duracion={1000} />);
+  it('muestra el estudio y el lema, y espera un toque', () => {
+    render(<Carga />);
     expect(screen.getByText('El Niño Games')).toBeInTheDocument();
     expect(screen.getByText('Un juego 100% argentino')).toBeInTheDocument();
-    act(() => void vi.advanceTimersByTime(1000));
-    act(() => void vi.advanceTimersByTime(500));
-    expect(screen.queryByText('El Niño Games')).toBeNull();
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(screen.getByRole('button', { name: 'Tocá para entrar' })).toHaveFocus();
   });
 
-  it('se saltea con un toque', () => {
-    render(<Carga duracion={60_000} />);
-    act(() => screen.getByRole('status').click());
+  it('se entra con un toque', () => {
+    render(<Carga />);
+    act(() => screen.getByRole('button', { name: 'Tocá para entrar' }).click());
     act(() => void vi.advanceTimersByTime(500));
     expect(screen.queryByText('El Niño Games')).toBeNull();
   });
