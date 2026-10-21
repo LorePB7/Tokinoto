@@ -556,9 +556,12 @@ select {
 
 .insignias {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
   gap: 3px;
+  /* Si Pié, Mano y el reloj no entran en un renglón, bajan al siguiente en vez de salirse de la placa. */
+  max-width: 100%;
 }
 
 .marcador {
@@ -1297,6 +1300,21 @@ button.carta:disabled {
 .insignias i.piloto {
   background: #7d8fa6;
   color: #10161d;
+}
+
+/* En la mesa, el piloto es solo un ícono redondo y chico, para no ensanchar la placa. */
+.asiento .insignias i.piloto {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.asiento .insignias i.piloto svg {
+  width: 1.05em;
+  height: 1.05em;
 }
 
 .mi-piloto {
@@ -2518,17 +2536,43 @@ button.carta:disabled {
   color: var(--laton-claro);
 }
 
+/* "Tocá para entrar": el toque que destraba el sonido. Aparece suave y late despacio. */
 .carga .toque {
-  margin: 10px 0 0;
-  font-size: 13px;
-  color: var(--texto-suave);
+  margin: 18px 0 0;
+  min-height: 44px;
+  padding: 8px 22px;
+  font: inherit;
+  font-family: var(--serif);
+  font-size: clamp(16px, 4.2vw, 20px);
+  color: var(--papel);
+  background: transparent;
+  border: 1px solid var(--laton-oscuro);
+  border-radius: 999px;
+  cursor: pointer;
   opacity: 0;
-  animation: carga-aparece 0.6s ease 0.9s forwards;
+  animation:
+    carga-aparece 0.6s ease 0.6s forwards,
+    carga-late 2.4s ease-in-out 1.2s infinite;
+}
+
+.carga .toque:focus-visible {
+  outline: 2px solid var(--laton-claro);
+  outline-offset: 3px;
 }
 
 @keyframes carga-aparece {
   to {
     opacity: 1;
+  }
+}
+
+@keyframes carga-late {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
   }
 }
 

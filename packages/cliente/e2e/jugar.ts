@@ -483,7 +483,14 @@ async function captura(j: Jugador, nombre: string): Promise<void> {
 /** Abre la página y espera a que se vaya la pantalla de carga (si no, tapa los botones). */
 async function irA(pagina: Page, url: string): Promise<void> {
   await pagina.goto(url);
-  await pagina.locator('.carga').waitFor({ state: 'detached', timeout: 10_000 });
+  await entrar(pagina);
+}
+
+/** La pantalla de carga espera un toque ("Tocá para entrar"), que además destraba el sonido. */
+async function entrar(pagina: Page): Promise<void> {
+  const carga = pagina.locator('.carga');
+  await carga.getByRole('button', { name: 'Tocá para entrar' }).click({ timeout: 10_000 });
+  await carga.waitFor({ state: 'detached', timeout: 10_000 });
 }
 
 /** Un botón de la barra de la mesa: directo en pantallas anchas, dentro del Menú en celulares. */
@@ -501,7 +508,9 @@ async function abrirDesdeBarra(p: Page, nombre: string): Promise<void> {
 {
   const acostado = await navegador.newContext(devices['iPhone 13 landscape']!);
   const pagina = await acostado.newPage();
-  await irA(pagina, urlCliente);
+  // El aviso de girar tapa todo, también la pantalla de carga: no se entra, solo se mira.
+  await pagina.goto(urlCliente);
+  await pagina.getByText('Girá el teléfono para jugar.').waitFor({ timeout: 10_000 });
   verificar(await pagina.getByText('Girá el teléfono para jugar.').isVisible(), 'Con el celular acostado no aparece el aviso de girar');
   await acostado.close();
   const parado = await navegador.newContext(devices['iPhone 13']!);
@@ -513,14 +522,16 @@ async function abrirDesdeBarra(p: Page, nombre: string): Promise<void> {
 
 // Entrada: el primero crea la sala y los demás se unen con el código.
 const [anfitrion, ...invitados] = jugadores as [Jugador, ...Jugador[]];
-// Pantalla de carga: al abrir el juego se ve el nombre del estudio y el lema, y se va sola.
+// Pantalla de carga: se ve el nombre del estudio y el lema, y espera un toque ("Tocá para entrar").
 await anfitrion.pagina.goto(urlCliente);
 {
   const carga = anfitrion.pagina.locator('.carga');
   await carga.waitFor({ state: 'visible', timeout: 5000 });
   verificar((await carga.innerText()).includes('El Niño Games') && (await carga.innerText()).includes('Un juego 100% argentino'), 'La pantalla de carga no muestra el estudio y el lema');
+  await anfitrion.pagina.waitForTimeout(2500);
+  verificar(await carga.isVisible(), 'La pantalla de carga se fue sola: tiene que esperar el toque que destraba el sonido');
   await captura(anfitrion, '0-carga');
-  await carga.waitFor({ state: 'detached', timeout: 10_000 });
+  await entrar(anfitrion.pagina);
 }
 await captura(anfitrion, '1-inicio');
 await medir(anfitrion, 'inicio');
@@ -749,7 +760,7 @@ async function probarAusencias(): Promise<void> {
     etapaAusencias = 1;
     ausentes.add(recarga);
     await recarga.pagina.reload();
-    await recarga.pagina.locator('.carga').waitFor({ state: 'detached', timeout: 10_000 });
+    await entrar(recarga.pagina);
     await recarga.pagina.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
     const yo = await recarga.pagina.locator('.asiento.yo .nombre').innerText();
     verificar(yo.includes(recarga.nombre), `Tras recargar volvió con otro nombre: "${yo}"`);

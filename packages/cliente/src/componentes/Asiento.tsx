@@ -11,6 +11,17 @@ const TEXTO_PILOTO = {
   tiempo: 'Se le venció el tiempo varias veces: el piloto automático juega por él',
 } as const;
 
+/** Un timón chico: marca que el piloto automático juega por ese jugador. */
+function IconoPiloto() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="2.4" />
+      <circle cx="12" cy="12" r="2.6" fill="currentColor" />
+      <path d="M12 9.4V3.5M9.7 13.3 4.6 16.2M14.3 13.3l5.1 2.9" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 interface PropiedadesAsiento {
   sala: VistaSala;
   juego: VistaJuego;
@@ -61,8 +72,8 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
             {esMano && <i title="Abre la baza">Mano</i>}
             {desconectado && !piloto && <i className="alerta">Sin conexión</i>}
             {piloto && (
-              <i className="piloto" title={TEXTO_PILOTO[piloto]}>
-                Piloto
+              <i className="piloto" title={TEXTO_PILOTO[piloto]} role="img" aria-label="Piloto automático">
+                <IconoPiloto />
               </i>
             )}
             {fechaLimite !== null && <CuentaRegresiva fechaLimite={fechaLimite} />}
