@@ -294,19 +294,61 @@ select {
   align-self: end;
 }
 
-.bloques.uno {
-  grid-template-columns: 1fr;
+/* Entrada: en todas las pantallas una tarjeta angosta, Google arriba, "o" y el invitado abajo. */
+.hoja.formulario.entrada {
+  width: min(100%, 420px);
 }
 
+.entrada .bloques {
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 10px;
+}
+
+.entrada .bloque {
+  min-width: 0;
+}
+
+/* La línea con la "o" separa los dos bloques: el de abajo no repite la línea punteada. */
+.entrada .separador {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 14px;
+}
+
+.entrada .separador::before,
+.entrada .separador::after {
+  content: '';
+  flex: 1;
+  border-top: 2px dotted rgba(109, 74, 38, 0.45);
+}
+
+.entrada .separador + .bloque {
+  border-top: 0;
+  padding-top: 0;
+}
+
+/*
+ * Google dibuja su botón en un iframe un poco más ancho que el botón (le deja aire para el brillo
+ * al pasar y al tocar). Sin "overflow: hidden" ese aire no se corta en los extremos.
+ */
 .boton-google {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   display: flex;
   align-items: center;
-  overflow: hidden;
+  justify-content: center;
 }
 
 .entrada .nota a {
   color: inherit;
+  /* Más lugar para tocar el enlace con el dedo, sin mover el texto. */
+  display: inline-block;
+  padding: 13px 4px;
+  margin: -13px -4px;
 }
 
 .acciones {
@@ -2238,6 +2280,15 @@ button.carta:disabled {
     font-size: 17px;
   }
 
+  /* Entrada apilada: los botones ya dicen "Google" e "invitado", los títulos sobran. */
+  .entrada .bloque h2 {
+    display: none;
+  }
+
+  .entrada .bloques {
+    row-gap: 6px;
+  }
+
   .campo > span {
     font-size: 12px;
   }
@@ -2592,6 +2643,21 @@ button.carta:disabled {
     carga-late 2.4s ease-in-out 1.2s infinite;
 }
 
+.carga .autor-carga {
+  margin: 4px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+  opacity: 0;
+  animation: carga-aparece 0.6s ease 0.6s forwards;
+}
+
+.carga .autor-carga strong {
+  font-family: var(--serif);
+  font-weight: 700;
+  color: var(--laton-claro);
+}
+
 .carga .toque:focus-visible {
   outline: 2px solid var(--laton-claro);
   outline-offset: 3px;
@@ -2618,7 +2684,8 @@ button.carta:disabled {
     transition: none;
   }
 
-  .carga .toque {
+  .carga .toque,
+  .carga .autor-carga {
     animation: none;
     opacity: 1;
   }
