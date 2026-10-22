@@ -64,17 +64,6 @@ function Entrada() {
         </a>
       </p>
       <div className="bloques">
-        {conGoogle && (
-          <div className="bloque">
-            <h2>Con Google</h2>
-            <BotonGoogle />
-          </div>
-        )}
-        {conGoogle && (
-          <p className="separador" aria-hidden="true">
-            <span>o</span>
-          </p>
-        )}
         <form onSubmit={alEntrar} className="bloque">
           <h2>Como invitado</h2>
           <label className="campo">
@@ -90,6 +79,17 @@ function Entrada() {
             Jugar como invitado
           </button>
         </form>
+        {conGoogle && (
+          <p className="separador" aria-hidden="true">
+            <span>o</span>
+          </p>
+        )}
+        {conGoogle && (
+          <div className="bloque">
+            <h2>Con Google</h2>
+            <BotonGoogle />
+          </div>
+        )}
       </div>
     </div>
   );

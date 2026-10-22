@@ -136,7 +136,7 @@ acortando la zona de la mano). Los solapes siguen siendo informativos: el e2e lo
 Barrido de la entrada en los 39 tamaños, antes y después del cambio.
 
 - **Entrada apilada en todas las pantallas.** Antes, desde 560 px de ancho, Google e invitado iban en dos columnas en una
-  tarjeta de 760 px. Ahora es una tarjeta de 420 px como en celular: Google arriba, una línea con "o" y el invitado abajo.
+  tarjeta de 760 px. Ahora es una tarjeta de 420 px como en celular: el invitado arriba, una línea con "o" y Google abajo.
   Se sacó la frase "Guardamos tu nombre y tus partidas. Nunca tu correo." (sigue en la página de privacidad).
 - **Botón de Google cortado en los extremos.** Google lo dibuja en un iframe con ancho fijo en píxeles, 10 px más ancho por
   lado que el botón para el brillo al pasar y al tocar. El contenedor tenía `overflow: hidden`, que cortaba ese brillo, y el

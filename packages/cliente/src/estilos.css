@@ -294,7 +294,7 @@ select {
   align-self: end;
 }
 
-/* Entrada: en todas las pantallas una tarjeta angosta, Google arriba, "o" y el invitado abajo. */
+/* Entrada: en todas las pantallas una tarjeta angosta, el invitado arriba, "o" y Google abajo. */
 .hoja.formulario.entrada {
   width: min(100%, 420px);
 }
