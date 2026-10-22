@@ -75,6 +75,29 @@ toma su propia dirección de Render (`RENDER_EXTERNAL_URL`).
    Remove-Item Env:DATABASE_URL
    ```
 
+## Ingreso con Google (fase 6)
+
+El juego pide entrar con Google o como invitado. En Render hacen falta dos
+variables (ya están en `render.yaml`; revisalas en **Environment**):
+
+| Variable | Qué es | De dónde sale |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | ID de cliente de Google (termina en `.apps.googleusercontent.com`). No es secreto: viaja en la página | Google Cloud → **Google Auth Platform** → **Clientes** |
+| `TOKINOTO_SECRETO_SESION` | Clave para firmar las sesiones. Si cambia, todos tienen que volver a entrar | La genera Render (Blueprint). No la compartas |
+
+En producción el servidor **no arranca** sin `GOOGLE_CLIENT_ID`. Si falta
+`TOKINOTO_SECRETO_SESION`, usa una clave derivada de `DATABASE_URL` y lo avisa
+en los logs.
+
+En Google Cloud, el cliente es de tipo **Aplicación web**, con
+`https://tokinoto.onrender.com` (y las direcciones de desarrollo) en
+**Orígenes de JavaScript autorizados**, y la app **publicada** (en modo de
+prueba solo entran los usuarios de prueba). Solo se piden los datos básicos
+(identificador y nombre), así que no hace falta verificar la app.
+
+La tabla `cuentas` se crea sola al arrancar (migración `0001_cuentas`). Es
+aditiva: si hubiera que volver a la versión anterior, sigue funcionando.
+
 ## Publicar cambios
 
 Cada merge en `main` publica solo (`autoDeploy`). Para pausarlo, en Render:
@@ -90,6 +113,10 @@ con **Manual Deploy**.
 | En los logs: error de conexión a PostgreSQL | Cadena de Neon mal copiada | En **Environment** corregí `DATABASE_URL` y tocá **Save, rebuild and deploy**. |
 | En los logs: `DATABASE_URL no está definida` | Falta la variable | El juego anda igual, pero no guarda historial. Cargala en **Environment**. |
 | "No se puede conectar" en la página | El servidor se reinició o la dirección no coincide con `TOKINOTO_ORIGENES` | Mirá los logs; recargá la página. |
+| En los logs: `En producción hay que definir GOOGLE_CLIENT_ID` | Falta el ID de cliente de Google | Cargalo en **Environment** y tocá **Save, rebuild and deploy** (lo usa también el build del cliente). |
+| No aparece el botón de Google | El cliente se construyó sin `GOOGLE_CLIENT_ID` | Igual que arriba: hace falta un build nuevo. |
+| Google dice que el origen no está autorizado (error 400) | Falta la dirección del juego en Google Cloud | Agregá `https://<tu-dirección>` en **Orígenes de JavaScript autorizados** del cliente. Puede tardar unos minutos. |
+| Solo algunos amigos pueden entrar con Google | La app sigue en modo de prueba | En **Google Auth Platform** → **Público** → **Publicar app**. Mientras tanto, como invitado entra cualquiera. |
 
 ## Seguridad (qué hace el servidor publicado)
 
@@ -101,9 +128,13 @@ con **Manual Deploy**.
   300 conexiones y 1000 salas simultáneas.
 - Códigos de sala de 8 caracteres al azar criptográfico.
 - Cabeceras de seguridad en todas las respuestas: política de contenido
-  (solo scripts, estilos y fuentes del propio sitio), sin incrustar en otros
-  sitios, sin enviar el enlace de la sala a otros sitios (`no-referrer`) y
-  HTTPS obligatorio (HSTS).
+  (solo scripts, estilos y fuentes del propio sitio, más lo justo del botón
+  de Google), sin incrustar en otros sitios, sin enviar el enlace de la sala
+  a otros sitios (a otros sitios solo llega el origen:
+  `strict-origin-when-cross-origin`) y HTTPS obligatorio (HSTS).
+- Ingreso (fase 6): el token de Google se verifica en el servidor (firma,
+  audiencia, emisor y vencimiento). Se guarda el `sub` de Google y el nombre,
+  nunca el email. Las sesiones van firmadas (HMAC) y vencen a los 30 días.
 - La página se sirve desde memoria: el servidor no lee archivos del disco
   según lo que pide el navegador.
 - La conexión a Neon verifica el certificado (`sslmode=verify-full`).

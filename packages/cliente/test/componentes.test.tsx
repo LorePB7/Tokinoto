@@ -16,7 +16,7 @@ import { Mesa, mensajeDeTurno } from '../src/pantallas/Mesa';
 import { App } from '../src/App';
 import { CuentaRegresiva } from '../src/componentes/CuentaRegresiva';
 import { almacenEnMemoria } from '../src/estado/sesion';
-import { armarMesa, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, type Mundo } from './ayuda';
+import { armarMesa, crearComo, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, type Mundo } from './ayuda';
 
 const con = (tienda: Tienda, hijo: ReactNode) => render(<ProveedorTienda tienda={tienda}>{hijo}</ProveedorTienda>);
 
@@ -88,13 +88,25 @@ describe('fichas y reglas', () => {
 });
 
 describe('pantallas iniciales', () => {
-  it('Inicio no deja crear una sala sin nombre', async () => {
-    const tienda = crearTienda({ url: 'http://127.0.0.1:1' });
+  it('Inicio no deja entrar como invitado sin nombre', async () => {
+    const tienda = crearTienda({ url: 'http://127.0.0.1:1', almacen: almacenEnMemoria() });
     con(tienda, <Inicio />);
-    const crear = screen.getByRole('button', { name: /crear sala/i });
-    expect(crear).toBeDisabled();
+    const entrar = screen.getByRole('button', { name: /jugar como invitado/i });
+    expect(entrar).toBeDisabled();
     await userEvent.type(screen.getByLabelText(/tu nombre/i), 'Ana');
-    expect(crear).toBeEnabled();
+    expect(entrar).toBeEnabled();
+  });
+
+  it('Inicio con cuenta muestra quién juega y permite cambiar el nombre', async () => {
+    const almacen = almacenEnMemoria({ sesion: 'una.sesion', tipo: 'google', nombre: 'Ana' });
+    const tienda = crearTienda({ url: 'http://127.0.0.1:1', almacen });
+    con(tienda, <Inicio />);
+    expect(screen.getByText(/Jugás como/)).toHaveTextContent('Ana · cuenta de Google');
+    expect(screen.getByRole('button', { name: /crear sala/i })).toBeEnabled();
+    await userEvent.click(screen.getByRole('button', { name: /cambiar nombre/i }));
+    expect(screen.getByLabelText(/tu nombre/i)).toHaveValue('Ana');
+    await userEvent.click(screen.getByRole('button', { name: /cancelar/i }));
+    expect(screen.getByText(/Jugás como/)).toBeInTheDocument();
   });
 });
 
@@ -111,18 +123,34 @@ describe('con un servidor real', () => {
     const almacen = almacenEnMemoria();
     const ana = tiendaDePrueba(mundo.url, almacen);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana');
-    const otra = tiendaDePrueba(mundo.url, almacen);
+    await crearComo(ana, 'Ana');
+    // Otra pestaña con la misma cuenta.
+    const otra = tiendaDePrueba(mundo.url, almacenEnMemoria(almacen.cuenta));
     mundo.tiendas.push(otra);
     con(otra, <Inicio />);
-    expect(await screen.findByText(/Tenés una partida en la sala/)).toHaveTextContent(`${salaDe(ana)!.codigo} como Ana`);
+    expect(await screen.findByText(/Tenés una partida en la sala/)).toHaveTextContent(salaDe(ana)!.codigo);
     expect(screen.getByRole('button', { name: /volver a esa partida/i })).toBeEnabled();
+    expect(screen.getByText(/Jugás como/)).toHaveTextContent('Ana');
+  });
+
+  it('Inicio sin cuenta pide entrar; como invitado pasa a crear o unirse', async () => {
+    const t = tiendaDePrueba(mundo.url);
+    mundo.tiendas.push(t);
+    con(t, <Inicio />);
+    expect(screen.queryByRole('button', { name: /crear sala/i })).toBeNull();
+    // Sin ID de cliente de Google configurado, solo se ofrece entrar como invitado.
+    expect(screen.queryByRole('heading', { name: /con google/i })).toBeNull();
+    const usuario = userEvent.setup();
+    await usuario.type(screen.getByLabelText(/tu nombre/i), 'Lu');
+    await usuario.click(screen.getByRole('button', { name: /jugar como invitado/i }));
+    expect(await screen.findByRole('button', { name: /crear sala/i })).toBeEnabled();
+    expect(screen.getByText(/Jugás como/)).toHaveTextContent('Lu · invitado');
   });
 
   it('Lobby muestra el código y bloquea "Iniciar" con menos de 4 jugadores', async () => {
     const ana = tiendaDePrueba(mundo.url);
     mundo.tiendas.push(ana);
-    await ana.getState().crearSala('Ana');
+    await crearComo(ana, 'Ana');
     con(ana, <Lobby />);
     // El anfitrión elige el tiempo por jugada dentro de la sala.
     expect(screen.getByLabelText(/tiempo por jugada/i)).toHaveValue('30');
@@ -224,16 +252,15 @@ describe('ausencias (etapa 6)', () => {
   });
 
   it('Inicio no ofrece volver si no puede confirmar que la partida sigue, y ya no elige cupo ni tiempo', async () => {
-    const almacen = almacenEnMemoria();
-    almacen.ultima = { token: 'ABCDEFGH.secreto', codigo: 'ABCDEFGH', nombre: 'Ana' };
+    const almacen = almacenEnMemoria({ sesion: 'una.sesion-guardada', tipo: 'invitado', nombre: 'Ana' });
     const tienda = crearTienda({ url: 'http://127.0.0.1:1', almacen });
     con(tienda, <Inicio />);
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByText(/Tenés una partida en la sala/)).toBeNull();
     expect(screen.queryByLabelText(/jugadores como máximo/i)).toBeNull();
     expect(screen.queryByLabelText(/tiempo por jugada/i)).toBeNull();
-    // Sin conexión no se sabe si la partida sigue: no se borra.
-    expect(almacen.ultima).not.toBeNull();
+    // Sin conexión no se sabe si la sesión sigue: no se borra.
+    expect(almacen.cuenta).not.toBeNull();
   });
 
   it('avisa mientras reconecta y si la sesión se abrió en otra pestaña', () => {
@@ -242,7 +269,7 @@ describe('ausencias (etapa 6)', () => {
     const { unmount } = con(tienda, <App />);
     expect(screen.getByText(/Volviendo a la mesa/)).toBeInTheDocument();
     unmount();
-    tienda.setState({ conexion: 'reemplazada', token: 'ABCDEFGH.secreto' });
+    tienda.setState({ conexion: 'reemplazada', codigoSala: 'ABCDEFGH' });
     con(tienda, <App />);
     expect(screen.getByRole('heading', { name: /otra pestaña/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /jugar en esta pestaña/i })).toBeInTheDocument();

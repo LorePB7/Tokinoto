@@ -1,0 +1,477 @@
+{
+  "id": "f0618306-01dd-4b86-bb90-cd9a4d5a1d63",
+  "prevId": "a254483a-2cc2-4978-a7ca-b24fb71c66f4",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.cuentas": {
+      "name": "cuentas",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "google_sub": {
+          "name": "google_sub",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creada_en": {
+          "name": "creada_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "cuentas_google_sub_unique": {
+          "name": "cuentas_google_sub_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "google_sub"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.eventos": {
+      "name": "eventos",
+      "schema": "",
+      "columns": {
+        "juego_id": {
+          "name": "juego_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "datos": {
+          "name": "datos",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "eventos_juego_id_juegos_id_fk": {
+          "name": "eventos_juego_id_juegos_id_fk",
+          "tableFrom": "eventos",
+          "tableTo": "juegos",
+          "columnsFrom": [
+            "juego_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "eventos_juego_id_seq_pk": {
+          "name": "eventos_juego_id_seq_pk",
+          "columns": [
+            "juego_id",
+            "seq"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.juegos": {
+      "name": "juegos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "sala_codigo": {
+          "name": "sala_codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "estado": {
+          "name": "estado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "motivo_aborto": {
+          "name": "motivo_aborto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "config": {
+          "name": "config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_partidas": {
+          "name": "total_partidas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "iniciado_en": {
+          "name": "iniciado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terminado_en": {
+          "name": "terminado_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "juegos_sala_idx": {
+          "name": "juegos_sala_idx",
+          "columns": [
+            {
+              "expression": "sala_codigo",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "iniciado_en",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "juegos_sala_codigo_salas_codigo_fk": {
+          "name": "juegos_sala_codigo_salas_codigo_fk",
+          "tableFrom": "juegos",
+          "tableTo": "salas",
+          "columnsFrom": [
+            "sala_codigo"
+          ],
+          "columnsTo": [
+            "codigo"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.jugadores_de_juego": {
+      "name": "jugadores_de_juego",
+      "schema": "",
+      "columns": {
+        "juego_id": {
+          "name": "juego_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asiento": {
+          "name": "asiento",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id_jugador": {
+          "name": "id_jugador",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nombre": {
+          "name": "nombre",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cuenta_id": {
+          "name": "cuenta_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invitado": {
+          "name": "invitado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "jugadores_cuenta_idx": {
+          "name": "jugadores_cuenta_idx",
+          "columns": [
+            {
+              "expression": "cuenta_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "jugadores_de_juego_juego_id_juegos_id_fk": {
+          "name": "jugadores_de_juego_juego_id_juegos_id_fk",
+          "tableFrom": "jugadores_de_juego",
+          "tableTo": "juegos",
+          "columnsFrom": [
+            "juego_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "jugadores_de_juego_cuenta_id_cuentas_id_fk": {
+          "name": "jugadores_de_juego_cuenta_id_cuentas_id_fk",
+          "tableFrom": "jugadores_de_juego",
+          "tableTo": "cuentas",
+          "columnsFrom": [
+            "cuenta_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "jugadores_de_juego_juego_id_asiento_pk": {
+          "name": "jugadores_de_juego_juego_id_asiento_pk",
+          "columns": [
+            "juego_id",
+            "asiento"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.puntajes_de_partida": {
+      "name": "puntajes_de_partida",
+      "schema": "",
+      "columns": {
+        "juego_id": {
+          "name": "juego_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "partida": {
+          "name": "partida",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asiento": {
+          "name": "asiento",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "apuesta": {
+          "name": "apuesta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bazas_ganadas": {
+          "name": "bazas_ganadas",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "puntos": {
+          "name": "puntos",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "puntajes_de_partida_juego_id_juegos_id_fk": {
+          "name": "puntajes_de_partida_juego_id_juegos_id_fk",
+          "tableFrom": "puntajes_de_partida",
+          "tableTo": "juegos",
+          "columnsFrom": [
+            "juego_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "puntajes_de_partida_juego_id_partida_asiento_pk": {
+          "name": "puntajes_de_partida_juego_id_partida_asiento_pk",
+          "columns": [
+            "juego_id",
+            "partida",
+            "asiento"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ranking_final": {
+      "name": "ranking_final",
+      "schema": "",
+      "columns": {
+        "juego_id": {
+          "name": "juego_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asiento": {
+          "name": "asiento",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total": {
+          "name": "total",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "puesto": {
+          "name": "puesto",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ranking_final_juego_id_juegos_id_fk": {
+          "name": "ranking_final_juego_id_juegos_id_fk",
+          "tableFrom": "ranking_final",
+          "tableTo": "juegos",
+          "columnsFrom": [
+            "juego_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ranking_final_juego_id_asiento_pk": {
+          "name": "ranking_final_juego_id_asiento_pk",
+          "columns": [
+            "juego_id",
+            "asiento"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.salas": {
+      "name": "salas",
+      "schema": "",
+      "columns": {
+        "codigo": {
+          "name": "codigo",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "creada_en": {
+          "name": "creada_en",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

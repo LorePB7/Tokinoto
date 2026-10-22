@@ -11,7 +11,7 @@ export function App() {
   const reiniciar = useTienda((s) => s.reiniciar);
 
   const reconectar = useTienda((s) => s.reconectar);
-  const token = useTienda((s) => s.token);
+  const codigoSala = useTienda((s) => s.codigoSala);
 
   let pantalla;
   if (conexion === 'reemplazada') {
@@ -22,8 +22,8 @@ export function App() {
           <h2>Abriste esta mesa en otra pestaña</h2>
           <p>Para no jugar dos veces, esta pestaña se desconectó.</p>
           <div className="acciones">
-            {token && (
-              <button type="button" className="boton" onClick={() => void reconectar(token)}>
+            {codigoSala && (
+              <button type="button" className="boton" onClick={() => void reconectar()}>
                 Jugar en esta pestaña
               </button>
             )}

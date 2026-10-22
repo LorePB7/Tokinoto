@@ -70,10 +70,17 @@ describe('cliente web servido por el juego', () => {
     expect(r.cuerpo).toContain('<title>Tokinoto</title>');
     expect(r.cabeceras['content-type']).toBe('text/html; charset=utf-8');
     expect(r.cabeceras['content-security-policy']).toContain("frame-ancestors 'none'");
-    expect(r.cabeceras['content-security-policy']).toContain("script-src 'self'");
+    // Fase 6: solo lo justo de Google Identity Services, nada más de afuera.
+    const politica = String(r.cabeceras['content-security-policy']);
+    expect(politica).toContain("script-src 'self' https://accounts.google.com/gsi/client;");
+    expect(politica).toContain("style-src 'self' https://accounts.google.com/gsi/style;");
+    expect(politica).toContain('frame-src https://accounts.google.com/gsi/;');
+    expect(politica).toContain("connect-src 'self' https://accounts.google.com/gsi/;");
+    expect(politica).not.toContain('unsafe-inline');
+    expect(r.cabeceras['cross-origin-opener-policy']).toBe('same-origin-allow-popups');
     expect(r.cabeceras['cache-control']).toBe('no-cache');
     expect(r.cabeceras['x-content-type-options']).toBe('nosniff');
-    expect(r.cabeceras['referrer-policy']).toBe('no-referrer');
+    expect(r.cabeceras['referrer-policy']).toBe('strict-origin-when-cross-origin');
     expect(r.cabeceras['strict-transport-security']).toBe('max-age=31536000');
   });
 

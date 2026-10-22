@@ -8,7 +8,20 @@
  * repartidas). Con ellos se reconstruye el juego completo sin necesidad de
  * guardar una semilla. Esa tabla es PRIVADA: nunca se envía a los clientes.
  */
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core';
+
+/**
+ * Cuentas de Google (fase 6, DP-16). Se identifica a la persona por el `sub`
+ * de Google, nunca por el email, que no se guarda. Los invitados no tienen fila.
+ */
+export const cuentas = pgTable('cuentas', {
+  /** UUID interno. */
+  id: text('id').primaryKey(),
+  googleSub: text('google_sub').notNull().unique(),
+  /** Nombre visible, editable por la persona (hasta 20 caracteres). */
+  nombre: text('nombre').notNull(),
+  creadaEn: timestamp('creada_en', { withTimezone: true }).notNull(),
+});
 
 export const salas = pgTable('salas', {
   codigo: text('codigo').primaryKey(),
@@ -44,8 +57,12 @@ export const jugadoresDeJuego = pgTable(
     asiento: integer('asiento').notNull(),
     idJugador: text('id_jugador').notNull(),
     nombre: text('nombre').notNull(),
+    /** Cuenta de Google del jugador (DP-21). Vacía en juegos viejos y en invitados. */
+    cuentaId: text('cuenta_id').references(() => cuentas.id),
+    /** Jugó como invitado: sin cuenta y sin historial propio. */
+    invitado: boolean('invitado').notNull().default(false),
   },
-  (tabla) => [primaryKey({ columns: [tabla.juegoId, tabla.asiento] })],
+  (tabla) => [primaryKey({ columns: [tabla.juegoId, tabla.asiento] }), index('jugadores_cuenta_idx').on(tabla.cuentaId)],
 );
 
 export const puntajesDePartida = pgTable(

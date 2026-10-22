@@ -83,6 +83,14 @@ class Cliente {
     this.socket.emit(CANAL_COMANDOS, mensaje);
   }
 
+  /** Conecta y entra como invitado (fase 6: hace falta identificarse para entrar a una sala). */
+  static async invitado(url: string, nombre: string): Promise<Cliente & { sesion: string }> {
+    const cliente = await Cliente.conectar(url);
+    const respuesta = await cliente.pedir('cuenta.entrarInvitado', { nombre });
+    expect(respuesta.tipo).toBe('ok');
+    return Object.assign(cliente, { sesion: (respuesta.datos as { sesion: string }).sesion });
+  }
+
   /** Envía un comando y espera su respuesta (ok o error). */
   pedir(tipo: string, datos?: unknown, idPedido = `c${++contador}`): Promise<MensajeServidor> {
     const respuesta = this.esperar((m) => (m.tipo === 'ok' || m.tipo === 'error') && 'idPedido' in m && m.idPedido === idPedido);
@@ -99,14 +107,14 @@ class Cliente {
 
 /** Crea una sala con `cantidad` clientes. Devuelve los clientes (el primero es el anfitrión) y el código. */
 async function salaCon(url: string, cantidad: number): Promise<{ clientes: Cliente[]; codigo: string }> {
-  const anfitrion = await Cliente.conectar(url);
-  const creada = await anfitrion.pedir('sala.crear', { nombre: 'Anfitrión' });
+  const anfitrion = await Cliente.invitado(url, 'Anfitrión');
+  const creada = await anfitrion.pedir('sala.crear', {});
   expect(creada.tipo).toBe('ok');
   const codigo = (creada.datos as { codigo: string }).codigo;
   const clientes = [anfitrion];
   for (let i = 1; i < cantidad; i++) {
-    const cliente = await Cliente.conectar(url);
-    expect((await cliente.pedir('sala.unirse', { codigo: codigo.toLowerCase(), nombre: `Invitado ${i}` })).tipo).toBe('ok');
+    const cliente = await Cliente.invitado(url, `Invitado ${i}`);
+    expect((await cliente.pedir('sala.unirse', { codigo: codigo.toLowerCase() })).tipo).toBe('ok');
     clientes.push(cliente);
   }
   return { clientes, codigo };
@@ -192,9 +200,13 @@ describe('conexión y protocolo', () => {
     expect(version.datos).toMatchObject({ codigo: 'VERSION_NO_SOPORTADA' });
 
     expect((await cliente.pedir('juego.apostar', { valor: 0 })).datos).toMatchObject({ codigo: 'NO_PERTENECE_A_SALA' });
-    expect((await cliente.pedir('sala.unirse', { codigo: 'ABCD2345', nombre: 'X' })).datos).toMatchObject({
-      codigo: 'SALA_NO_EXISTE',
-    });
+    // Sin identificarse no se entra a ninguna sala.
+    expect((await cliente.pedir('sala.unirse', { codigo: 'ABCD2345' })).datos).toMatchObject({ codigo: 'NO_IDENTIFICADO' });
+    expect((await cliente.pedir('sala.crear', {})).datos).toMatchObject({ codigo: 'NO_IDENTIFICADO' });
+    expect((await cliente.pedir('sala.reconectar')).datos).toMatchObject({ codigo: 'NO_IDENTIFICADO' });
+    expect((await cliente.pedir('sala.consultar')).datos).toEqual({ vigente: false });
+    expect((await cliente.pedir('cuenta.entrarInvitado', { nombre: 'X' })).tipo).toBe('ok');
+    expect((await cliente.pedir('sala.unirse', { codigo: 'ABCD2345' })).datos).toMatchObject({ codigo: 'SALA_NO_EXISTE' });
   });
 
   it('limita la frecuencia de mensajes por conexión', async () => {
@@ -218,12 +230,18 @@ describe('salas por red', () => {
   it('crear es idempotente y no se puede estar en dos salas', async () => {
     const servidores = abiertos.servidores;
     const url = await levantar();
-    const cliente = await Cliente.conectar(url);
-    const primera = await cliente.pedir('sala.crear', { nombre: 'Ana' }, 'crear-1');
-    const repetida = await cliente.pedir('sala.crear', { nombre: 'Ana' }, 'crear-1');
+    const cliente = await Cliente.invitado(url, 'Ana');
+    const primera = await cliente.pedir('sala.crear', {}, 'crear-1');
+    const repetida = await cliente.pedir('sala.crear', {}, 'crear-1');
     expect(repetida.datos).toEqual(primera.datos);
+    expect(primera.datos).not.toHaveProperty('token'); // el token del asiento no sale del servidor
     expect(servidores.at(-1)!.gestor.cantidad).toBe(1);
-    expect((await cliente.pedir('sala.crear', { nombre: 'Ana' })).datos).toMatchObject({ codigo: 'YA_ESTAS_EN_UNA_SALA' });
+    expect((await cliente.pedir('sala.crear', {})).datos).toMatchObject({ codigo: 'YA_ESTAS_EN_UNA_SALA' });
+    // Con la misma sesión desde otra conexión tampoco se abre una segunda sala.
+    const otra = await Cliente.conectar(url);
+    expect((await otra.pedir('cuenta.reanudar', { sesion: cliente.sesion })).tipo).toBe('ok');
+    expect((await otra.pedir('sala.crear', {})).datos).toMatchObject({ codigo: 'YA_ESTAS_EN_UNA_SALA' });
+    expect(servidores.at(-1)!.gestor.cantidad).toBe(1);
     expect(cliente.recibidos.filter((m) => m.tipo === 'estado.foto')).toHaveLength(1);
   });
 
@@ -232,7 +250,7 @@ describe('salas por red', () => {
     const gestor = abiertos.servidores.at(-1)!.gestor;
     const { clientes, codigo } = await salaCon(url, 2);
     const invitado = clientes[1]!;
-    const idInvitado = (invitado.recibidos.find((m) => m.tipo === 'ok')!.datos as { idJugador: string }).idJugador;
+    const idInvitado = (invitado.recibidos.filter((m) => m.tipo === 'ok').at(-1)!.datos as { idJugador: string }).idJugador;
     invitado.socket.disconnect();
     // Primero se lo marca desconectado (por si recarga la página); si no vuelve, sale.
     await clientes[0]!.esperar((m) => m.tipo === 'jugador.conexion');
@@ -242,43 +260,49 @@ describe('salas por red', () => {
     expect((await clientes[0]!.pedir('sala.salir')).tipo).toBe('ok');
     expect(gestor.buscar(codigo)).toBeUndefined();
     // Ya fuera de la sala, puede crear otra.
-    expect((await clientes[0]!.pedir('sala.crear', { nombre: 'Otra vez' })).tipo).toBe('ok');
+    expect((await clientes[0]!.pedir('sala.crear', {})).tipo).toBe('ok');
   });
 
-  it('con el token se vuelve desde otra conexión; la anterior queda reemplazada', async () => {
+  it('con la sesión se vuelve desde otra conexión; la anterior queda reemplazada', async () => {
     const url = await levantar();
     const gestor = abiertos.servidores.at(-1)!.gestor;
     const { clientes, codigo } = await salaCon(url, 4);
     expect((await clientes[0]!.pedir('sala.iniciar')).tipo).toBe('ok');
-    const invitado = clientes[2]!;
-    const ingreso = invitado.recibidos.find((m) => m.tipo === 'ok')!.datos as { idJugador: string; token: string };
-    expect(ingreso.token.startsWith(`${codigo}.`)).toBe(true);
+    const invitado = clientes[2]! as Cliente & { sesion: string };
+    const ingreso = invitado.recibidos.filter((m) => m.tipo === 'ok').at(-1)!.datos as { idJugador: string };
 
-    // Se corta y vuelve desde una conexión nueva.
+    // Se corta y vuelve desde una conexión nueva: primero retoma la sesión, después el asiento.
     invitado.socket.disconnect();
     await clientes[0]!.esperar((m) => m.tipo === 'jugador.pilotoAutomatico');
     const nueva = await Cliente.conectar(url);
-    const vuelta = await nueva.pedir('sala.reconectar', { token: ingreso.token });
+    expect((await nueva.pedir('sala.consultar')).datos).toEqual({ vigente: false }); // sin sesión no sabe quién es
+    expect((await nueva.pedir('cuenta.reanudar', { sesion: invitado.sesion })).datos).toMatchObject({
+      cuenta: { tipo: 'invitado', nombre: 'Invitado 2' },
+    });
+    expect((await nueva.pedir('sala.consultar')).datos).toEqual({ vigente: true, codigo, estado: 'JUGANDO' });
+    const vuelta = await nueva.pedir('sala.reconectar');
     expect(vuelta).toMatchObject({ tipo: 'ok', datos: { codigo, idJugador: ingreso.idJugador } });
     const foto = await nueva.esperar((m) => m.tipo === 'estado.foto');
     expect((foto.datos as { yo: string; juego: unknown }).yo).toBe(ingreso.idJugador);
     expect((foto.datos as { juego: unknown }).juego).not.toBeNull();
 
-    // Una tercera conexión con el mismo token reemplaza a la segunda.
+    // Una tercera conexión con la misma sesión reemplaza a la segunda (también si usa el código).
     const otra = await Cliente.conectar(url);
-    expect((await otra.pedir('sala.reconectar', { token: ingreso.token })).tipo).toBe('ok');
+    expect((await otra.pedir('cuenta.reanudar', { sesion: invitado.sesion })).tipo).toBe('ok');
+    expect((await otra.pedir('sala.unirse', { codigo })).datos).toMatchObject({ codigo, idJugador: ingreso.idJugador });
     const aviso = await nueva.esperar((m) => m.tipo === 'error' && m.idPedido === null);
     expect(aviso.datos).toMatchObject({ codigo: 'SESION_REEMPLAZADA' });
     expect((await nueva.pedir('sync.pedir')).datos).toMatchObject({ codigo: 'SESION_REEMPLAZADA' });
-    // Ya sin sala, esa conexión puede crear otra.
-    expect((await nueva.pedir('sala.crear', { nombre: 'Otra' })).tipo).toBe('ok');
-    expect(gestor.cantidad).toBe(2);
+    // Ya sin sala, esa conexión no puede abrir otra: la persona sigue sentada en la primera.
+    expect((await nueva.pedir('sala.crear', {})).datos).toMatchObject({ codigo: 'YA_ESTAS_EN_UNA_SALA' });
+    expect(gestor.cantidad).toBe(1);
 
-    // Un token desconocido no entra.
+    // Una sesión adulterada no entra; alguien identificado sin asiento tampoco vuelve.
     const extraña = await Cliente.conectar(url);
-    expect((await extraña.pedir('sala.reconectar', { token: `${codigo}.no-existe-este-token` })).datos).toMatchObject({
-      codigo: 'SESION_INVALIDA',
-    });
+    const adulterada = `${invitado.sesion.split('.')[0]}x.${invitado.sesion.split('.')[1]}`;
+    expect((await extraña.pedir('cuenta.reanudar', { sesion: adulterada })).datos).toMatchObject({ codigo: 'SESION_INVALIDA' });
+    expect((await extraña.pedir('cuenta.entrarInvitado', { nombre: 'Extraña' })).tipo).toBe('ok');
+    expect((await extraña.pedir('sala.reconectar')).datos).toMatchObject({ codigo: 'SESION_INVALIDA' });
   });
 
   for (const cantidad of [4, 7]) {

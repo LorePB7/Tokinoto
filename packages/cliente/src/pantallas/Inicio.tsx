@@ -2,10 +2,10 @@ import { Firma } from '../componentes/Firma';
 import { ControlSonido } from '../componentes/ControlSonido';
 import { BotonReglas } from '../componentes/Reglas';
 import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, LARGO_MAXIMO_NOMBRE } from '@tokinoto/protocolo';
-import { useEffect, useState, type FormEvent } from 'react';
-import type { Sesion } from '../estado/sesion';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTienda } from '../estado/contexto';
 import { leerPreferencia, guardarPreferencia } from '../util/preferencias';
+import { idClienteGoogle, mostrarBotonGoogle, olvidarGoogle } from '../util/google';
 
 function codigoDeLaURL(): string {
   try {
@@ -15,47 +15,13 @@ function codigoDeLaURL(): string {
   }
 }
 
-/** Pantalla de entrada: crear una sala nueva, unirse con un código o volver a la última partida. */
+/**
+ * Pantalla de inicio. Sin cuenta: entrar con Google o como invitado (fase 6).
+ * Con cuenta: crear una sala, unirse con un código o volver a la última partida.
+ */
 export function Inicio() {
-  const crearSala = useTienda((s) => s.crearSala);
-  const unirse = useTienda((s) => s.unirse);
-  const reconectar = useTienda((s) => s.reconectar);
+  const cuenta = useTienda((s) => s.cuenta);
   const conectando = useTienda((s) => s.conexion === 'conectando');
-  const ocupado = useTienda((s) => s.ocupado) || conectando;
-  const consultarUltima = useTienda((s) => s.consultarUltima);
-  // "Volver a esa partida" aparece solo si el servidor confirma que sigue en curso.
-  const [ultima, setUltima] = useState<Sesion | null>(null);
-  useEffect(() => {
-    let vigente = true;
-    void consultarUltima().then((sesion) => {
-      if (vigente) setUltima(sesion);
-    });
-    return () => {
-      vigente = false;
-    };
-  }, [consultarUltima]);
-  const [nombre, setNombre] = useState(() => leerPreferencia('nombre') ?? '');
-  const [codigo, setCodigo] = useState(codigoDeLaURL);
-  const nombreLimpio = nombre.trim();
-  const codigoValido = new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`).test(codigo.trim().toUpperCase());
-
-  function recordarNombre() {
-    guardarPreferencia('nombre', nombreLimpio);
-  }
-
-  function alCrear(evento: FormEvent) {
-    evento.preventDefault();
-    if (!nombreLimpio || ocupado) return;
-    recordarNombre();
-    void crearSala(nombreLimpio);
-  }
-
-  function alUnirse(evento: FormEvent) {
-    evento.preventDefault();
-    if (!nombreLimpio || !codigoValido || ocupado) return;
-    recordarNombre();
-    void unirse(codigo.trim().toUpperCase(), nombreLimpio);
-  }
 
   return (
     <main className="inicio">
@@ -68,30 +34,202 @@ export function Inicio() {
           Conectando…
         </p>
       )}
+      {cuenta ? <Salas /> : <Entrada />}
+      <Firma />
+    </main>
+  );
+}
 
+/** Entrar con Google o como invitado. */
+function Entrada() {
+  const entrarComoInvitado = useTienda((s) => s.entrarComoInvitado);
+  const ocupado = useTienda((s) => s.ocupado || s.conexion === 'conectando');
+  const [nombre, setNombre] = useState(() => leerPreferencia('nombre') ?? '');
+  const nombreLimpio = nombre.trim();
+  const conGoogle = idClienteGoogle() !== '';
+
+  function alEntrar(evento: FormEvent) {
+    evento.preventDefault();
+    if (!nombreLimpio || ocupado) return;
+    guardarPreferencia('nombre', nombreLimpio);
+    void entrarComoInvitado(nombreLimpio);
+  }
+
+  return (
+    <div className="hoja formulario entrada">
+      <p className="nota">
+        Para jugar, entrá con tu cuenta de Google o como invitado.{' '}
+        <a href="/privacidad.html" target="_blank" rel="noopener">
+          Privacidad
+        </a>
+      </p>
+      <div className={conGoogle ? 'bloques' : 'bloques uno'}>
+        {conGoogle && (
+          <div className="bloque">
+            <h2>Con Google</h2>
+            <p className="nota">Guardamos tu nombre y tus partidas. Nunca tu correo.</p>
+            <BotonGoogle />
+          </div>
+        )}
+        <form onSubmit={alEntrar} className="bloque">
+          <h2>Como invitado</h2>
+          <label className="campo">
+            <span>Tu nombre</span>
+            <input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              maxLength={LARGO_MAXIMO_NOMBRE}
+              autoComplete="nickname"
+            />
+          </label>
+          <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
+            Jugar como invitado
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+/** El botón oficial de Google, dibujado por su propio script. */
+function BotonGoogle() {
+  const entrarConGoogle = useTienda((s) => s.entrarConGoogle);
+  const contenedor = useRef<HTMLDivElement>(null);
+  const [fallo, setFallo] = useState(false);
+
+  useEffect(() => {
+    const div = contenedor.current;
+    if (!div) return;
+    let vigente = true;
+    mostrarBotonGoogle(div, idClienteGoogle(), (credencial) => void entrarConGoogle(credencial), div.clientWidth).catch(() => {
+      if (vigente) setFallo(true);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [entrarConGoogle]);
+
+  return (
+    <>
+      <div ref={contenedor} className="boton-google" />
+      {fallo && (
+        <p className="nota" role="status">
+          No se pudo cargar el botón de Google. Probá de nuevo o entrá como invitado.
+        </p>
+      )}
+    </>
+  );
+}
+
+/** Con cuenta: quién juega, crear una sala o unirse con un código. */
+function Salas() {
+  const cuenta = useTienda((s) => s.cuenta)!;
+  const crearSala = useTienda((s) => s.crearSala);
+  const unirse = useTienda((s) => s.unirse);
+  const reconectar = useTienda((s) => s.reconectar);
+  const cambiarNombre = useTienda((s) => s.cambiarNombre);
+  const cerrarSesion = useTienda((s) => s.cerrarSesion);
+  const conectando = useTienda((s) => s.conexion === 'conectando');
+  const ocupado = useTienda((s) => s.ocupado) || conectando;
+  const consultarUltima = useTienda((s) => s.consultarUltima);
+  // "Volver a esa partida" aparece solo si el servidor confirma que sigue en curso.
+  const [ultima, setUltima] = useState<{ codigo: string } | null>(null);
+  useEffect(() => {
+    let vigente = true;
+    void consultarUltima().then((encontrada) => {
+      if (vigente) setUltima(encontrada);
+    });
+    return () => {
+      vigente = false;
+    };
+  }, [consultarUltima]);
+  const [codigo, setCodigo] = useState(codigoDeLaURL);
+  const codigoValido = new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`).test(codigo.trim().toUpperCase());
+
+  const [editando, setEditando] = useState(false);
+  const [nombreNuevo, setNombreNuevo] = useState(cuenta.nombre);
+  const nombreLimpio = nombreNuevo.trim();
+
+  function alCrear(evento: FormEvent) {
+    evento.preventDefault();
+    if (ocupado) return;
+    void crearSala();
+  }
+
+  function alUnirse(evento: FormEvent) {
+    evento.preventDefault();
+    if (!codigoValido || ocupado) return;
+    void unirse(codigo.trim().toUpperCase());
+  }
+
+  async function alCambiarNombre(evento: FormEvent) {
+    evento.preventDefault();
+    if (!nombreLimpio || ocupado) return;
+    if (await cambiarNombre(nombreLimpio)) {
+      if (cuenta.tipo === 'invitado') guardarPreferencia('nombre', nombreLimpio);
+      setEditando(false);
+    }
+  }
+
+  function alSalir() {
+    if (cuenta.tipo === 'google') olvidarGoogle();
+    cerrarSesion();
+  }
+
+  return (
+    <>
       {ultima && (
         <div className="hoja volver">
           <p>
-            Tenés una partida en la sala <strong>{ultima.codigo}</strong>
-            {ultima.nombre ? ` como ${ultima.nombre}` : ''}.
+            Tenés una partida en la sala <strong>{ultima.codigo}</strong>.
           </p>
-          <button type="button" className="boton" disabled={ocupado} onClick={() => void reconectar(ultima.token)}>
+          <button type="button" className="boton" disabled={ocupado} onClick={() => void reconectar()}>
             Volver a esa partida
           </button>
         </div>
       )}
 
       <div className="hoja formulario">
-        <label className="campo">
-          <span>Tu nombre</span>
-          <input
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            maxLength={LARGO_MAXIMO_NOMBRE}
-            autoComplete="nickname"
-            autoFocus
-          />
-        </label>
+        {editando ? (
+          <form className="cuenta-fila" onSubmit={(e) => void alCambiarNombre(e)}>
+            <label className="campo">
+              <span>Tu nombre</span>
+              <input
+                value={nombreNuevo}
+                onChange={(e) => setNombreNuevo(e.target.value)}
+                maxLength={LARGO_MAXIMO_NOMBRE}
+                autoComplete="nickname"
+                autoFocus
+              />
+            </label>
+            <button type="submit" className="boton chico" disabled={!nombreLimpio || ocupado}>
+              Guardar
+            </button>
+            <button type="button" className="boton chico secundario" onClick={() => setEditando(false)}>
+              Cancelar
+            </button>
+          </form>
+        ) : (
+          <div className="cuenta-fila">
+            <p className="quien">
+              Jugás como <strong>{cuenta.nombre}</strong>
+              <span className="nota">{cuenta.tipo === 'google' ? ' · cuenta de Google' : ' · invitado'}</span>
+            </p>
+            <button
+              type="button"
+              className="boton chico secundario"
+              onClick={() => {
+                setNombreNuevo(cuenta.nombre);
+                setEditando(true);
+              }}
+            >
+              Cambiar nombre
+            </button>
+            <button type="button" className="boton chico secundario" onClick={alSalir}>
+              Salir
+            </button>
+          </div>
+        )}
 
         <div className="bloques">
           <form onSubmit={alCrear} className="bloque">
@@ -99,7 +237,7 @@ export function Inicio() {
             <p className="nota">
               Invitás a tus amigos con el código y empezás cuando estén todos: de 4 a 7 jugadores.
             </p>
-            <button type="submit" className="boton" disabled={!nombreLimpio || ocupado}>
+            <button type="submit" className="boton" disabled={ocupado}>
               Crear sala
             </button>
           </form>
@@ -118,13 +256,12 @@ export function Inicio() {
                 spellCheck={false}
               />
             </label>
-            <button type="submit" className="boton" disabled={!nombreLimpio || !codigoValido || ocupado}>
+            <button type="submit" className="boton" disabled={!codigoValido || ocupado}>
               Unirme
             </button>
           </form>
         </div>
       </div>
-      <Firma />
-    </main>
+    </>
   );
 }

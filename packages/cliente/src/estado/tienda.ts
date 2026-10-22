@@ -6,9 +6,14 @@
  * Mantiene la última foto y le aplica los eventos con `aplicarMensaje` (del
  * paquete compartido). Si nota que perdió un evento, pide una foto nueva.
  *
- * Reconexión (DP-14): el token de la sesión se guarda en la pestaña. Si la
- * conexión se corta, la tienda reintenta sola y vuelve al asiento con
- * `sala.reconectar`; al recargar la página, también.
+ * Identidad (fase 6): antes de entrar a una sala hay que entrar con Google o
+ * como invitado. El servidor devuelve una sesión firmada que se guarda en el
+ * navegador; cada conexión nueva la presenta (`cuenta.reanudar`) antes de
+ * cualquier otra cosa.
+ *
+ * Reconexión (DP-14): si la conexión se corta, la tienda reintenta sola y
+ * vuelve al asiento con `sala.reconectar` (el servidor sabe dónde está sentada
+ * la persona); al recargar la página, también.
  */
 import {
   CANAL_MENSAJES,
@@ -16,6 +21,7 @@ import {
   aplicarMensaje,
   armarComando,
   esEvento,
+  type DatosCuenta,
   type EstadoCliente,
   type MensajeError,
   type MensajeOk,
@@ -24,7 +30,7 @@ import {
 import { io as socketIo, type Socket } from 'socket.io-client';
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { describirEvento, type LineaRegistro } from './registro';
-import { almacenDelNavegador, type AlmacenSesion, type Sesion } from './sesion';
+import { almacenDelNavegador, type AlmacenSesion } from './sesion';
 
 /** Cuánto se espera la respuesta del servidor a un comando. */
 export const TIEMPO_DE_RESPUESTA_MS = 10_000;
@@ -51,8 +57,10 @@ export interface EstadoTienda {
   /** Última foto del servidor con los eventos aplicados. */
   seguimiento: EstadoCliente;
   idJugador: string | null;
-  /** Secreto de la sesión: permite volver al asiento. */
-  token: string | null;
+  /** Código de la sala en la que está (o estaba) esta pestaña: permite volver al asiento. */
+  codigoSala: string | null;
+  /** Con quién entró la persona (Google o invitado). null = todavía no entró. */
+  cuenta: DatosCuenta | null;
   /** Hora del servidor menos la hora local, en ms (para las cuentas regresivas). */
   desfaseReloj: number;
   /** Hay un comando esperando respuesta. */
@@ -60,21 +68,26 @@ export interface EstadoTienda {
   aviso: Aviso | null;
   registro: LineaRegistro[];
 
-  crearSala(nombre: string): Promise<boolean>;
+  /** Entra con el token de identidad que dio el botón de Google. */
+  entrarConGoogle(credencial: string): Promise<boolean>;
+  entrarComoInvitado(nombre: string): Promise<boolean>;
+  /** Cambia el nombre (se usa desde la próxima sala). */
+  cambiarNombre(nombre: string): Promise<boolean>;
+  /** Olvida la cuenta en este navegador. */
+  cerrarSesion(): void;
+  crearSala(): Promise<boolean>;
   /** Anfitrión, antes de iniciar: segundos por jugada (null = sin límite). */
   configurarTiempo(tiempoTurno: number | null): Promise<boolean>;
   /**
-   * La última sesión de este navegador, solo si esa partida sigue en curso (lo confirma el servidor).
-   * Si ya no existe, la olvida. Sin conexión, responde null sin olvidarla.
+   * Si la persona tiene una partida sin terminar (lo confirma el servidor), su código.
+   * Sin cuenta o sin conexión, null.
    */
-  consultarUltima(): Promise<Sesion | null>;
-  unirse(codigo: string, nombre: string): Promise<boolean>;
-  /** Vuelve a la sala con un token guardado. */
-  reconectar(token: string): Promise<boolean>;
-  /** Al abrir la página: si esta pestaña tenía una sesión, vuelve a ella. */
+  consultarUltima(): Promise<{ codigo: string } | null>;
+  unirse(codigo: string): Promise<boolean>;
+  /** Vuelve al asiento que la persona tiene en una sala. */
+  reconectar(): Promise<boolean>;
+  /** Al abrir la página: si esta pestaña estaba en una sala, vuelve a ella. */
   retomarSesion(): Promise<boolean>;
-  /** La última sesión de este navegador (aunque sea de otra pestaña), para ofrecer volver. */
-  ultimaSesion(): Sesion | null;
   salir(): Promise<boolean>;
   iniciar(): Promise<boolean>;
   apostar(valor: number): Promise<boolean>;
@@ -83,7 +96,7 @@ export interface EstadoTienda {
   pausarResumen(pausar: boolean): Promise<boolean>;
   revancha(): Promise<boolean>;
   descartarAviso(): void;
-  /** Vuelve a la pantalla de inicio, cerrando la conexión y olvidando la sesión. */
+  /** Vuelve a la pantalla de inicio, cerrando la conexión y olvidando la sala (no la cuenta). */
   reiniciar(): void;
 }
 
@@ -108,7 +121,7 @@ function nuevoIdPedido(): string {
 }
 
 function crearSocketPorDefecto(url: string): Socket {
-  // La reconexión la maneja la tienda (necesita mandar el token en cada intento).
+  // La reconexión la maneja la tienda (necesita presentar la sesión en cada intento).
   return socketIo(url, { transports: ['websocket'], reconnection: false, forceNew: true });
 }
 
@@ -133,7 +146,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
     const avisar = (texto: string): void => set({ aviso: { id: ++contadorDeAvisos, texto } });
 
     const errorLocal = (idPedido: string, mensaje: string): MensajeError => ({
-      v: 1,
+      v: 0,
       tipo: 'error',
       idPedido,
       datos: { codigo: 'ERROR_INTERNO', mensaje },
@@ -232,7 +245,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
     }
 
     function abrirSocket(silencioso: boolean): Promise<boolean> {
-      return new Promise((resolver) => {
+      return new Promise<boolean>((resolver) => {
         const nuevoSocket = crearSocket(opciones.url);
         socket = nuevoSocket;
         nuevoSocket.on(CANAL_MENSAJES, procesar);
@@ -246,10 +259,45 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         nuevoSocket.on('disconnect', () => {
           if (socket !== nuevoSocket) return; // cierre a propósito
           cerrarConexion();
-          if (get().seguimiento.sala && get().token) empezarReconexion();
+          if (get().seguimiento.sala && get().codigoSala) empezarReconexion();
           else set({ conexion: 'inactiva' });
         });
-      });
+      }).then(async (conectado) => (conectado ? identificar() : false));
+    }
+
+    /** Guarda la cuenta que confirmó el servidor (sesión renovada y nombre actual). */
+    function guardarCuenta(respuesta: MensajeOk): void {
+      const sesion = String(respuesta.datos['sesion']);
+      const cuenta = respuesta.datos['cuenta'] as DatosCuenta;
+      almacen.guardarCuenta({ sesion, tipo: cuenta.tipo, nombre: cuenta.nombre });
+      set({ cuenta: { tipo: cuenta.tipo, nombre: cuenta.nombre } });
+    }
+
+    /** Olvida la cuenta (la sesión venció o se cerró). */
+    function olvidarCuenta(): void {
+      almacen.borrarCuenta();
+      set({ cuenta: null });
+    }
+
+    /**
+     * Cada conexión nueva presenta la sesión guardada antes que nada. Si el
+     * servidor la rechaza, se olvida (hay que volver a entrar). Devuelve si la
+     * conexión sigue en pie.
+     */
+    async function identificar(): Promise<boolean> {
+      const guardada = almacen.leerCuenta();
+      if (!guardada) return true;
+      const id = nuevoIdPedido();
+      const respuesta = await enviar(id, armarComando('cuenta.reanudar', id, { sesion: guardada.sesion }));
+      if (respuesta.tipo === 'ok') {
+        guardarCuenta(respuesta);
+      } else if (respuesta.datos.codigo === 'SESION_INVALIDA' || respuesta.datos.codigo === 'MENSAJE_INVALIDO') {
+        olvidarCuenta();
+        avisar('Tu sesión venció. Volvé a entrar.');
+      } else if (respuesta.datos.codigo === 'VERSION_NO_SOPORTADA') {
+        avisar(respuesta.datos.mensaje);
+      }
+      return socket?.connected ?? false;
     }
 
     function empezarReconexion(): void {
@@ -269,18 +317,17 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
     }
 
     async function reintentar(): Promise<void> {
-      const token = get().token;
-      if (get().conexion !== 'reconectando' || !token) return;
+      if (get().conexion !== 'reconectando' || !get().codigoSala) return;
       if (!(await conectar(true))) {
         if (get().conexion === 'reconectando') programarReintento();
         return;
       }
       const id = nuevoIdPedido();
-      const respuesta = await enviar(id, armarComando('sala.reconectar', id, { token }));
+      const respuesta = await enviar(id, armarComando('sala.reconectar', id));
       if (get().conexion !== 'reconectando') return;
       if (respuesta.tipo === 'ok') {
         set({ conexion: 'conectada' });
-      } else if (respuesta.datos.codigo === 'SESION_INVALIDA') {
+      } else if (respuesta.datos.codigo === 'SESION_INVALIDA' || respuesta.datos.codigo === 'NO_IDENTIFICADO') {
         reiniciar();
         avisar('La sala ya no existe. Podés crear otra o unirte con un código.');
       } else {
@@ -299,8 +346,8 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       return respuesta;
     }
 
-    /** Entra a una sala (crear, unirse o reconectar) y guarda la sesión. */
-    async function ingresar(construir: (idPedido: string) => unknown, nombre: string | null): Promise<MensajeOk | MensajeError> {
+    /** Entra a una sala (crear, unirse o reconectar) y recuerda en qué sala está esta pestaña. */
+    async function ingresar(construir: (idPedido: string) => unknown): Promise<MensajeOk | MensajeError> {
       cancelarReintento();
       set({ conexion: 'conectando' });
       if (!(await conectar())) {
@@ -309,29 +356,29 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       }
       const respuesta = await ejecutar(construir, false);
       if (respuesta.tipo === 'error') {
+        if (respuesta.datos.codigo === 'NO_IDENTIFICADO') olvidarCuenta();
         if (!get().seguimiento.sala) cerrarConexion();
         set({ conexion: get().seguimiento.sala ? 'conectada' : 'inactiva' });
         return respuesta;
       }
-      const token = String(respuesta.datos['token']);
       const codigo = String(respuesta.datos['codigo']);
-      set({ conexion: 'conectada', idJugador: String(respuesta.datos['idJugador']), token });
-      const yo = get().seguimiento.sala?.jugadores.find((j) => j.idJugador === get().idJugador)?.nombre;
-      almacen.guardar({ token, codigo, nombre: nombre ?? yo ?? '' });
+      set({ conexion: 'conectada', idJugador: String(respuesta.datos['idJugador']), codigoSala: codigo });
+      almacen.guardarSala(codigo);
       return respuesta;
     }
 
-    async function ingresarAvisando(construir: (idPedido: string) => unknown, nombre: string): Promise<boolean> {
-      const respuesta = await ingresar(construir, nombre);
+    async function ingresarAvisando(construir: (idPedido: string) => unknown): Promise<boolean> {
+      const respuesta = await ingresar(construir);
       if (respuesta.tipo === 'error' && respuesta.idPedido !== '') avisar(respuesta.datos.mensaje);
       return respuesta.tipo === 'ok';
     }
 
-    async function reconectar(token: string): Promise<boolean> {
-      const respuesta = await ingresar((id) => armarComando('sala.reconectar', id, { token }), null);
+    async function reconectar(): Promise<boolean> {
+      const respuesta = await ingresar((id) => armarComando('sala.reconectar', id));
       if (respuesta.tipo === 'ok') return true;
       if (respuesta.datos.codigo === 'SESION_INVALIDA') {
-        almacen.borrar();
+        almacen.borrarSala();
+        set({ codigoSala: null });
         avisar('Esa partida ya no existe.');
       } else if (respuesta.idPedido !== '') {
         avisar(respuesta.datos.mensaje);
@@ -339,51 +386,72 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       return false;
     }
 
+    /** Comandos de cuenta: conecta si hace falta, y guarda la cuenta si salió bien. */
+    async function comandoDeCuenta(construir: (idPedido: string) => unknown): Promise<boolean> {
+      set({ ocupado: true });
+      if (!(await conectar())) {
+        set({ ocupado: false });
+        return false;
+      }
+      const respuesta = await ejecutar(construir);
+      if (respuesta.tipo === 'ok') guardarCuenta(respuesta);
+      // Sin sala, la conexión no queda abierta de más (la próxima acción conecta de nuevo).
+      if (!get().seguimiento.sala && get().conexion === 'inactiva') cerrarConexion();
+      return respuesta.tipo === 'ok';
+    }
+
     function reiniciar(): void {
       cancelarReintento();
       cerrarConexion();
-      almacen.borrar();
+      almacen.borrarSala();
       set({
         conexion: 'inactiva',
         seguimiento: ESTADO_CLIENTE_INICIAL,
         idJugador: null,
-        token: null,
+        codigoSala: null,
         ocupado: false,
         registro: [],
       });
     }
 
-    let consultaEnCurso: Promise<Sesion | null> | null = null;
+    let consultaEnCurso: Promise<{ codigo: string } | null> | null = null;
 
-    async function consultarUltimaAhora(): Promise<Sesion | null> {
-      const ultima = almacen.leerUltima();
+    async function consultarUltimaAhora(): Promise<{ codigo: string } | null> {
       // Si esta pestaña ya está entrando o volviendo a una sala (por ejemplo, al recargar), no se mete en el medio.
-      if (!ultima || get().conexion !== 'inactiva' || get().seguimiento.sala) return null;
+      if (!almacen.leerCuenta() || get().conexion !== 'inactiva' || get().seguimiento.sala) return null;
       if (!(await conectar(true))) return null;
       const id = nuevoIdPedido();
-      const respuesta = await enviar(id, armarComando('sala.consultar', id, { token: ultima.token }));
+      const respuesta = await enviar(id, armarComando('sala.consultar', id));
       // Si no entró a una sala mientras tanto, no deja la conexión abierta de más.
       if (!get().seguimiento.sala && get().conexion !== 'conectando') cerrarConexion();
-      if (respuesta.tipo === 'error') return null;
-      if (respuesta.datos['vigente'] === true) return ultima;
-      almacen.olvidarUltima(ultima.token);
-      return null;
+      if (respuesta.tipo === 'error' || respuesta.datos['vigente'] !== true) return null;
+      return { codigo: String(respuesta.datos['codigo']) };
     }
 
     const aceptado = async (construir: (idPedido: string) => unknown): Promise<boolean> =>
       (await ejecutar(construir)).tipo === 'ok';
 
+    const guardada = almacen.leerCuenta();
     return {
       conexion: 'inactiva',
       seguimiento: ESTADO_CLIENTE_INICIAL,
       idJugador: null,
-      token: null,
+      codigoSala: null,
+      // Se muestra la cuenta guardada enseguida; el servidor la confirma al conectar.
+      cuenta: guardada ? { tipo: guardada.tipo, nombre: guardada.nombre } : null,
       desfaseReloj: 0,
       ocupado: false,
       aviso: null,
       registro: [],
 
-      crearSala: (nombre) => ingresarAvisando((id) => armarComando('sala.crear', id, { nombre }), nombre),
+      entrarConGoogle: (credencial) => comandoDeCuenta((id) => armarComando('cuenta.entrar', id, { credencial })),
+      entrarComoInvitado: (nombre) => comandoDeCuenta((id) => armarComando('cuenta.entrarInvitado', id, { nombre })),
+      cambiarNombre: (nombre) => comandoDeCuenta((id) => armarComando('cuenta.cambiarNombre', id, { nombre })),
+      cerrarSesion() {
+        reiniciar();
+        olvidarCuenta();
+      },
+      crearSala: () => ingresarAvisando((id) => armarComando('sala.crear', id, {})),
       configurarTiempo: (tiempoTurno) => aceptado((id) => armarComando('sala.configurar', id, { tiempoTurno })),
       consultarUltima() {
         // Una sola consulta a la vez (React monta dos veces en desarrollo): comparten la respuesta.
@@ -392,13 +460,14 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         });
         return consultaEnCurso;
       },
-      unirse: (codigo, nombre) => ingresarAvisando((id) => armarComando('sala.unirse', id, { codigo, nombre }), nombre),
+      unirse: (codigo) => ingresarAvisando((id) => armarComando('sala.unirse', id, { codigo })),
       reconectar,
       async retomarSesion() {
-        const sesion = almacen.leer();
-        return sesion ? reconectar(sesion.token) : false;
+        const codigo = almacen.leerSala();
+        if (!codigo || !almacen.leerCuenta()) return false;
+        set({ codigoSala: codigo });
+        return reconectar();
       },
-      ultimaSesion: () => almacen.leerUltima(),
 
       async salir() {
         if (get().conexion !== 'conectada') {

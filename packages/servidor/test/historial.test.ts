@@ -8,7 +8,7 @@
 import { abrirRepositorioPglite, crearRepositorioEnMemoria, verificarJuego, type Repositorio } from '@tokinoto/persistencia';
 import { describe, expect, it } from 'vitest';
 import { armarMesa, cartasEn, indiceDeAsiento, jugarHastaElFinal } from './ayudas';
-import { GuardadorHistorial, MOTIVO_ABORTO_REINICIO, crearServidor, MOTIVO_ABORTO_SIN_JUGADORES } from '../src';
+import { GuardadorHistorial, MOTIVO_ABORTO_REINICIO, crearServidor, MOTIVO_ABORTO_SIN_JUGADORES, type Identidad } from '../src';
 
 const OK = { ok: true, datos: {} };
 const sinEsperas = { esperas: [], dormir: async () => {} };
@@ -188,12 +188,19 @@ describe('servidor con historial', () => {
     const destino = { enviar: () => {} };
     let sala: ReturnType<typeof servidor.gestor.buscar>;
     const ids: string[] = [];
-    servidor.gestor.crear('Ana', destino, (r, s) => {
+    const persona = (nombre: string, cuentaId: string | null = null): Identidad => ({
+      tipo: cuentaId ? 'google' : 'invitado',
+      clave: cuentaId ? `g:${cuentaId}` : `i:${nombre}`,
+      nombre,
+      cuentaId,
+    });
+    const cuenta = await repo.cuentaDeGoogle('sub-ana', 'Ana', new Date());
+    servidor.gestor.crear(persona('Ana', cuenta.id), destino, (r, s) => {
       sala = s ?? undefined;
       if (r.ok) ids.push(r.datos['idJugador'] as string);
     });
     for (const nombre of ['Beto', 'Cata', 'Dani']) {
-      servidor.gestor.unirse(sala!.codigo, nombre, destino, (r) => {
+      servidor.gestor.unirse(sala!.codigo, persona(nombre), destino, (r) => {
         if (r.ok) ids.push(r.datos['idJugador'] as string);
       });
     }
@@ -205,6 +212,15 @@ describe('servidor con historial', () => {
     const [juego] = await repo.listarJuegos();
     expect(juego).toMatchObject({ estado: 'ABORTADO', motivoAborto: MOTIVO_ABORTO_REINICIO, sala: sala!.codigo });
     expect((await repo.eventosDe(juego!.id)).length).toBeGreaterThan(3);
+    // La cuenta queda asociada al juego; los invitados, marcados como tales.
+    const guardado = await repo.obtenerJuego(juego!.id);
+    expect(guardado!.jugadores.map((j) => [j.nombre, j.cuentaId, j.invitado])).toEqual([
+      ['Ana', cuenta.id, false],
+      ['Beto', null, true],
+      ['Cata', null, true],
+      ['Dani', null, true],
+    ]);
+    expect((await repo.listarJuegos({ cuenta: cuenta.id })).map((j) => j.id)).toEqual([juego!.id]);
     expect(await verificarJuego(repo, juego!.id)).toEqual([]);
   });
 

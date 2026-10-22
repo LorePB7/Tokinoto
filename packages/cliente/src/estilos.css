@@ -272,6 +272,43 @@ select {
   font-size: 21px;
 }
 
+/* Fase 6: quién juega (nombre, cambiarlo, salir) y la entrada con Google o como invitado. */
+.cuenta-fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.cuenta-fila .quien {
+  flex: 1 1 14em;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cuenta-fila .campo {
+  flex: 1 1 12em;
+}
+
+.cuenta-fila .campo ~ .boton.chico {
+  align-self: end;
+}
+
+.bloques.uno {
+  grid-template-columns: 1fr;
+}
+
+.boton-google {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.entrada .nota a {
+  color: inherit;
+}
+
 .acciones {
   display: flex;
   flex-wrap: wrap;

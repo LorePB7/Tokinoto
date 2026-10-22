@@ -1,90 +1,100 @@
 /**
- * Sesión guardada en el navegador: el token que permite volver al asiento
- * (DP-14). Nunca falla: sin almacenamiento disponible, simplemente no guarda.
+ * Lo que el navegador recuerda entre visitas. Nunca falla: sin almacenamiento
+ * disponible, simplemente no guarda.
  *
- * - En `sessionStorage` (una por pestaña): sirve para volver solo al recargar
- *   la página o si se corta la conexión. Así, varias pestañas del mismo
- *   navegador pueden ser jugadores distintos sin pisarse.
- * - En `localStorage` queda además la última sesión, para ofrecer "volver a
- *   tu partida" si se cerró la pestaña. Volver es una decisión del jugador.
+ * - La cuenta (fase 6), en `localStorage`: la sesión que entregó el servidor
+ *   al entrar con Google o como invitado, y el nombre. La comparten todas las
+ *   pestañas: es la misma persona. Si se borran los datos del sitio, un
+ *   invitado pierde esa identidad.
+ * - La sala de esta pestaña, en `sessionStorage`: si la pestaña estaba en una
+ *   sala, al recargar vuelve sola al asiento (DP-14). En otra pestaña, volver
+ *   es una decisión de la persona ("volver a tu partida").
  */
-export interface Sesion {
-  token: string;
-  codigo: string;
+export interface CuentaGuardada {
+  /** Sesión firmada por el servidor. */
+  sesion: string;
+  tipo: 'google' | 'invitado';
   nombre: string;
 }
 
 export interface AlmacenSesion {
-  leer(): Sesion | null;
-  /** La última sesión usada en este navegador (aunque sea de otra pestaña). */
-  leerUltima(): Sesion | null;
-  guardar(sesion: Sesion): void;
-  borrar(): void;
-  /** Olvida la última sesión si es la de ese token (porque esa partida ya no existe). */
-  olvidarUltima(token: string): void;
+  leerCuenta(): CuentaGuardada | null;
+  guardarCuenta(cuenta: CuentaGuardada): void;
+  borrarCuenta(): void;
+  /** Código de la sala en la que estaba esta pestaña. */
+  leerSala(): string | null;
+  guardarSala(codigo: string): void;
+  borrarSala(): void;
 }
 
-const CLAVE = 'tokinoto.sesion';
+const CLAVE_CUENTA = 'tokinoto.cuenta';
+const CLAVE_SALA = 'tokinoto.sala';
+/** Clave de la versión anterior (token por sala): se borra, ya no sirve. */
+const CLAVE_VIEJA = 'tokinoto.sesion';
 
-function leerDe(almacen: () => Storage): Sesion | null {
+function intentar<T>(accion: () => T, siFalla: T): T {
   try {
-    const crudo = almacen().getItem(CLAVE);
-    if (!crudo) return null;
-    const datos = JSON.parse(crudo) as Partial<Sesion>;
-    if (typeof datos.token !== 'string' || typeof datos.codigo !== 'string' || typeof datos.nombre !== 'string') {
-      return null;
-    }
-    return { token: datos.token, codigo: datos.codigo, nombre: datos.nombre };
+    return accion();
+  } catch {
+    return siFalla; // Sin almacenamiento: se sigue sin recordar.
+  }
+}
+
+function leerCuentaDe(texto: string | null): CuentaGuardada | null {
+  if (!texto) return null;
+  try {
+    const datos = JSON.parse(texto) as Partial<CuentaGuardada>;
+    if (typeof datos.sesion !== 'string' || typeof datos.nombre !== 'string') return null;
+    if (datos.tipo !== 'google' && datos.tipo !== 'invitado') return null;
+    return { sesion: datos.sesion, tipo: datos.tipo, nombre: datos.nombre };
   } catch {
     return null;
   }
 }
 
-function intentar(accion: () => void): void {
-  try {
-    accion();
-  } catch {
-    // Sin almacenamiento: se sigue sin recordar.
-  }
-}
-
 export const almacenDelNavegador: AlmacenSesion = {
-  leer: () => leerDe(() => window.sessionStorage),
-  leerUltima: () => leerDe(() => window.localStorage),
-  guardar(sesion) {
-    const texto = JSON.stringify(sesion);
-    intentar(() => window.sessionStorage.setItem(CLAVE, texto));
-    intentar(() => window.localStorage.setItem(CLAVE, texto));
+  leerCuenta: () => intentar(() => leerCuentaDe(window.localStorage.getItem(CLAVE_CUENTA)), null),
+  guardarCuenta(cuenta) {
+    intentar(() => window.localStorage.setItem(CLAVE_CUENTA, JSON.stringify(cuenta)), undefined);
   },
-  borrar() {
-    const actual = leerDe(() => window.sessionStorage);
-    intentar(() => window.sessionStorage.removeItem(CLAVE));
-    // La última sesión se borra solo si es esta (otra pestaña puede estar usando la suya).
-    const ultima = leerDe(() => window.localStorage);
-    if (!ultima || !actual || ultima.token === actual.token) intentar(() => window.localStorage.removeItem(CLAVE));
+  borrarCuenta() {
+    intentar(() => window.localStorage.removeItem(CLAVE_CUENTA), undefined);
   },
-  olvidarUltima(token) {
-    if (leerDe(() => window.localStorage)?.token === token) intentar(() => window.localStorage.removeItem(CLAVE));
+  leerSala: () => intentar(() => window.sessionStorage.getItem(CLAVE_SALA), null),
+  guardarSala(codigo) {
+    intentar(() => window.sessionStorage.setItem(CLAVE_SALA, codigo), undefined);
+  },
+  borrarSala() {
+    intentar(() => window.sessionStorage.removeItem(CLAVE_SALA), undefined);
   },
 };
 
+/** Borra lo que guardaba la versión anterior del juego (un token por sala). */
+export function limpiarVersionVieja(): void {
+  intentar(() => window.sessionStorage.removeItem(CLAVE_VIEJA), undefined);
+  intentar(() => window.localStorage.removeItem(CLAVE_VIEJA), undefined);
+}
+
 /** Almacén en memoria, para pruebas. */
-export function almacenEnMemoria(): AlmacenSesion & { ultima: Sesion | null; actual: Sesion | null } {
+export function almacenEnMemoria(
+  cuenta: CuentaGuardada | null = null,
+): AlmacenSesion & { cuenta: CuentaGuardada | null; sala: string | null } {
   const almacen = {
-    actual: null as Sesion | null,
-    ultima: null as Sesion | null,
-    leer: () => almacen.actual,
-    leerUltima: () => almacen.ultima,
-    guardar(sesion: Sesion) {
-      almacen.actual = sesion;
-      almacen.ultima = sesion;
+    cuenta,
+    sala: null as string | null,
+    leerCuenta: () => almacen.cuenta,
+    guardarCuenta(nueva: CuentaGuardada) {
+      almacen.cuenta = nueva;
     },
-    borrar() {
-      if (almacen.ultima?.token === almacen.actual?.token) almacen.ultima = null;
-      almacen.actual = null;
+    borrarCuenta() {
+      almacen.cuenta = null;
     },
-    olvidarUltima(token: string) {
-      if (almacen.ultima?.token === token) almacen.ultima = null;
+    leerSala: () => almacen.sala,
+    guardarSala(codigo: string) {
+      almacen.sala = codigo;
+    },
+    borrarSala() {
+      almacen.sala = null;
     },
   };
   return almacen;

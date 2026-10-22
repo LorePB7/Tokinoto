@@ -14,11 +14,12 @@
     "@tokinoto/persistencia": "*",
     "@tokinoto/protocolo": "*",
     "@tokinoto/reglas": "*",
+    "google-auth-library": "^11.3.1",
     "socket.io": "^4.8.4",
     "tsx": "^4.23.15"
   },
   "devDependencies": {
-    "socket.io-client": "^4.8.4",
-    "fast-check": "^4.10.2"
+    "fast-check": "^4.10.2",
+    "socket.io-client": "^4.8.4"
   }
 }

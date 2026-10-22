@@ -8,7 +8,7 @@ import { conectarSonido, sonarMensajes } from '../src/sonido/conectar';
 import { ProveedorSonido } from '../src/sonido/contexto';
 import { crearControlSonido, SEPARACION_MS, VOLUMEN_INICIAL, type NombreSonido, type Sintetizador } from '../src/sonido/control';
 import { sonidosDelMensaje } from '../src/sonido/eventos';
-import { esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, type Mundo } from './ayuda';
+import { crearComo, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, unirseComo, type Mundo } from './ayuda';
 
 /** Sintetizador falso: anota lo que le piden. */
 function sintetizadorFalso() {
@@ -230,9 +230,9 @@ describe('sonidos en un juego real', () => {
     const otros = [1, 2, 3].map(() => tiendaDePrueba(mundo.url));
     const tiendas = [yo, ...otros];
     mundo.tiendas.push(...tiendas);
-    expect(await yo.getState().crearSala('Yo')).toBe(true);
+    expect(await crearComo(yo, 'Yo')).toBe(true);
     const codigo = salaDe(yo)!.codigo;
-    for (const [i, t] of otros.entries()) expect(await t.getState().unirse(codigo, `J${i + 2}`)).toBe(true);
+    for (const [i, t] of otros.entries()) expect(await unirseComo(t, codigo, `J${i + 2}`)).toBe(true);
     await esperar(() => salaDe(yo)?.jugadores.length === 4);
     expect(await yo.getState().iniciar()).toBe(true);
     await jugarHasta(tiendas, () => tiendas.every((t) => juegoDe(t)?.fase === 'TERMINADO'), 60_000);

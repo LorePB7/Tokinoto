@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { Carga } from './componentes/Carga';
 import { ProveedorTienda } from './estado/contexto';
+import { limpiarVersionVieja } from './estado/sesion';
 import { crearTienda } from './estado/tienda';
 import { PruebaSonidos } from './pantallas/PruebaSonidos';
 import { urlDelServidor } from './servidor';
@@ -19,6 +20,7 @@ import './estilos.css';
 const sonido = crearControlSonido(crearSintetizadorWebAudio());
 conectarSonido(sonido);
 
+limpiarVersionVieja();
 const tienda = crearTienda({ url: urlDelServidor(), alMensaje: sonarMensajes(sonido) });
 // Si esta pestaña ya estaba en una sala (por ejemplo, al recargar), vuelve a su asiento.
 void tienda.getState().retomarSesion();

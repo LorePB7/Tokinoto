@@ -15,6 +15,12 @@
  * página en modo producción, con los orígenes limitados a su propia dirección
  * y la política de contenido activa.
  *
+ * Ingreso (fase 6): el anfitrión entra "con Google" usando un botón de Google
+ * simulado (el script de Google se reemplaza por uno local, sin red) y el
+ * servidor acepta credenciales de prueba; los demás entran como invitados.
+ * Para el modo --publicado, construí el cliente con GOOGLE_CLIENT_ID definido
+ * (cualquier valor) para que aparezca el botón.
+ *
  * Si está definida DATABASE_URL, el servidor guarda el historial en esa base
  * (etapa 7) y al final se verifica que el juego quedó guardado y es consistente.
  *
@@ -26,7 +32,7 @@ import { createServer as crearServidorTcp, type AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { abrirRepositorioPostgres, verificarJuego } from '@tokinoto/persistencia';
-import { crearServidor } from '@tokinoto/servidor';
+import { crearServidor, verificadorDePrueba } from '@tokinoto/servidor';
 import { chromium, devices, type Browser, type BrowserContext, type Page } from 'playwright-core';
 import { createServer } from 'vite';
 
@@ -55,6 +61,33 @@ async function puertoLibre(): Promise<number> {
 }
 
 const pausas = { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300 };
+
+/**
+ * Reemplazo local del script de Google Identity Services: dibuja un botón del
+ * mismo alto que el real y, al tocarlo, entrega una credencial de prueba
+ * ("prueba:<nombre>") que el servidor de esta prueba acepta.
+ */
+const URL_GOOGLE = 'https://accounts.google.com/gsi/client';
+const GOOGLE_FALSO = `
+  (() => {
+    let alEntrar = null;
+    window.google = { accounts: { id: {
+      initialize(o) { alEntrar = o.callback; },
+      disableAutoSelect() {},
+      renderButton(el, o) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = 'Iniciar sesión con Google';
+        b.style.height = '40px';
+        b.style.width = o.width + 'px';
+        b.style.borderRadius = '20px';
+        b.onclick = () => alEntrar && alEntrar({ credential: 'prueba:' + (window.__nombreGoogle || 'Google') });
+        el.replaceChildren(b);
+      },
+    } } };
+  })();
+`;
+if (!values.publicado) process.env['VITE_GOOGLE_CLIENT_ID'] ??= 'e2e-prueba.apps.googleusercontent.com';
 let vite: Awaited<ReturnType<typeof createServer>> | null = null;
 let urlCliente: string | undefined;
 let servidor: ReturnType<typeof crearServidor>;
@@ -65,6 +98,7 @@ if (values.publicado) {
   urlCliente = `http://127.0.0.1:${puerto}/`;
   servidor = crearServidor({
     sala: pausas,
+    verificadorGoogle: verificadorDePrueba,
     produccion: true,
     carpetaCliente: dist,
     origenes: [`http://127.0.0.1:${puerto}`],
@@ -72,7 +106,7 @@ if (values.publicado) {
   });
   await servidor.escuchar(puerto, '127.0.0.1');
 } else {
-  servidor = crearServidor({ sala: pausas, ...(repositorio ? { repositorio } : {}) });
+  servidor = crearServidor({ sala: pausas, verificadorGoogle: verificadorDePrueba, ...(repositorio ? { repositorio } : {}) });
   const puertoServidor = await servidor.escuchar(0, '127.0.0.1');
   process.env['VITE_SERVIDOR'] = `http://127.0.0.1:${puertoServidor}`;
   vite = await createServer({
@@ -149,6 +183,8 @@ for (let i = 0; i < cantidad; i++) {
   });
   // tsx agrega una ayuda interna (__name) a las funciones; el navegador no la tiene y hay que dársela.
   await contexto.addInitScript('globalThis.__name = (f) => f;');
+  await contexto.addInitScript(`window.__nombreGoogle = ${JSON.stringify(`Jugador ${i + 1}`)};`);
+  await contexto.route(URL_GOOGLE, (ruta) => ruta.fulfill({ contentType: 'text/javascript', body: GOOGLE_FALSO }));
   const pagina = await contexto.newPage();
   pagina.on('pageerror', (e) => problemas.push(`Error de página (${i}): ${e.message}`));
   pagina.on('console', (m) => {
@@ -535,7 +571,22 @@ await anfitrion.pagina.goto(urlCliente);
 }
 await captura(anfitrion, '1-inicio');
 await medir(anfitrion, 'inicio');
-await anfitrion.pagina.getByLabel('Tu nombre').fill(anfitrion.nombre);
+// El anfitrión entra con Google (si el botón está; en --publicado depende de cómo se construyó).
+{
+  const google = anfitrion.pagina.getByRole('button', { name: 'Iniciar sesión con Google' });
+  if (await google.waitFor({ timeout: 5000 }).then(() => true, () => false)) {
+    await google.click();
+  } else {
+    console.log('Sin botón de Google en esta versión: el anfitrión entra como invitado.');
+    await anfitrion.pagina.getByLabel('Tu nombre').fill(anfitrion.nombre);
+    await anfitrion.pagina.getByRole('button', { name: 'Jugar como invitado' }).click();
+  }
+  const quien = anfitrion.pagina.getByText('Jugás como');
+  await quien.waitFor({ timeout: 10_000 });
+  verificar((await quien.innerText()).includes(anfitrion.nombre), `El anfitrión entró con otro nombre: "${await quien.innerText()}"`);
+}
+await medir(anfitrion, 'inicio con cuenta');
+await captura(anfitrion, '1b-inicio-con-cuenta');
 await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
 verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"`);
@@ -544,6 +595,10 @@ for (const j of invitados) {
   await irA(j.pagina, `${urlCliente}?sala=${codigo}`);
   await medir(j, 'inicio con ?sala=');
   await j.pagina.getByLabel('Tu nombre').fill(j.nombre);
+  await j.pagina.getByRole('button', { name: 'Jugar como invitado' }).click();
+  await j.pagina.getByText('Jugás como').waitFor({ timeout: 10_000 });
+  verificar((await j.pagina.getByLabel('Código de la sala').inputValue()) === codigo, 'El código del enlace no quedó cargado tras entrar');
+  await medir(j, 'inicio con cuenta y ?sala=');
   await j.pagina.getByRole('button', { name: 'Unirme' }).click();
   await j.pagina.getByTestId('codigo').waitFor();
 }

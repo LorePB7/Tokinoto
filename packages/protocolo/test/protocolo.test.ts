@@ -17,20 +17,25 @@ function codigoDeError(crudo: unknown): string | null {
 describe('lectura de comandos', () => {
   it('acepta cada comando válido', () => {
     const validos = [
-      sobre('sala.crear', { nombre: 'Ana' }),
-      sobre('sala.crear', { nombre: 'Ana', maxJugadores: 5 }),
-      sobre('sala.crear', { nombre: 'Ana', tiempoTurno: 45 }),
-      sobre('sala.crear', { nombre: 'Ana', tiempoTurno: null }),
-      sobre('sala.reconectar', { token: 'ABCD2345.un-token-cualquiera' }),
+      sobre('cuenta.entrar', { credencial: 'eyJhbGciOiJSUzI1NiJ9.x.y' }),
+      sobre('cuenta.entrarInvitado', { nombre: 'Ana' }),
+      sobre('cuenta.reanudar', { sesion: 'abcdefghij.klmnop' }),
+      sobre('cuenta.cambiarNombre', { nombre: 'Anita' }),
+      sobre('sala.crear', {}),
+      sobre('sala.crear', { maxJugadores: 5 }),
+      sobre('sala.crear', { tiempoTurno: 45 }),
+      sobre('sala.crear', { tiempoTurno: null }),
+      sobre('sala.reconectar'),
+      sobre('sala.reconectar', {}),
       sobre('juego.retomarControl'),
-      sobre('sala.unirse', { codigo: 'ABCD2345', nombre: 'Beto' }),
+      sobre('sala.unirse', { codigo: 'ABCD2345' }),
       sobre('sala.salir'),
       sobre('sala.salir', {}),
       sobre('sala.iniciar'),
       sobre('sala.pausarResumen', { pausar: true }),
       sobre('sala.configurar', { tiempoTurno: 60 }),
       sobre('sala.configurar', { tiempoTurno: null }),
-      sobre('sala.consultar', { token: 'ABCD2345.un-token-cualquiera' }),
+      sobre('sala.consultar'),
       sobre('juego.apostar', { valor: 2 }),
       sobre('juego.jugarCarta', { idCarta: 'K-picas' }),
       sobre('juego.revancha'),
@@ -42,10 +47,13 @@ describe('lectura de comandos', () => {
   });
 
   it('limpia el nombre y normaliza el código de sala', () => {
-    const lectura = leerPedido(sobre('sala.unirse', { codigo: ' abcd2345 ', nombre: '  Caro  ' }));
-    expect(lectura).toEqual({
+    expect(leerPedido(sobre('sala.unirse', { codigo: ' abcd2345 ' }))).toEqual({
       ok: true,
-      pedido: { idPedido: 'abc', comando: { tipo: 'sala.unirse', datos: { codigo: 'ABCD2345', nombre: 'Caro' } } },
+      pedido: { idPedido: 'abc', comando: { tipo: 'sala.unirse', datos: { codigo: 'ABCD2345' } } },
+    });
+    expect(leerPedido(sobre('cuenta.entrarInvitado', { nombre: '  Caro  ' }))).toEqual({
+      ok: true,
+      pedido: { idPedido: 'abc', comando: { tipo: 'cuenta.entrarInvitado', datos: { nombre: 'Caro' } } },
     });
   });
 
@@ -62,7 +70,7 @@ describe('lectura de comandos', () => {
   });
 
   it('rechaza otra versión del protocolo con un mensaje claro', () => {
-    const lectura = leerPedido({ ...sobre('ping'), v: 2 });
+    const lectura = leerPedido({ ...sobre('ping'), v: 1 });
     expect(lectura).toMatchObject({ ok: false, error: { codigo: 'VERSION_NO_SOPORTADA' } });
     expect(lectura.ok || lectura.error.mensaje).toMatch(/actualizá la página/);
   });
@@ -75,26 +83,33 @@ describe('lectura de comandos', () => {
 
   it('rechaza datos de más, de menos o con tipos equivocados', () => {
     const invalidos = [
-      sobre('sala.crear', {}),
-      sobre('sala.crear', { nombre: 'Ana', maxJugadores: 3 }),
-      sobre('sala.crear', { nombre: 'Ana', maxJugadores: 8 }),
-      sobre('sala.crear', { nombre: 'Ana', maxJugadores: 5.5 }),
-      sobre('sala.crear', { nombre: 'Ana', asiento: 0 }),
-      sobre('sala.crear', { nombre: 'Ana', tiempoTurno: 5 }),
-      sobre('sala.crear', { nombre: 'Ana', tiempoTurno: 500 }),
-      sobre('sala.crear', { nombre: 'Ana', tiempoTurno: 30.5 }),
-      sobre('sala.reconectar', {}),
-      sobre('sala.reconectar', { token: 'corto' }),
-      sobre('sala.reconectar', { token: 'x'.repeat(200) }),
+      sobre('sala.crear', { nombre: 'Ana' }), // el nombre sale de la cuenta
+      sobre('sala.crear', { maxJugadores: 3 }),
+      sobre('sala.crear', { maxJugadores: 8 }),
+      sobre('sala.crear', { maxJugadores: 5.5 }),
+      sobre('sala.crear', { asiento: 0 }),
+      sobre('sala.crear', { tiempoTurno: 5 }),
+      sobre('sala.crear', { tiempoTurno: 500 }),
+      sobre('sala.crear', { tiempoTurno: 30.5 }),
+      sobre('sala.reconectar', { token: 'ABCD2345.un-token-cualquiera' }),
+      sobre('cuenta.entrar', {}),
+      sobre('cuenta.entrar', { credencial: 'corto' }),
+      sobre('cuenta.entrar', { credencial: 'x'.repeat(4097) }),
+      sobre('cuenta.entrarInvitado', {}),
+      sobre('cuenta.entrarInvitado', { nombre: 'Ana', cuenta: 'otra' }),
+      sobre('cuenta.reanudar', { sesion: 'corto' }),
+      sobre('cuenta.reanudar', { sesion: 'x'.repeat(513) }),
+      sobre('cuenta.cambiarNombre', { nombre: '' }),
       sobre('juego.retomarControl', { asiento: 1 }),
-      sobre('sala.unirse', { codigo: 'ABC', nombre: 'Ana' }),
-      sobre('sala.unirse', { codigo: 'ABCD234O', nombre: 'Ana' }), // la O no está en el alfabeto
+      sobre('sala.unirse', { codigo: 'ABC' }),
+      sobre('sala.unirse', { codigo: 'ABCD234O' }), // la O no está en el alfabeto
+      sobre('sala.unirse', { codigo: 'ABCD2345', nombre: 'Ana' }),
       sobre('sala.iniciar', { forzar: true }),
       sobre('sala.pausarResumen', { pausar: 'si' }),
       sobre('sala.configurar', {}),
       sobre('sala.configurar', { tiempoTurno: 5 }),
       sobre('sala.configurar', { tiempoTurno: 60, maxJugadores: 5 }),
-      sobre('sala.consultar', { token: 'corto' }),
+      sobre('sala.consultar', { token: 'ABCD2345.un-token-cualquiera' }),
       sobre('juego.apostar', {}),
       sobre('juego.apostar', { valor: 1, jugador: 'otro' }),
       sobre('juego.jugarCarta', { idCarta: '' }),
@@ -107,10 +122,11 @@ describe('lectura de comandos', () => {
 
   it('valida los nombres', () => {
     for (const nombre of ['', '   ', 'x'.repeat(21), 'Ana\u0000', 'Ana\nBeto', 'Ana​']) {
-      expect(codigoDeError(sobre('sala.crear', { nombre })), JSON.stringify(nombre)).toBe('MENSAJE_INVALIDO');
+      expect(codigoDeError(sobre('cuenta.entrarInvitado', { nombre })), JSON.stringify(nombre)).toBe('MENSAJE_INVALIDO');
+      expect(codigoDeError(sobre('cuenta.cambiarNombre', { nombre })), JSON.stringify(nombre)).toBe('MENSAJE_INVALIDO');
     }
     for (const nombre of ['Ana', 'José María', 'Ñoño 7', 'x'.repeat(20), '🙂 Lu']) {
-      expect(codigoDeError(sobre('sala.crear', { nombre })), nombre).toBeNull();
+      expect(codigoDeError(sobre('cuenta.entrarInvitado', { nombre })), nombre).toBeNull();
     }
   });
 
