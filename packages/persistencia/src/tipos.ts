@@ -13,13 +13,44 @@ export interface JugadorGuardado {
   asiento: number;
   idJugador: string;
   nombre: string;
+  /** Cuenta de Google con la que jugó; null en invitados y en juegos anteriores a las cuentas. */
+  cuentaId: string | null;
+  invitado: boolean;
+}
+
+/** Quién juega: lo que el servidor sabe al empezar el juego. */
+export interface JugadorDeJuego {
+  idJugador: string;
+  nombre: string;
+  cuentaId?: string | null;
+  invitado?: boolean;
+}
+
+/** Cuenta de Google (fase 6). No guarda el email: solo el `sub`, el nombre y la fecha de alta. */
+export interface Cuenta {
+  id: string;
+  googleSub: string;
+  nombre: string;
+  creadaEn: Date;
+}
+
+/** Alta y consulta de cuentas. */
+export interface Cuentas {
+  /**
+   * Devuelve la cuenta de ese `sub` de Google. Si no existe la crea con
+   * `nombreInicial`; si existe, no le cambia el nombre (la persona pudo editarlo).
+   */
+  cuentaDeGoogle(googleSub: string, nombreInicial: string, cuando: Date): Promise<Cuenta>;
+  obtenerCuenta(id: string): Promise<Cuenta | null>;
+  /** Devuelve la cuenta actualizada, o null si no existe. */
+  cambiarNombreCuenta(id: string, nombre: string): Promise<Cuenta | null>;
 }
 
 export interface DatosJuego {
   /** Identificador único del juego (lo genera el servidor al empezarlo). */
   id: string;
   sala: string;
-  jugadores: readonly { idJugador: string; nombre: string }[];
+  jugadores: readonly JugadorDeJuego[];
   config: GameConfig;
   iniciadoEn: Date;
 }
@@ -64,7 +95,7 @@ export interface JuegoGuardado extends ResumenJuego {
   ranking: PuestoGuardado[];
 }
 
-export interface Repositorio {
+export interface Repositorio extends Cuentas {
   /** Registra la sala (si no existía) y el juego nuevo. Es idempotente. */
   abrirJuego(datos: DatosJuego): Promise<void>;
   /**
@@ -78,8 +109,8 @@ export interface Repositorio {
    * del servidor). Devuelve cuántos eran.
    */
   abortarEnCurso(motivo: string, cuando: Date): Promise<number>;
-  /** Juegos más recientes primero. */
-  listarJuegos(opciones?: { sala?: string; limite?: number }): Promise<ResumenJuego[]>;
+  /** Juegos más recientes primero. Con `cuenta`, solo los que jugó esa cuenta. */
+  listarJuegos(opciones?: { sala?: string; cuenta?: string; limite?: number }): Promise<ResumenJuego[]>;
   obtenerJuego(id: string): Promise<JuegoGuardado | null>;
   /** Registro completo del juego, ordenado por `seq`. */
   eventosDe(juegoId: string): Promise<EventoGuardado[]>;

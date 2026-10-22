@@ -233,7 +233,7 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 
 🔵 Notas:
 - Las dos tablas de puntajes son **derivables** de `eventos`; se guardan igual por comodidad de consulta.
-- Con la decisión aprobada de **no tener cuentas**, los jugadores son anónimos por juego. Si más adelante se suman cuentas, se agrega una tabla de usuarios y una columna de vínculo, sin rehacer lo demás.
+- Fase 6: se sumó la tabla `cuentas` (id, `sub` de Google, nombre editable, alta) y, en `jugadores_de_juego`, las columnas opcionales `cuenta_id` e `invitado`. Los juegos anteriores quedan sin cuenta. La migración es aditiva.
 - Guardar `semilla` permite **repetir un juego exacto** para investigar un error.
 - 🔵 Al guardar eventos que contienen cartas privadas, restringir el acceso: **estos datos nunca se exponen a los clientes**.
 
@@ -245,12 +245,13 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 - **Escala:** un solo proceso Node soporta con holgura cientos de salas de 4 a 7 jugadores, que es mucho más de lo que necesitás al inicio. Si algún día hace falta más: se puede **repartir las salas entre varios procesos** manteniendo cada sala siempre en el mismo proceso. El diseño de "una sala = una cola" lo permite sin reescribir las reglas.
 - **Sin Redis al principio.** Se suma solo si hay más de un proceso.
 
-### 3.8 Identidad y sesiones (sin cuentas)
-🔵 Coherente con la decisión aprobada "sin registro, nombre temporal":
-- Al entrar a una sala, el servidor entrega un **token de sesión** secreto, que el navegador guarda localmente.
-- Con ese token, el jugador **recupera su asiento** al reconectarse, aunque cierre y reabra la pestaña.
-- El token no es una cuenta ni se vincula a ningún dato personal.
-- Quien pierde el token (borra los datos del navegador) pierde el acceso a su asiento; lo cubre el piloto automático.
+### 3.8 Identidad y sesiones (fase 6: Google o invitado)
+Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asiento y ninguna cuenta.
+- Para entrar a una sala hay que identificarse: **con Google** (el servidor verifica el token de identidad y guarda el `sub` y el nombre, nunca el email) o **como invitado** (solo un nombre).
+- El servidor entrega una **sesión** propia, firmada con HMAC y con vencimiento (30 días), que el navegador guarda en `localStorage`. Cada conexión nueva la presenta antes que nada. Al ser firmada, sobrevive a un reinicio del servidor.
+- El asiento se recupera con la sesión: el servidor recuerda en qué sala está sentada cada persona (una sala activa a la vez). El token interno del asiento ya no sale del servidor.
+- Quien pierde la sesión (borra los datos del navegador) vuelve a entrar con Google y recupera su asiento; un invitado lo pierde, y lo cubre el piloto automático.
+- Detalle en [`protocolo.md`](protocolo.md#cuentas-y-sesiones).
 
 ### 3.9 Seguridad básica
 🔵

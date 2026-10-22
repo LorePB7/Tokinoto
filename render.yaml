@@ -22,3 +22,10 @@ services:
       # Se carga a mano en Render (nunca en el repositorio): la cadena de conexión de Neon.
       - key: DATABASE_URL
         sync: false
+      # Fase 6: ID de cliente de Google (público: viaja en la página). Lo usan el
+      # servidor y el build del cliente. Sin él, en producción el servidor no arranca.
+      - key: GOOGLE_CLIENT_ID
+        value: 446119324905-2t8ug5kqtrnp7fl2ad8tt7dudfjr2a8c.apps.googleusercontent.com
+      # Clave para firmar las sesiones. La genera Render; si cambia, todos vuelven a entrar.
+      - key: TOKINOTO_SECRETO_SESION
+        generateValue: true

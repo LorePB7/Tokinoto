@@ -14,7 +14,8 @@ import { z } from 'zod';
 import { error, type CodigoError, type ErrorServidor } from './errores';
 import type { VistaSala } from './vista';
 
-export const VERSION_PROTOCOLO = 1;
+/** v2 (fase 6): hay que identificarse (Google o invitado) antes de entrar a una sala. */
+export const VERSION_PROTOCOLO = 2;
 
 /** Nombre del evento de Socket.IO para comandos del cliente. */
 export const CANAL_COMANDOS = 'comando';
@@ -52,11 +53,33 @@ const codigoSala = z
 
 const sinDatos = z.strictObject({}).optional();
 
+/** Largo máximo de una sesión firmada por el servidor. */
+export const LARGO_MAXIMO_SESION = 512;
+
 const comandoSchema = z.discriminatedUnion('tipo', [
   z.strictObject({
+    tipo: z.literal('cuenta.entrar'),
+    /** Token de identidad que entregó el botón de Google (un JWT). Lo verifica el servidor. */
+    datos: z.strictObject({ credencial: z.string().min(10).max(4096) }),
+  }),
+  z.strictObject({
+    tipo: z.literal('cuenta.entrarInvitado'),
+    datos: z.strictObject({ nombre }),
+  }),
+  z.strictObject({
+    tipo: z.literal('cuenta.reanudar'),
+    /** Sesión que el servidor entregó al entrar. */
+    datos: z.strictObject({ sesion: z.string().min(10).max(LARGO_MAXIMO_SESION) }),
+  }),
+  z.strictObject({
+    tipo: z.literal('cuenta.cambiarNombre'),
+    /** Solo fuera de una sala: el nombre nuevo se usa desde la próxima sala. */
+    datos: z.strictObject({ nombre }),
+  }),
+  z.strictObject({
     tipo: z.literal('sala.crear'),
+    /** El nombre sale de la cuenta o del invitado (fase 6). */
     datos: z.strictObject({
-      nombre,
       /**
        * Obsoleto (DP-11): la sala ya no tiene cupo elegible; entran hasta 7 y el anfitrión inicia con 4 a 7.
        * Se acepta y se ignora, para no romper pestañas con una versión vieja del cliente.
@@ -68,17 +91,17 @@ const comandoSchema = z.discriminatedUnion('tipo', [
   }),
   z.strictObject({
     tipo: z.literal('sala.unirse'),
-    datos: z.strictObject({ codigo: codigoSala, nombre }),
+    datos: z.strictObject({ codigo: codigoSala }),
   }),
   z.strictObject({
     tipo: z.literal('sala.reconectar'),
-    /** Secreto que el servidor entregó al crear o unirse. */
-    datos: z.strictObject({ token: z.string().min(10).max(100) }),
+    /** Vuelve al asiento que la persona identificada tiene en una sala. */
+    datos: sinDatos,
   }),
   z.strictObject({
     tipo: z.literal('sala.consultar'),
-    /** ¿Sigue vigente el lugar de este token? Sirve para ofrecer "volver a tu partida" solo si existe. */
-    datos: z.strictObject({ token: z.string().min(10).max(100) }),
+    /** ¿La persona identificada tiene un lugar vigente en alguna sala? Para ofrecer "volver a tu partida". */
+    datos: sinDatos,
   }),
   z.strictObject({
     tipo: z.literal('sala.configurar'),
@@ -114,11 +137,19 @@ const comandoSchema = z.discriminatedUnion('tipo', [
 
 export type Comando = z.infer<typeof comandoSchema>;
 export type TipoComando = Comando['tipo'];
-/** Comandos que se ejecutan dentro de una sala (todos menos crear, unirse, reconectar, consultar y ping). */
+/** Comandos de identidad (fase 6). */
+export type ComandoDeCuenta = Extract<Comando, { tipo: `cuenta.${string}` }>;
+/** Comandos que se ejecutan dentro de una sala (todos menos los de cuenta, crear, unirse, reconectar, consultar y ping). */
 export type ComandoDeSala = Exclude<
   Comando,
-  { tipo: 'sala.crear' | 'sala.unirse' | 'sala.reconectar' | 'sala.consultar' | 'ping' }
+  { tipo: 'sala.crear' | 'sala.unirse' | 'sala.reconectar' | 'sala.consultar' | 'ping' | `cuenta.${string}` }
 >;
+
+/** Lo que el servidor responde al identificarse: la sesión para volver y cómo se llama la persona. */
+export interface DatosCuenta {
+  tipo: 'google' | 'invitado';
+  nombre: string;
+}
 
 export interface PedidoValido {
   idPedido: string;

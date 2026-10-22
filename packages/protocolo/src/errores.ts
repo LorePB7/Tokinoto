@@ -26,6 +26,10 @@ export type CodigoError =
   | 'YA_ESTAS_EN_UNA_SALA'
   | 'SESION_INVALIDA'
   | 'SESION_REEMPLAZADA'
+  // Cuenta (fase 6)
+  | 'NO_IDENTIFICADO'
+  | 'CREDENCIAL_INVALIDA'
+  | 'LOGIN_NO_DISPONIBLE'
   // Protocolo
   | 'MENSAJE_INVALIDO'
   | 'VERSION_NO_SOPORTADA'

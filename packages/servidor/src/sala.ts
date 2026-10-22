@@ -101,9 +101,16 @@ export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
 /** Evento guardado en el registro de la sala, con su número. */
 export type RegistroEvento = EventoSalida & { seq: number };
 
+/** Con qué identidad entró un jugador (fase 6): se guarda en el historial. */
+export interface PerfilJugador {
+  cuentaId: string | null;
+  invitado: boolean;
+}
+
 interface Jugador {
   id: string;
   nombre: string;
+  perfil: PerfilJugador;
   /** Secreto para recuperar el asiento al reconectar. Empieza con el código de la sala. */
   token: string;
   conectado: boolean;
@@ -219,9 +226,14 @@ export class Sala {
   // -------------------------------------------------------------------------
 
   /** Agrega un jugador al lobby. Responde con el código, su id y su token secreto. */
-  unirse(nombre: string, destino: Destino, responder: (respuesta: Respuesta) => void): void {
+  unirse(
+    nombre: string,
+    destino: Destino,
+    responder: (respuesta: Respuesta) => void,
+    perfil: PerfilJugador = { cuentaId: null, invitado: false },
+  ): void {
     this.encolar(() => {
-      const respuesta = this.intentar(() => this.agregarJugador(nombre, destino));
+      const respuesta = this.intentar(() => this.agregarJugador(nombre, destino, perfil));
       responder(respuesta);
       if (respuesta.ok) {
         const jugador = this.buscar(respuesta.datos['idJugador'] as string);
@@ -275,6 +287,22 @@ export class Sala {
       const vigente = Boolean(jugador) && this.estado !== 'TERMINADO';
       responder(respuestaOk(vigente ? { vigente, codigo: this.codigo, estado: this.estado } : { vigente }));
     });
+  }
+
+  /**
+   * ¿Ese token ocupa todavía un lugar que impide entrar a otra sala? Sí, salvo
+   * que la sala esté cerrada o terminada, o que el jugador haya abandonado el
+   * juego a propósito (el piloto sigue por él). Lectura directa, sin la cola.
+   */
+  ocupaLugar(token: string): boolean {
+    if (this.cerrada || this.estado === 'TERMINADO') return false;
+    const jugador = this.jugadores.find((j) => mismoToken(j.token, token));
+    return jugador !== undefined && jugador.piloto !== 'abandono';
+  }
+
+  /** ¿Ese token sigue teniendo asiento en la sala (aunque el juego haya terminado)? */
+  tieneAsiento(token: string): boolean {
+    return !this.cerrada && this.jugadores.some((j) => mismoToken(j.token, token));
   }
 
   reconectar(token: string, destino: Destino, responder: (respuesta: Respuesta) => void): void {
@@ -385,7 +413,7 @@ export class Sala {
   // Lobby
   // -------------------------------------------------------------------------
 
-  private agregarJugador(nombre: string, destino: Destino): Respuesta {
+  private agregarJugador(nombre: string, destino: Destino, perfil: PerfilJugador): Respuesta {
     if (this.cerrada) return respuestaError('SALA_NO_EXISTE', 'La sala ya no existe');
     if (this.juego) return respuestaError('JUEGO_YA_INICIADO', 'El juego de esta sala ya empezó');
     if (this.jugadores.length >= this.opciones.maxJugadores) {
@@ -399,6 +427,7 @@ export class Sala {
     const jugador: Jugador = {
       id: randomUUID(),
       nombre: nombreLimpio,
+      perfil: { ...perfil },
       token: `${this.codigo}.${randomBytes(24).toString('base64url')}`,
       conectado: true,
       destino,
@@ -738,7 +767,10 @@ export class Sala {
       this.opciones.historial?.juegoNuevo({
         id: juegoId,
         sala: this.codigo,
-        jugadores: creado.value.players.map((j) => ({ idJugador: j.id, nombre: j.name })),
+        jugadores: creado.value.players.map((j) => {
+          const perfil = this.buscar(j.id)?.perfil;
+          return { idJugador: j.id, nombre: j.name, cuentaId: perfil?.cuentaId ?? null, invitado: perfil?.invitado ?? false };
+        }),
         config: creado.value.config,
       }),
     );

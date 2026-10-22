@@ -4,6 +4,7 @@
  */
 import { randomInt } from 'node:crypto';
 import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, respuestaError, respuestaOk, type Respuesta } from '@tokinoto/protocolo';
+import type { Identidad } from './cuentas';
 import { Sala, type Destino, type OpcionesSala } from './sala';
 
 export interface OpcionesGestor {
@@ -28,8 +29,23 @@ export function generarCodigoSala(): string {
   return codigo;
 }
 
+/** Lugar que una persona (identidad) tiene en una sala: la sala y el token del asiento. */
+interface Lugar {
+  sala: Sala;
+  token: string;
+}
+
+/** Saca el token interno del asiento de la respuesta: el cliente vuelve con su sesión, no con él. */
+function sinToken(respuesta: Respuesta): Respuesta {
+  if (!respuesta.ok || !('token' in respuesta.datos)) return respuesta;
+  const { token: _token, ...datos } = respuesta.datos;
+  return respuestaOk(datos);
+}
+
 export class GestorSalas {
   private readonly salas = new Map<string, Sala>();
+  /** Dónde está sentada cada persona, por clave de identidad (una sala activa a la vez). */
+  private readonly lugares = new Map<string, Lugar>();
   private readonly opcionesSala: Partial<OpcionesSala>;
   private readonly maxSalas: number;
 
@@ -51,11 +67,16 @@ export class GestorSalas {
    * `tiempoTurno` en segundos: undefined usa el de las opciones; null es sin límite.
    */
   crear(
-    nombre: string,
+    identidad: Identidad,
     destino: Destino,
     responder: AlResponderIngreso,
     tiempoTurno?: number | null,
   ): void {
+    const ocupado = this.lugarOcupado(identidad, null);
+    if (ocupado) {
+      responder(ocupado, null);
+      return;
+    }
     if (this.salas.size >= this.maxSalas) {
       responder(respuestaError('ERROR_INTERNO', 'El servidor no admite más salas en este momento'), null);
       return;
@@ -67,52 +88,103 @@ export class GestorSalas {
     if (tiempoTurno !== undefined) opciones.tiempoTurnoMs = tiempoTurno === null ? null : tiempoTurno * 1000;
     const sala = new Sala(codigo, opciones, (vacia) => this.olvidar(vacia));
     this.salas.set(codigo, sala);
-    sala.unirse(nombre, destino, (respuesta) => {
+    this.sentar(sala, identidad, destino, (respuesta) => {
       if (!respuesta.ok) this.olvidar(sala); // no dejar salas vacías colgadas
       responder(respuesta, respuesta.ok ? sala : null);
     });
   }
 
-  /** Suma un jugador a una sala existente. */
-  unirse(codigo: string, nombre: string, destino: Destino, responder: AlResponderIngreso): void {
+  /**
+   * Suma a la persona a una sala existente. Si ya tenía lugar en esa misma sala
+   * (otra pestaña, otro dispositivo), vuelve a su asiento en vez de ocupar otro.
+   */
+  unirse(codigo: string, identidad: Identidad, destino: Destino, responder: AlResponderIngreso): void {
     const sala = this.buscar(codigo);
     if (!sala) {
       responder(respuestaError('SALA_NO_EXISTE', 'No existe una sala con ese código'), null);
       return;
     }
-    sala.unirse(nombre, destino, (respuesta) => responder(respuesta, respuesta.ok ? sala : null));
+    const lugar = this.lugarVigente(identidad.clave);
+    if (lugar?.sala === sala && sala.tieneAsiento(lugar.token)) {
+      this.reconectar(identidad, destino, responder);
+      return;
+    }
+    const ocupado = this.lugarOcupado(identidad, sala);
+    if (ocupado) {
+      responder(ocupado, null);
+      return;
+    }
+    this.sentar(sala, identidad, destino, (respuesta) => responder(respuesta, respuesta.ok ? sala : null));
   }
 
-  /** Vuelve a una sala con el token de sesión (que empieza con el código de la sala). */
-  reconectar(token: string, destino: Destino, responder: AlResponderIngreso): void {
-    const sala = this.buscar(token.split('.')[0] ?? '');
-    if (!sala) {
+  /** Vuelve al asiento que la persona tiene en una sala (DP-14). */
+  reconectar(identidad: Identidad, destino: Destino, responder: AlResponderIngreso): void {
+    const lugar = this.lugarVigente(identidad.clave);
+    if (!lugar) {
       responder(respuestaError('SESION_INVALIDA', 'Tu lugar en esa sala ya no existe'), null);
       return;
     }
-    sala.reconectar(token, destino, (respuesta) => responder(respuesta, respuesta.ok ? sala : null));
+    lugar.sala.reconectar(lugar.token, destino, (respuesta) => {
+      if (!respuesta.ok && respuesta.error.codigo === 'SESION_INVALIDA') this.lugares.delete(identidad.clave);
+      responder(sinToken(respuesta), respuesta.ok ? lugar.sala : null);
+    });
   }
 
   /**
-   * ¿Sigue vigente el lugar de este token? Vigente = la sala existe, el jugador sigue en ella
-   * y el juego no terminó. No conecta a nadie: solo responde.
+   * ¿La persona tiene un lugar vigente? Vigente = la sala existe, sigue sentada
+   * en ella y el juego no terminó. No conecta a nadie: solo responde.
    */
-  consultar(token: string, responder: (respuesta: Respuesta) => void): void {
-    const sala = this.buscar(token.split('.')[0] ?? '');
-    if (!sala) {
+  consultar(identidad: Identidad, responder: (respuesta: Respuesta) => void): void {
+    const lugar = this.lugarVigente(identidad.clave);
+    if (!lugar) {
       responder(respuestaOk({ vigente: false }));
       return;
     }
-    sala.consultar(token, responder);
+    lugar.sala.consultar(lugar.token, responder);
   }
 
   /** Cierra todas las salas (al apagar el servidor). */
   cerrarTodas(): void {
     for (const sala of this.salas.values()) sala.cerrar();
     this.salas.clear();
+    this.lugares.clear();
+  }
+
+  private sentar(sala: Sala, identidad: Identidad, destino: Destino, responder: (respuesta: Respuesta) => void): void {
+    sala.unirse(
+      identidad.nombre,
+      destino,
+      (respuesta) => {
+        if (respuesta.ok) this.lugares.set(identidad.clave, { sala, token: String(respuesta.datos['token']) });
+        responder(sinToken(respuesta));
+      },
+      { cuentaId: identidad.cuentaId, invitado: identidad.tipo === 'invitado' },
+    );
+  }
+
+  /** El lugar de la persona, si la sala sigue abierta. Los lugares de salas cerradas se olvidan. */
+  private lugarVigente(clave: string): Lugar | null {
+    const lugar = this.lugares.get(clave);
+    if (!lugar) return null;
+    if (lugar.sala.estaCerrada || this.salas.get(lugar.sala.codigo) !== lugar.sala) {
+      this.lugares.delete(clave);
+      return null;
+    }
+    return lugar;
+  }
+
+  /** Una persona puede estar en una sola sala activa a la vez. */
+  private lugarOcupado(identidad: Identidad, destinoSala: Sala | null): Respuesta | null {
+    const lugar = this.lugarVigente(identidad.clave);
+    if (!lugar || lugar.sala === destinoSala || !lugar.sala.ocupaLugar(lugar.token)) return null;
+    return respuestaError(
+      'YA_ESTAS_EN_UNA_SALA',
+      `Ya estás en la sala ${lugar.sala.codigo}. Volvé a esa partida o salí de ella para entrar a otra.`,
+    );
   }
 
   private olvidar(sala: Sala): void {
     if (this.salas.get(sala.codigo) === sala) this.salas.delete(sala.codigo);
+    for (const [clave, lugar] of this.lugares) if (lugar.sala === sala) this.lugares.delete(clave);
   }
 }

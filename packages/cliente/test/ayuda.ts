@@ -1,5 +1,5 @@
 /** Ayudas para probar el cliente contra un servidor real. */
-import { crearServidor, type ServidorTokinoto } from '@tokinoto/servidor';
+import { Sesiones, crearServidor, type ServidorTokinoto } from '@tokinoto/servidor';
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { almacenEnMemoria, type AlmacenSesion } from '../src/estado/sesion';
 import { crearTienda, type Tienda } from '../src/estado/tienda';
@@ -9,20 +9,38 @@ export function tiendaDePrueba(url: string, almacen: AlmacenSesion = almacenEnMe
   return crearTienda({ url, almacen, esperasDeReconexion: [20, 50, 100] });
 }
 
+/** Entra como invitado y crea una sala. */
+export async function crearComo(t: Tienda, nombre: string): Promise<boolean> {
+  return (await t.getState().entrarComoInvitado(nombre)) && t.getState().crearSala();
+}
+
+/** Entra como invitado y se une a una sala. */
+export async function unirseComo(t: Tienda, codigo: string, nombre: string): Promise<boolean> {
+  return (await t.getState().entrarComoInvitado(nombre)) && t.getState().unirse(codigo);
+}
+
 export interface Mundo {
   servidor: ServidorTokinoto;
+  /** Firma de las sesiones: un servidor "reiniciado" usa la misma, como en producción. */
+  sesiones: Sesiones;
   url: string;
   tiendas: Tienda[];
   cerrar(): Promise<void>;
 }
 
 export async function levantarMundo(): Promise<Mundo> {
-  const servidor = crearServidor({ sala: { pausaBazaMs: 10, pausaResumenMs: 20, pausaPilotoMs: 10 }, limite: { capacidad: 10_000, porSegundo: 10_000 } });
+  const sesiones = Sesiones.efimeras();
+  const servidor = crearServidor({
+    sala: { pausaBazaMs: 10, pausaResumenMs: 20, pausaPilotoMs: 10 },
+    limite: { capacidad: 10_000, porSegundo: 10_000 },
+    sesiones,
+  });
   const puerto = await servidor.escuchar(0, '127.0.0.1');
   const url = `http://127.0.0.1:${puerto}`;
   const tiendas: Tienda[] = [];
   const mundo: Mundo = {
     servidor,
+    sesiones,
     url,
     tiendas,
     async cerrar() {
@@ -54,10 +72,10 @@ export async function armarMesa(mundo: Mundo, n: number): Promise<Tienda[]> {
   mundo.tiendas.push(...nuevas);
   const [anfitrion, ...resto] = nuevas;
   if (!anfitrion) throw new Error('Hacen falta jugadores');
-  if (!(await anfitrion.getState().crearSala('Jugador 1'))) throw new Error('No se pudo crear la sala');
+  if (!(await crearComo(anfitrion, 'Jugador 1'))) throw new Error('No se pudo crear la sala');
   const codigo = salaDe(anfitrion)?.codigo ?? '';
   for (const [i, t] of resto.entries()) {
-    if (!(await t.getState().unirse(codigo, `Jugador ${i + 2}`))) throw new Error('No se pudo unir');
+    if (!(await unirseComo(t, codigo, `Jugador ${i + 2}`))) throw new Error('No se pudo unir');
   }
   await esperar(() => nuevas.every((t) => salaDe(t)?.jugadores.length === n));
   if (!(await anfitrion.getState().iniciar())) throw new Error('No se pudo iniciar');

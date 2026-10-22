@@ -41,6 +41,14 @@ docs/         Especificación y diseño
 
 Requiere Node.js 22 o superior.
 
+Para entrar con Google en tu PC, creá un archivo `.env` en la raíz del
+repositorio (no se sube a GitHub) con el ID de cliente de Google. Lo leen el
+servidor y el cliente. Sin él, en desarrollo solo se entra como invitado.
+
+```
+GOOGLE_CLIENT_ID=<id>.apps.googleusercontent.com
+```
+
 ```bash
 npm install
 npm test          # pruebas de todos los paquetes
@@ -59,7 +67,8 @@ npm run historial -w @tokinoto/persistencia -- listar
 npm run dev -w @tokinoto/cliente
 
 # Versión publicada en tu PC: construye el cliente y el servidor entrega todo en http://localhost:3001
-npm run build
+# (en producción hace falta el ID de cliente de Google; agregá http://localhost:3001 como origen en Google Cloud)
+$env:GOOGLE_CLIENT_ID="<id>.apps.googleusercontent.com"; npm run build
 $env:NODE_ENV="production"; $env:TOKINOTO_ORIGENES="http://localhost:3001"; npm start   # PowerShell
 
 # Prueba de punta a punta: abre un navegador por jugador y juega un juego entero

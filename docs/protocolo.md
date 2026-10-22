@@ -1,4 +1,4 @@
-# Protocolo cliente ↔ servidor (versión 1)
+# Protocolo cliente ↔ servidor (versión 2)
 
 Este documento describe los mensajes que implementa `@tokinoto/servidor`. El diseño general está en [`diseno-tecnico.md`](diseno-tecnico.md), sección 4. Los esquemas, los tipos de cada mensaje y las vistas viven en el paquete compartido [`@tokinoto/protocolo`](../packages/protocolo), que usan tanto el servidor como el cliente. Este documento se mantiene junto a ellos.
 
@@ -12,7 +12,7 @@ Este documento describe los mensajes que implementa `@tokinoto/servidor`. El dis
 
 | Campo | Significado |
 |---|---|
-| `v` | Versión del protocolo (hoy `1`) |
+| `v` | Versión del protocolo (hoy `2`; la fase 6 la subió para que las pestañas viejas pidan actualizar) |
 | `tipo` | Nombre del mensaje |
 | `idPedido` | En comandos y en sus respuestas. Texto de 1 a 64 caracteres, único por comando |
 | `seq` | En eventos y fotos: número correlativo dentro de la sala |
@@ -24,6 +24,7 @@ Reglas generales:
 - **Orden.** La respuesta (`ok` o `error`) llega antes que los eventos que provocó el comando.
 - **Rechazos privados.** Un `error` lo recibe solo quien envió el comando. Los demás no se enteran.
 - **Identidad.** El servidor deduce quién es el jugador por su conexión. Ningún comando lleva el jugador, el asiento ni el turno.
+- **Ingreso (fase 6).** Antes de crear una sala o unirse, la conexión se identifica con Google (`cuenta.entrar`) o como invitado (`cuenta.entrarInvitado`). El servidor responde con una **sesión** propia; cada conexión nueva la presenta con `cuenta.reanudar` antes que nada. Ver [Cuentas y sesiones](#cuentas-y-sesiones).
 - **Cartas.** Viajan como identificador: `"2-picas"` … `"10-corazones"`, `"J-diamantes"`, `"Q-treboles"`, `"K-picas"`, `"A-corazones"` y `"COMODIN"`. El cliente obtiene el valor con `getCardById` de `@tokinoto/reglas`.
 - **Asientos.** Durante el juego, los jugadores se identifican por número de asiento (0 a n−1). "A la derecha" de un asiento es el siguiente. La lista de asientos llega en `juego.iniciado`.
 
@@ -33,11 +34,15 @@ Reglas generales:
 
 | Tipo | Datos | Quién y cuándo |
 |---|---|---|
-| `sala.crear` | `{ nombre, tiempoTurno? }` | Cualquiera sin sala. La sala admite hasta 7 jugadores y el anfitrión inicia con 4 a 7 (DP-11). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13). `maxJugadores` es **obsoleto**: se acepta y se ignora, para no romper pestañas con un cliente viejo |
+| `cuenta.entrar` | `{ credencial }` | Cualquiera sin sala. `credencial` es el token de identidad que entregó el botón de Google (hasta 4096 caracteres). El servidor lo verifica |
+| `cuenta.entrarInvitado` | `{ nombre }` | Cualquiera sin sala. Entra sin cuenta, solo con un nombre |
+| `cuenta.reanudar` | `{ sesion }` | Cualquiera. Presenta la sesión que el servidor entregó antes (hasta 512 caracteres) |
+| `cuenta.cambiarNombre` | `{ nombre }` | Identificado, sin sala. El nombre nuevo se usa desde la próxima sala |
+| `sala.crear` | `{ tiempoTurno? }` | Identificado, sin sala. El nombre sale de la cuenta o del invitado. La sala admite hasta 7 jugadores y el anfitrión inicia con 4 a 7 (DP-11). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13). `maxJugadores` es **obsoleto**: se acepta y se ignora, para no romper pestañas con un cliente viejo |
 | `sala.configurar` | `{ tiempoTurno }` | Anfitrión, en el lobby, antes de iniciar. Cambia los segundos por jugada (10 a 120, o `null` sin límite) y todos reciben `sala.configuracion` |
-| `sala.consultar` | `{ token }` | Cualquiera, sin estar en una sala. Responde `{ vigente }` (y `codigo` y `estado` si es `true`): si ese lugar sigue en una sala con el juego sin terminar. No conecta a nadie; sirve para ofrecer "volver a tu partida" solo cuando existe |
-| `sala.unirse` | `{ codigo, nombre }` | Cualquiera sin sala, con el lobby abierto |
-| `sala.reconectar` | `{ token }` | Cualquiera sin sala. Vuelve al asiento con el `token` que entregó `sala.crear` o `sala.unirse` (DP-14) |
+| `sala.consultar` | — | Cualquiera, sin estar en una sala. Responde `{ vigente }` (y `codigo` y `estado` si es `true`): si la persona identificada tiene un asiento en una sala con el juego sin terminar. Sin identificarse, `{ vigente: false }`. No conecta a nadie; sirve para ofrecer "volver a tu partida" solo cuando existe |
+| `sala.unirse` | `{ codigo }` | Identificado, sin sala, con el lobby abierto. Si la persona ya tenía asiento en esa sala (otra pestaña u otro dispositivo), vuelve a ese asiento en vez de ocupar otro |
+| `sala.reconectar` | — | Identificado, sin sala. Vuelve al asiento que la persona tiene en una sala (DP-14) |
 | `sala.salir` | — | Cualquier jugador. Con el juego en curso es **abandonar**: el asiento queda y el piloto automático juega por él |
 | `sala.iniciar` | — | Anfitrión, en el lobby, con 4 a 7 jugadores |
 | `sala.pausarResumen` | `{ pausar }` | Anfitrión, durante el juego (DP-23) |
@@ -48,42 +53,46 @@ Reglas generales:
 | `sync.pedir` | `{ ultimoSeq? }` | Cualquier jugador de la sala. Pide una foto nueva |
 | `ping` | — | Cualquiera. Responde la hora del servidor |
 
-Validaciones del esquema: el nombre se recorta y tiene de 1 a 20 caracteres, sin caracteres de control. El código de sala tiene 8 caracteres de `ABCDEFGHJKMNPQRSTUVWXYZ23456789` y se acepta en minúsculas. No se aceptan campos de más.
+Validaciones del esquema: el nombre se recorta y tiene de 1 a 20 caracteres, sin caracteres de control. El nombre que da Google se recorta a 20 caracteres y, si queda vacío, es "Jugador". El código de sala tiene 8 caracteres de `ABCDEFGHJKMNPQRSTUVWXYZ23456789` y se acepta en minúsculas. No se aceptan campos de más.
 
 El cliente **no puede** pedir sortear, barajar, repartir, avanzar ni resolver una baza. Esos tipos no existen en el protocolo.
 
 Ejemplos:
 
 ```json
-{ "v": 1, "tipo": "sala.crear", "idPedido": "a1", "datos": { "nombre": "Ana" } }
-{ "v": 1, "tipo": "sala.unirse", "idPedido": "b1", "datos": { "codigo": "K7QM2XPA", "nombre": "Beto" } }
-{ "v": 1, "tipo": "sala.reconectar", "idPedido": "b3", "datos": { "token": "K7QM2XPA.…" } }
-{ "v": 1, "tipo": "sala.salir", "idPedido": "b2" }
-{ "v": 1, "tipo": "juego.retomarControl", "idPedido": "b4" }
-{ "v": 1, "tipo": "sala.iniciar", "idPedido": "a2" }
-{ "v": 1, "tipo": "sala.pausarResumen", "idPedido": "a3", "datos": { "pausar": true } }
-{ "v": 1, "tipo": "juego.apostar", "idPedido": "a4", "datos": { "valor": 2 } }
-{ "v": 1, "tipo": "juego.jugarCarta", "idPedido": "a5", "datos": { "idCarta": "K-corazones" } }
-{ "v": 1, "tipo": "juego.revancha", "idPedido": "a6" }
-{ "v": 1, "tipo": "sync.pedir", "idPedido": "a8", "datos": { "ultimoSeq": 41 } }
-{ "v": 1, "tipo": "ping", "idPedido": "a7" }
+{ "v": 2, "tipo": "cuenta.entrar", "idPedido": "a0", "datos": { "credencial": "eyJhbGciOiJSUzI1NiIs…" } }
+{ "v": 2, "tipo": "cuenta.entrarInvitado", "idPedido": "b0", "datos": { "nombre": "Beto" } }
+{ "v": 2, "tipo": "cuenta.reanudar", "idPedido": "b9", "datos": { "sesion": "eyJ0IjoiaSIs….Q2x…" } }
+{ "v": 2, "tipo": "sala.crear", "idPedido": "a1", "datos": {} }
+{ "v": 2, "tipo": "sala.unirse", "idPedido": "b1", "datos": { "codigo": "K7QM2XPA" } }
+{ "v": 2, "tipo": "sala.reconectar", "idPedido": "b3" }
+{ "v": 2, "tipo": "sala.salir", "idPedido": "b2" }
+{ "v": 2, "tipo": "juego.retomarControl", "idPedido": "b4" }
+{ "v": 2, "tipo": "sala.iniciar", "idPedido": "a2" }
+{ "v": 2, "tipo": "sala.pausarResumen", "idPedido": "a3", "datos": { "pausar": true } }
+{ "v": 2, "tipo": "juego.apostar", "idPedido": "a4", "datos": { "valor": 2 } }
+{ "v": 2, "tipo": "juego.jugarCarta", "idPedido": "a5", "datos": { "idCarta": "K-corazones" } }
+{ "v": 2, "tipo": "juego.revancha", "idPedido": "a6" }
+{ "v": 2, "tipo": "sync.pedir", "idPedido": "a8", "datos": { "ultimoSeq": 41 } }
+{ "v": 2, "tipo": "ping", "idPedido": "a7" }
 ```
 
 ## Respuestas
 
 ```json
-{ "v": 1, "tipo": "ok", "idPedido": "a4", "datos": {} }
-{ "v": 1, "tipo": "error", "idPedido": "a4", "datos": { "codigo": "APUESTA_PROHIBIDA_PIE", "mensaje": "..." } }
+{ "v": 2, "tipo": "ok", "idPedido": "a4", "datos": {} }
+{ "v": 2, "tipo": "error", "idPedido": "a4", "datos": { "codigo": "APUESTA_PROHIBIDA_PIE", "mensaje": "..." } }
 ```
 
 Algunas respuestas `ok` traen datos:
 
 | Comando | `datos` del `ok` |
 |---|---|
-| `sala.crear`, `sala.unirse`, `sala.reconectar` | `{ codigo, idJugador, token }`. El `token` es secreto: sirve para recuperar el asiento al reconectar. Empieza con el código de la sala y sigue con 24 bytes de azar criptográfico |
+| `cuenta.entrar`, `cuenta.entrarInvitado`, `cuenta.reanudar`, `cuenta.cambiarNombre` | `{ sesion, cuenta: { tipo, nombre } }`. `tipo` es `google` o `invitado`. La `sesion` es secreta: el cliente la guarda y la presenta en cada conexión nueva. Cada respuesta trae una sesión renovada |
+| `sala.crear`, `sala.unirse`, `sala.reconectar` | `{ codigo, idJugador }`. Ya no viaja un token por asiento: se vuelve con la sesión |
 | `ping` | `{ horaServidor }` en milisegundos |
 
-Si el mensaje no se puede leer, el `error` llega con `idPedido: null`. También llega con `idPedido: null` el aviso `SESION_REEMPLAZADA` a una conexión que fue reemplazada por otra con el mismo token.
+Si el mensaje no se puede leer, el `error` llega con `idPedido: null`. También llega con `idPedido: null` el aviso `SESION_REEMPLAZADA` a una conexión que fue reemplazada por otra de la misma persona en la misma sala.
 
 ### Códigos de error
 
@@ -104,15 +113,29 @@ Si el mensaje no se puede leer, el `error` llega con `idPedido: null`. También 
 | `JUEGO_YA_INICIADO` | La sala ya está jugando (no se puede entrar ni salir) |
 | `JUEGO_NO_INICIADO` | Comando de juego sin juego en curso |
 | `NOMBRE_EN_USO` | Ya hay alguien con ese nombre en la sala (sin distinguir mayúsculas) |
-| `YA_ESTAS_EN_UNA_SALA` | La conexión ya está en una sala |
-| `SESION_INVALIDA` | El token no corresponde a ningún asiento (la sala ya no existe, o salió del lobby) |
+| `YA_ESTAS_EN_UNA_SALA` | La conexión ya está en una sala, o la persona tiene asiento en otra sala activa (una sala a la vez). También al querer cambiar de cuenta o de nombre con una sala abierta |
+| `SESION_INVALIDA` | La sesión está vencida o adulterada, o la persona no tiene asiento (la sala ya no existe, o salió del lobby) |
+| `NO_IDENTIFICADO` | Comando de sala sin haber entrado con Google o como invitado |
+| `CREDENCIAL_INVALIDA` | Google no validó el token (firma, audiencia, emisor o vencimiento) |
+| `LOGIN_NO_DISPONIBLE` | El servidor no tiene configurado el ingreso con Google: solo invitados |
 | `SESION_REEMPLAZADA` | La misma sesión se abrió desde otra conexión: esta deja de valer |
 | `MENSAJE_INVALIDO` | No cumple el esquema |
 | `VERSION_NO_SOPORTADA` | Otra versión del protocolo: hay que actualizar la página |
 | `DEMASIADOS_MENSAJES` | Superó el límite de frecuencia |
 | `ERROR_INTERNO` | Falla inesperada del servidor |
 
-🔵 Respecto del diseño técnico se agregaron `JUEGO_NO_INICIADO`, `NOMBRE_EN_USO`, `YA_ESTAS_EN_UNA_SALA`, `SESION_INVALIDA`, `SESION_REEMPLAZADA`, `VERSION_NO_SOPORTADA` y `ERROR_INTERNO`.
+🔵 Respecto del diseño técnico se agregaron `JUEGO_NO_INICIADO`, `NOMBRE_EN_USO`, `YA_ESTAS_EN_UNA_SALA`, `SESION_INVALIDA`, `SESION_REEMPLAZADA`, `VERSION_NO_SOPORTADA` y `ERROR_INTERNO`; en la fase 6, `NO_IDENTIFICADO`, `CREDENCIAL_INVALIDA` y `LOGIN_NO_DISPONIBLE`.
+
+### Cuentas y sesiones
+
+Fase 6 del plan de mejoras (DP-16 y DP-21):
+
+- **Google.** El cliente muestra el botón oficial de Google (Google Identity Services, modo ventana emergente) y manda el token de identidad con `cuenta.entrar`. El servidor lo verifica con `google-auth-library` (firma con las claves públicas de Google, audiencia = nuestro ID de cliente, emisor y vencimiento). Se identifica a la persona por el `sub` de Google, **nunca por el email**, que no se guarda. La primera vez se crea la cuenta (tabla `cuentas`) con el nombre de Google recortado a 20 caracteres; después la persona lo puede cambiar y Google no lo pisa.
+- **Invitado.** Solo un nombre. No tiene fila en `cuentas` ni historial propio. Si se borran los datos del navegador, esa identidad se pierde.
+- **Sesión.** El servidor entrega su propia sesión, firmada con HMAC-SHA256 y válida 30 días; se renueva con cada respuesta de cuenta. Como es firmada (y no en memoria), sobrevive a un reinicio del servidor si la clave (`TOKINOTO_SECRETO_SESION`) es la misma.
+- **Una sala a la vez.** Una persona tiene como mucho un asiento en una sala activa. No puede crear ni unirse a otra salvo que la primera haya terminado o que la haya abandonado a propósito (`sala.salir` con el juego en curso).
+- **Límites.** Por conexión, 5 ingresos seguidos y después uno cada 20 s. En todo el servidor, 30 invitados nuevos seguidos y después uno por segundo.
+- **Modo de prueba.** Con `TOKINOTO_AUTH_PRUEBA=1` el servidor acepta credenciales `prueba:<nombre>` en vez de Google. Se niega a arrancar si eso está activo en producción.
 
 ---
 
@@ -123,13 +146,13 @@ Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que e
 ### Sala
 
 ```json
-{ "v": 1, "tipo": "sala.jugadorEntro", "seq": 3, "datos": { "idJugador": "…", "nombre": "Caro" } }
-{ "v": 1, "tipo": "sala.jugadorSalio", "seq": 4, "datos": { "idJugador": "…" } }
-{ "v": 1, "tipo": "sala.anfitrionCambio", "seq": 5, "datos": { "anfitrion": "…idJugador…" } }
-{ "v": 1, "tipo": "sala.configuracion", "seq": 6, "datos": { "tiempoTurnoMs": 60000 } }
-{ "v": 1, "tipo": "jugador.conexion", "seq": 90, "datos": { "idJugador": "…", "asiento": 2, "conectado": false } }
-{ "v": 1, "tipo": "jugador.pilotoAutomatico", "seq": 91, "datos": { "idJugador": "…", "asiento": 2, "activado": true, "motivo": "desconexion" } }
-{ "v": 1, "tipo": "sala.resumenPausado", "seq": 120, "datos": { "pausado": true } }
+{ "v": 2, "tipo": "sala.jugadorEntro", "seq": 3, "datos": { "idJugador": "…", "nombre": "Caro" } }
+{ "v": 2, "tipo": "sala.jugadorSalio", "seq": 4, "datos": { "idJugador": "…" } }
+{ "v": 2, "tipo": "sala.anfitrionCambio", "seq": 5, "datos": { "anfitrion": "…idJugador…" } }
+{ "v": 2, "tipo": "sala.configuracion", "seq": 6, "datos": { "tiempoTurnoMs": 60000 } }
+{ "v": 2, "tipo": "jugador.conexion", "seq": 90, "datos": { "idJugador": "…", "asiento": 2, "conectado": false } }
+{ "v": 2, "tipo": "jugador.pilotoAutomatico", "seq": 91, "datos": { "idJugador": "…", "asiento": 2, "activado": true, "motivo": "desconexion" } }
+{ "v": 2, "tipo": "sala.resumenPausado", "seq": 120, "datos": { "pausado": true } }
 ```
 
 Quien entra no recibe su propio `sala.jugadorEntro`, porque su foto ya lo incluye. Del mismo modo, quien vuelve con `sala.reconectar` no recibe su propio `jugador.conexion` ni el `jugador.pilotoAutomatico` que lo desactiva.
@@ -183,7 +206,7 @@ Reglas oficiales del modo online (DP-12 a DP-14):
 - **Tiempo límite** (DP-13): cada apuesta y cada tirada tiene el tiempo de la sala (30 s por defecto). Si vence, el piloto automático hace esa jugada. Tras **3 vencimientos seguidos**, el piloto toma el asiento hasta que el jugador actúe de nuevo.
 - **Piloto automático** (DP-12b): apuesta el menor valor válido (0, o 1 si 0 está prohibido) y juega la carta de menor valor.
 - **Desconexión o abandono** (DP-12): el asiento nunca se elimina. El piloto juega por él y sus puntos se conservan.
-- **Reconexión** (DP-14): con su `token`, el jugador vuelve a su asiento sin límite de tiempo mientras el juego siga. Recibe la foto completa y el piloto se desactiva. Si le tocaba, su turno vuelve a empezar con el plazo completo.
+- **Reconexión** (DP-14): con su sesión, el jugador vuelve a su asiento sin límite de tiempo mientras el juego siga. Recibe la foto completa y el piloto se desactiva. Si le tocaba, su turno vuelve a empezar con el plazo completo.
 - **Nadie conectado** (DP-12): si no queda ningún jugador conectado durante **3 minutos**, el juego pasa a `ABORTADO` y la sala se cierra.
 
 🔵 Recomendaciones técnicas (no son reglas del juego; se pueden cambiar en la configuración del servidor):
@@ -192,7 +215,7 @@ Reglas oficiales del modo online (DP-12 a DP-14):
 - Mientras no hay nadie conectado, el piloto **no juega**: la mesa espera a que alguien vuelva o a que venza la espera de 3 minutos.
 - Quien tiene el piloto por vencimientos puede recuperar el control con `juego.retomarControl`, o simplemente jugando en su turno antes de que el piloto actúe.
 - En el **lobby**, quien se desconecta conserva su lugar **15 s** (por ejemplo, si recarga la página). Si no vuelve, sale de la sala.
-- Si la misma sesión se abre desde otra conexión (otra pestaña), la nueva reemplaza a la anterior, que recibe `SESION_REEMPLAZADA`.
+- Si la misma persona vuelve a la sala desde otra conexión (otra pestaña u otro dispositivo), la nueva reemplaza a la anterior, que recibe `SESION_REEMPLAZADA`.
 - En la revancha, quien sigue desconectado empieza con el piloto activo.
 
 ## Foto del estado
@@ -255,6 +278,7 @@ El cliente guarda la última foto y le aplica cada evento en orden, con `aplicar
 - Hay un límite de frecuencia por conexión: ráfagas de hasta 20 mensajes y 10 por segundo sostenidos.
 - Un mensaje no puede superar los 16 KB.
 - Solo se aceptan conexiones desde los sitios configurados en `TOKINOTO_ORIGENES`.
+- La política de contenido de la página permite, además del propio sitio, solo lo que necesita el botón de Google: el script `https://accounts.google.com/gsi/client`, los estilos `…/gsi/style` y el marco y los pedidos de `…/gsi/`. `Referrer-Policy` es `strict-origin-when-cross-origin` (a Google solo le llega el origen, nunca el código de la sala) y `Cross-Origin-Opener-Policy` es `same-origin-allow-popups` (la ventana de Google en navegadores sin FedCM).
 - Los códigos de sala tienen unos 40 bits de azar criptográfico, y el mezclado del mazo también usa azar criptográfico.
 
 ## Pendiente para próximas etapas

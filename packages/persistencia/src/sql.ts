@@ -2,12 +2,14 @@
  * Repositorio sobre PostgreSQL (Drizzle). Sirve igual para el driver `pg`
  * (producción) y para PGlite (pruebas): solo cambia cómo se abre la conexión.
  */
-import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
+import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import type { GameConfig, GameEvent } from '@tokinoto/reglas';
 import * as esquema from './esquema';
 import {
   efectosDeEvento,
+  type Cuenta,
   type DatosJuego,
   type EstadoJuegoGuardado,
   type EventoGuardado,
@@ -18,7 +20,7 @@ import {
 
 export type BaseDeDatos = PgDatabase<PgQueryResultHKT, typeof esquema>;
 
-const { salas, juegos, jugadoresDeJuego, puntajesDePartida, rankingFinal, eventos } = esquema;
+const { cuentas, salas, juegos, jugadoresDeJuego, puntajesDePartida, rankingFinal, eventos } = esquema;
 
 export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promise<void>): Repositorio {
   return {
@@ -38,7 +40,16 @@ export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promi
           .onConflictDoNothing();
         await tx
           .insert(jugadoresDeJuego)
-          .values(datos.jugadores.map((j, asiento) => ({ juegoId: datos.id, asiento, idJugador: j.idJugador, nombre: j.nombre })))
+          .values(
+            datos.jugadores.map((j, asiento) => ({
+              juegoId: datos.id,
+              asiento,
+              idJugador: j.idJugador,
+              nombre: j.nombre,
+              cuentaId: j.cuentaId ?? null,
+              invitado: j.invitado ?? false,
+            })),
+          )
           .onConflictDoNothing();
       });
     },
@@ -104,7 +115,17 @@ export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promi
         })
         .from(juegos)
         .leftJoin(jugadoresDeJuego, eq(jugadoresDeJuego.juegoId, juegos.id))
-        .where(opciones.sala === undefined ? undefined : eq(juegos.salaCodigo, opciones.sala))
+        .where(
+          and(
+            opciones.sala === undefined ? undefined : eq(juegos.salaCodigo, opciones.sala),
+            opciones.cuenta === undefined
+              ? undefined
+              : inArray(
+                  juegos.id,
+                  bd.select({ id: jugadoresDeJuego.juegoId }).from(jugadoresDeJuego).where(eq(jugadoresDeJuego.cuentaId, opciones.cuenta)),
+                ),
+          ),
+        )
         .groupBy(juegos.id)
         .orderBy(desc(juegos.iniciadoEn), desc(juegos.id))
         .limit(opciones.limite ?? 50);
@@ -131,7 +152,7 @@ export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promi
         cantidadJugadores: jugadores.length,
         iniciadoEn: juego.iniciadoEn,
         terminadoEn: juego.terminadoEn,
-        jugadores: jugadores.map(({ asiento, idJugador, nombre }) => ({ asiento, idJugador, nombre })),
+        jugadores: jugadores.map(({ asiento, idJugador, nombre, cuentaId, invitado }) => ({ asiento, idJugador, nombre, cuentaId, invitado })),
         puntajes: puntajes.map(({ partida, asiento, apuesta, bazasGanadas, puntos }) => ({ partida, asiento, apuesta, bazasGanadas, puntos })),
         ranking: ranking.map(({ asiento, total, puesto }) => ({ asiento, total, puesto })),
       } satisfies JuegoGuardado;
@@ -140,6 +161,27 @@ export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promi
     async eventosDe(juegoId) {
       const filas = await bd.select().from(eventos).where(eq(eventos.juegoId, juegoId)).orderBy(asc(eventos.seq));
       return filas.map((f): EventoGuardado => ({ seq: f.seq, evento: f.datos as GameEvent }));
+    },
+
+    async cuentaDeGoogle(googleSub, nombreInicial, cuando) {
+      // Alta sin carrera: si dos pedidos llegan juntos, uno inserta y el otro lee.
+      await bd
+        .insert(cuentas)
+        .values({ id: randomUUID(), googleSub, nombre: nombreInicial, creadaEn: cuando })
+        .onConflictDoNothing({ target: cuentas.googleSub });
+      const [cuenta] = await bd.select().from(cuentas).where(eq(cuentas.googleSub, googleSub));
+      if (!cuenta) throw new Error('No se pudo crear la cuenta');
+      return cuenta satisfies Cuenta;
+    },
+
+    async obtenerCuenta(id) {
+      const [cuenta] = await bd.select().from(cuentas).where(eq(cuentas.id, id));
+      return cuenta ?? null;
+    },
+
+    async cambiarNombreCuenta(id, nombre) {
+      const [cuenta] = await bd.update(cuentas).set({ nombre }).where(eq(cuentas.id, id)).returning();
+      return cuenta ?? null;
     },
 
     cerrar: cerrarConexion,

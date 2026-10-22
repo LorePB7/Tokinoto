@@ -2,8 +2,10 @@
  * Repositorio en memoria: mismo contrato que el de PostgreSQL, sin base de
  * datos. Sirve para pruebas y para correr el servidor sin persistencia real.
  */
+import { randomUUID } from 'node:crypto';
 import {
   efectosDeEvento,
+  type Cuenta,
   type DatosJuego,
   type EventoGuardado,
   type JuegoGuardado,
@@ -14,6 +16,7 @@ import {
 export function crearRepositorioEnMemoria(): Repositorio {
   const juegos = new Map<string, JuegoGuardado>();
   const eventos = new Map<string, Map<number, EventoGuardado>>();
+  const cuentas = new Map<string, Cuenta>();
 
   const resumen = (juego: JuegoGuardado): ResumenJuego => ({
     id: juego.id,
@@ -39,7 +42,13 @@ export function crearRepositorioEnMemoria(): Repositorio {
         cantidadJugadores: datos.jugadores.length,
         iniciadoEn: datos.iniciadoEn,
         terminadoEn: null,
-        jugadores: datos.jugadores.map((j, asiento) => ({ asiento, idJugador: j.idJugador, nombre: j.nombre })),
+        jugadores: datos.jugadores.map((j, asiento) => ({
+          asiento,
+          idJugador: j.idJugador,
+          nombre: j.nombre,
+          cuentaId: j.cuentaId ?? null,
+          invitado: j.invitado ?? false,
+        })),
         puntajes: [],
         ranking: [],
       });
@@ -86,6 +95,7 @@ export function crearRepositorioEnMemoria(): Repositorio {
     async listarJuegos(opciones = {}) {
       return [...juegos.values()]
         .filter((j) => opciones.sala === undefined || j.sala === opciones.sala)
+        .filter((j) => opciones.cuenta === undefined || j.jugadores.some((p) => p.cuentaId === opciones.cuenta))
         .sort((a, b) => b.iniciadoEn.getTime() - a.iniciadoEn.getTime())
         .slice(0, opciones.limite ?? 50)
         .map(resumen);
@@ -98,6 +108,25 @@ export function crearRepositorioEnMemoria(): Repositorio {
 
     async eventosDe(juegoId) {
       return [...(eventos.get(juegoId)?.values() ?? [])].sort((a, b) => a.seq - b.seq).map((e) => structuredClone(e));
+    },
+
+    async cuentaDeGoogle(googleSub, nombreInicial, cuando) {
+      for (const cuenta of cuentas.values()) if (cuenta.googleSub === googleSub) return { ...cuenta };
+      const cuenta: Cuenta = { id: randomUUID(), googleSub, nombre: nombreInicial, creadaEn: cuando };
+      cuentas.set(cuenta.id, cuenta);
+      return { ...cuenta };
+    },
+
+    async obtenerCuenta(id) {
+      const cuenta = cuentas.get(id);
+      return cuenta ? { ...cuenta } : null;
+    },
+
+    async cambiarNombreCuenta(id, nombre) {
+      const cuenta = cuentas.get(id);
+      if (!cuenta) return null;
+      cuenta.nombre = nombre;
+      return { ...cuenta };
     },
 
     async cerrar() {},

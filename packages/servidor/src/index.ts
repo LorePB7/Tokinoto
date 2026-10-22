@@ -5,3 +5,4 @@ export * from './gestor';
 export * from './limitador';
 export * from './servidor';
 export * from './guardador';
+export * from './cuentas';

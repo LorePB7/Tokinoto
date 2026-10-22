@@ -27,7 +27,7 @@ if (URL_PRUEBA) {
       // Base limpia para que los resultados no dependan de corridas anteriores.
       const cliente = new pg.Client({ connectionString: URL_PRUEBA });
       await cliente.connect();
-      await cliente.query('TRUNCATE eventos, ranking_final, puntajes_de_partida, jugadores_de_juego, juegos, salas');
+      await cliente.query('TRUNCATE eventos, ranking_final, puntajes_de_partida, jugadores_de_juego, juegos, salas, cuentas');
       await cliente.end();
       return repo;
     },
@@ -158,6 +158,47 @@ describe.each(variantes)('repositorio (%s)', (_nombre, abrir) => {
     await expect(repo.agregarEventos(huerfano, [{ seq: 0, evento }], AHORA)).rejects.toThrow();
     expect(await repo.obtenerJuego(huerfano)).toBeNull();
     expect(await repo.eventosDe(huerfano)).toEqual([]);
+  });
+
+  it('cuentas: el mismo sub de Google da la misma cuenta y no pisa el nombre editado', async () => {
+    const primera = await repo.cuentaDeGoogle('sub-ana', 'Ana', AHORA);
+    expect(primera).toMatchObject({ googleSub: 'sub-ana', nombre: 'Ana', creadaEn: AHORA });
+    await repo.cambiarNombreCuenta(primera.id, 'Anita');
+    const otra = await repo.cuentaDeGoogle('sub-ana', 'Ana Google', AHORA);
+    expect(otra.id).toBe(primera.id);
+    expect(otra.nombre).toBe('Anita');
+    expect((await repo.obtenerCuenta(primera.id))?.nombre).toBe('Anita');
+    expect(await repo.obtenerCuenta('no-existe')).toBeNull();
+    expect(await repo.cambiarNombreCuenta('no-existe', 'X')).toBeNull();
+    expect((await repo.cuentaDeGoogle('sub-beto', 'Beto', AHORA)).id).not.toBe(primera.id);
+  });
+
+  it('cuentas: los juegos guardan la cuenta o la marca de invitado, y se listan por cuenta', async () => {
+    const cuenta = await repo.cuentaDeGoogle('sub-historial', 'Carla', AHORA);
+    const juego = juegoSimulado(4, 21);
+    const id = randomUUID();
+    await repo.abrirJuego({
+      id,
+      sala: 'SALACTA1',
+      jugadores: juego.inicial!.players.map((p, i) => ({
+        idJugador: p.id,
+        nombre: p.name,
+        cuentaId: i === 0 ? cuenta.id : null,
+        invitado: i === 1,
+      })),
+      config: DEFAULT_CONFIG,
+      iniciadoEn: AHORA,
+    });
+    const guardado = await repo.obtenerJuego(id);
+    expect(guardado!.jugadores.map((j) => [j.cuentaId, j.invitado])).toEqual([
+      [cuenta.id, false],
+      [null, true],
+      [null, false],
+      [null, false],
+    ]);
+    const suyos = await repo.listarJuegos({ cuenta: cuenta.id });
+    expect(suyos.map((j) => j.id)).toEqual([id]);
+    expect(suyos[0]!.cantidadJugadores).toBe(4);
   });
 
   it('obtenerJuego devuelve null si no existe', async () => {

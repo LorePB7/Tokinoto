@@ -40,16 +40,26 @@ interface Archivo {
 }
 
 /**
+ * Lo que necesita el botón "Entrar con Google" (fase 6), según la guía de
+ * Google Identity Services: su script, sus estilos, su marco y sus pedidos.
+ */
+const GOOGLE_SCRIPT = 'https://accounts.google.com/gsi/client';
+const GOOGLE_ESTILOS = 'https://accounts.google.com/gsi/style';
+const GOOGLE_GSI = 'https://accounts.google.com/gsi/';
+
+/**
  * Política de contenido de la página: solo se cargan scripts, estilos y
- * fuentes del propio sitio, y la página no se puede incrustar en otra.
+ * fuentes del propio sitio (más lo justo de Google para entrar con tu cuenta),
+ * y la página no se puede incrustar en otra.
  */
 export const POLITICA_CONTENIDO = [
   "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self'",
+  `script-src 'self' ${GOOGLE_SCRIPT}`,
+  `style-src 'self' ${GOOGLE_ESTILOS}`,
   "font-src 'self' data:",
   "img-src 'self' data:",
-  "connect-src 'self'",
+  `connect-src 'self' ${GOOGLE_GSI}`,
+  `frame-src ${GOOGLE_GSI}`,
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'self'",
@@ -61,10 +71,12 @@ export function cabecerasDeSeguridad(produccion: boolean): Record<string, string
   return {
     'x-content-type-options': 'nosniff',
     'x-frame-options': 'DENY',
-    // El enlace de invitación lleva el código de la sala: no se manda a otros sitios.
-    'referrer-policy': 'no-referrer',
+    // A otros sitios solo se manda el origen, nunca la ruta (el enlace de
+    // invitación lleva el código de la sala). Google lo necesita para validar el botón.
+    'referrer-policy': 'strict-origin-when-cross-origin',
     'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
-    'cross-origin-opener-policy': 'same-origin',
+    // Permite la ventana emergente de Google cuando el navegador no usa FedCM.
+    'cross-origin-opener-policy': 'same-origin-allow-popups',
     ...(produccion ? { 'strict-transport-security': 'max-age=31536000' } : {}),
   };
 }
