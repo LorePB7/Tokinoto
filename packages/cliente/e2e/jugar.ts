@@ -274,6 +274,14 @@ async function barrer(j: Jugador, vista: string): Promise<void> {
           h = Math.max(h, Math.round(c.right - W));
         }
       }
+      // El botón de Google entra en su lugar (Google lo dibuja con ancho fijo; su iframe deja 10 px de aire por lado).
+      const lugarGoogle = document.querySelector('.boton-google');
+      const google = lugarGoogle?.firstElementChild?.getBoundingClientRect();
+      const cajaGoogle = lugarGoogle?.getBoundingClientRect();
+      if (google && cajaGoogle && google.width && (google.left < cajaGoogle.left - 11 || google.right > cajaGoogle.right + 11)) {
+        culpables.unshift(`botón de Google más ancho que su lugar: ${Math.round(google.width)} en ${Math.round(cajaGoogle.width)}`);
+        h = Math.max(h, Math.round(google.right - cajaGoogle.right));
+      }
       return { v, h, culpables: culpables.slice(0, 3) };
     });
     const k = `${w}x${h} · ${vista}`;
@@ -564,6 +572,7 @@ await anfitrion.pagina.goto(urlCliente);
   const carga = anfitrion.pagina.locator('.carga');
   await carga.waitFor({ state: 'visible', timeout: 5000 });
   verificar((await carga.innerText()).includes('El Niño Games') && (await carga.innerText()).includes('Un juego 100% argentino'), 'La pantalla de carga no muestra el estudio y el lema');
+  verificar((await carga.innerText()).includes('Desarrollado por Lorenzo Píccolo'), 'La pantalla de carga no muestra la firma del autor');
   await anfitrion.pagina.waitForTimeout(2500);
   verificar(await carga.isVisible(), 'La pantalla de carga se fue sola: tiene que esperar el toque que destraba el sonido');
   await captura(anfitrion, '0-carga');

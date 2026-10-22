@@ -130,3 +130,26 @@ acortando la zona de la mano). Los solapes siguen siendo informativos: el e2e lo
   o con un toque, Enter o Escape. Respeta "reducir movimiento".
 - **Firma.** "Hecho por Lorenzo Píccolo · El Niño Games" al pie del inicio y de la sala de espera. En pantallas de menos de
   640 px de alto no se muestra, porque ahí no hay lugar sin hacer scroll.
+
+## Arreglo: entrada (login) y pantalla de carga
+
+Barrido de la entrada en los 39 tamaños, antes y después del cambio.
+
+- **Entrada apilada en todas las pantallas.** Antes, desde 560 px de ancho, Google e invitado iban en dos columnas en una
+  tarjeta de 760 px. Ahora es una tarjeta de 420 px como en celular: Google arriba, una línea con "o" y el invitado abajo.
+  Se sacó la frase "Guardamos tu nombre y tus partidas. Nunca tu correo." (sigue en la página de privacidad).
+- **Botón de Google cortado en los extremos.** Google lo dibuja en un iframe con ancho fijo en píxeles, 10 px más ancho por
+  lado que el botón para el brillo al pasar y al tocar. El contenedor tenía `overflow: hidden`, que cortaba ese brillo, y el
+  ancho se calculaba una sola vez: si la ventana se achicaba, el botón quedaba más ancho que su lugar. Ahora el contenedor no
+  corta y el botón se vuelve a dibujar cuando cambia el ancho disponible. El e2e verifica en el barrido que el botón entre
+  en su lugar.
+- **Ventanas muy bajas (hasta 440 px de alto).** Apilada, la entrada se pasaba 25 px en 568 × 320. Ahí se ocultan los
+  títulos "Con Google" y "Como invitado": los botones ya lo dicen.
+- **Enlace "Privacidad".** Medía 70 × 17 px para tocar; ahora tiene área de toque de 44 px de alto sin mover el texto.
+- **Pantalla de carga.** Suma "Desarrollado por Lorenzo Píccolo" debajo de "Tocá para entrar". El e2e lo verifica.
+
+Quedan, sin cambiar (fuera de este alcance):
+
+- El botón de Google mide 40 px de alto: es el tamaño "large" de Google y no se puede agrandar.
+- Los botones flotantes Sonido y Reglas miden 36 px de alto en celulares (menos de los 44 recomendados). Son los mismos de la
+  sala de espera, así que agrandarlos se prueba aparte.

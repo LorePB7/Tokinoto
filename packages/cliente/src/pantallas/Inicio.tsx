@@ -63,13 +63,17 @@ function Entrada() {
           Privacidad
         </a>
       </p>
-      <div className={conGoogle ? 'bloques' : 'bloques uno'}>
+      <div className="bloques">
         {conGoogle && (
           <div className="bloque">
             <h2>Con Google</h2>
-            <p className="nota">Guardamos tu nombre y tus partidas. Nunca tu correo.</p>
             <BotonGoogle />
           </div>
+        )}
+        {conGoogle && (
+          <p className="separador" aria-hidden="true">
+            <span>o</span>
+          </p>
         )}
         <form onSubmit={alEntrar} className="bloque">
           <h2>Como invitado</h2>
@@ -91,7 +95,11 @@ function Entrada() {
   );
 }
 
-/** El botón oficial de Google, dibujado por su propio script. */
+/**
+ * El botón oficial de Google, dibujado por su propio script. Google lo dibuja con un ancho fijo en
+ * píxeles, así que se vuelve a dibujar cuando cambia el ancho disponible: si no, al achicarse la
+ * ventana quedaba más ancho que su lugar y se veía cortado en los extremos.
+ */
 function BotonGoogle() {
   const entrarConGoogle = useTienda((s) => s.entrarConGoogle);
   const contenedor = useRef<HTMLDivElement>(null);
@@ -101,11 +109,26 @@ function BotonGoogle() {
     const div = contenedor.current;
     if (!div) return;
     let vigente = true;
-    mostrarBotonGoogle(div, idClienteGoogle(), (credencial) => void entrarConGoogle(credencial), div.clientWidth).catch(() => {
-      if (vigente) setFallo(true);
+    let anchoDibujado = -1;
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    const dibujar = () => {
+      const ancho = Math.floor(div.clientWidth);
+      if (!vigente || ancho <= 0 || Math.abs(ancho - anchoDibujado) < 4) return;
+      anchoDibujado = ancho;
+      mostrarBotonGoogle(div, idClienteGoogle(), (credencial) => void entrarConGoogle(credencial), ancho).catch(() => {
+        if (vigente) setFallo(true);
+      });
+    };
+    dibujar();
+    const observador = new ResizeObserver(() => {
+      clearTimeout(espera);
+      espera = setTimeout(dibujar, 100);
     });
+    observador.observe(div);
     return () => {
       vigente = false;
+      clearTimeout(espera);
+      observador.disconnect();
     };
   }, [entrarConGoogle]);
 

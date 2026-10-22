@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 const SALIDA_MS = 450;
 
 /**
- * Pantalla de carga: "El Niño Games", el lema y "Tocá para entrar". Se muestra una vez al abrir el juego
+ * Pantalla de carga: "El Niño Games", el lema, "Tocá para entrar" y la firma del autor. Se muestra una vez al abrir el juego
  * y espera un toque (o Enter, Espacio o Escape). Ese toque es el que los navegadores piden para dejar
  * sonar, así la música arranca apenas se entra.
  */
@@ -36,6 +36,9 @@ export function Carga() {
       <button ref={boton} type="button" className="toque" data-sin-clic>
         Tocá para entrar
       </button>
+      <p className="autor-carga">
+        Desarrollado por <strong>Lorenzo Píccolo</strong>
+      </p>
     </div>
   );
 }
