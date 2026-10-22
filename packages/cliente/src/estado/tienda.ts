@@ -11,6 +11,10 @@
  * navegador; cada conexión nueva la presenta (`cuenta.reanudar`) antes de
  * cualquier otra cosa.
  *
+ * Chat y expulsión (fase 7): los mensajes de chat llegan fuera de la secuencia
+ * de eventos y se suman a la sala con el mismo `aplicarMensaje`. Si el
+ * anfitrión saca a esta persona de la sala, la tienda vuelve al inicio.
+ *
  * Reconexión (DP-14): si la conexión se corta, la tienda reintenta sola y
  * vuelve al asiento con `sala.reconectar` (el servidor sabe dónde está sentada
  * la persona); al recargar la página, también.
@@ -67,6 +71,8 @@ export interface EstadoTienda {
   ocupado: boolean;
   aviso: Aviso | null;
   registro: LineaRegistro[];
+  /** Último mensaje de chat que la persona ya vio (id). Los de otros con id mayor cuentan como sin leer. */
+  chatLeido: number;
 
   /** Entra con el token de identidad que dio el botón de Google. */
   entrarConGoogle(credencial: string): Promise<boolean>;
@@ -95,6 +101,12 @@ export interface EstadoTienda {
   retomarControl(): Promise<boolean>;
   pausarResumen(pausar: boolean): Promise<boolean>;
   revancha(): Promise<boolean>;
+  /** Anfitrión, en la sala de espera: saca a alguien de la sala (no puede volver). */
+  expulsar(idJugador: string): Promise<boolean>;
+  /** Manda un mensaje al chat de la sala. No bloquea los botones del juego mientras espera. */
+  enviarChat(texto: string): Promise<boolean>;
+  /** Marca como vistos todos los mensajes de chat recibidos hasta ahora. */
+  marcarChatLeido(): void;
   descartarAviso(): void;
   /** Vuelve a la pantalla de inicio, cerrando la conexión y olvidando la sala (no la cuenta). */
   reiniciar(): void;
@@ -208,6 +220,13 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
           // Rechazos sin pedido conocido, por ejemplo por exceso de mensajes.
           avisar(mensaje.datos.mensaje);
         }
+        return;
+      }
+
+      if (mensaje.tipo === 'sala.expulsado') {
+        // El anfitrión sacó a esta persona de la sala: vuelve al inicio, con la cuenta intacta.
+        reiniciar();
+        avisar('El anfitrión te sacó de la sala.');
         return;
       }
 
@@ -327,6 +346,9 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       if (get().conexion !== 'reconectando') return;
       if (respuesta.tipo === 'ok') {
         set({ conexion: 'conectada' });
+      } else if (respuesta.datos.codigo === 'EXPULSADO') {
+        reiniciar();
+        avisar('El anfitrión te sacó de la sala.');
       } else if (respuesta.datos.codigo === 'SESION_INVALIDA' || respuesta.datos.codigo === 'NO_IDENTIFICADO') {
         reiniciar();
         avisar('La sala ya no existe. Podés crear otra o unirte con un código.');
@@ -376,10 +398,10 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
     async function reconectar(): Promise<boolean> {
       const respuesta = await ingresar((id) => armarComando('sala.reconectar', id));
       if (respuesta.tipo === 'ok') return true;
-      if (respuesta.datos.codigo === 'SESION_INVALIDA') {
+      if (respuesta.datos.codigo === 'SESION_INVALIDA' || respuesta.datos.codigo === 'EXPULSADO') {
         almacen.borrarSala();
         set({ codigoSala: null });
-        avisar('Esa partida ya no existe.');
+        avisar(respuesta.datos.codigo === 'EXPULSADO' ? respuesta.datos.mensaje : 'Esa partida ya no existe.');
       } else if (respuesta.idPedido !== '') {
         avisar(respuesta.datos.mensaje);
       }
@@ -411,6 +433,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         codigoSala: null,
         ocupado: false,
         registro: [],
+        chatLeido: 0,
       });
     }
 
@@ -443,6 +466,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       ocupado: false,
       aviso: null,
       registro: [],
+      chatLeido: 0,
 
       entrarConGoogle: (credencial) => comandoDeCuenta((id) => armarComando('cuenta.entrar', id, { credencial })),
       entrarComoInvitado: (nombre) => comandoDeCuenta((id) => armarComando('cuenta.entrarInvitado', id, { nombre })),
@@ -484,6 +508,17 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       retomarControl: () => aceptado((id) => armarComando('juego.retomarControl', id)),
       pausarResumen: (pausar) => aceptado((id) => armarComando('sala.pausarResumen', id, { pausar })),
       revancha: () => aceptado((id) => armarComando('juego.revancha', id)),
+      expulsar: (idJugador) => aceptado((id) => armarComando('sala.expulsar', id, { idJugador })),
+      async enviarChat(texto) {
+        const id = nuevoIdPedido();
+        const respuesta = await enviar(id, armarComando('chat.enviar', id, { texto }));
+        if (respuesta.tipo === 'error') avisar(respuesta.datos.mensaje);
+        return respuesta.tipo === 'ok';
+      },
+      marcarChatLeido() {
+        const ultimo = get().seguimiento.sala?.chat.at(-1)?.id ?? 0;
+        if (ultimo > get().chatLeido) set({ chatLeido: ultimo });
+      },
       descartarAviso: () => set({ aviso: null }),
       reiniciar,
     };

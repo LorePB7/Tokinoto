@@ -363,3 +363,44 @@ describe('salas por red', () => {
     }
   }, 30_000);
 });
+
+describe('expulsar y chat por red (fase 7)', () => {
+  it('el expulsado queda fuera de la sala pero identificado: no vuelve a esa sala y puede crear otra', async () => {
+    const url = await levantar();
+    const { clientes, codigo } = await salaCon(url, 3);
+    const [anfitrion, , pepe] = clientes as [Cliente, Cliente, Cliente & { sesion: string }];
+    const idPepe = (pepe.recibidos.filter((m) => m.tipo === 'ok').at(-1)!.datos as { idJugador: string }).idJugador;
+
+    expect((await anfitrion.pedir('sala.expulsar', { idJugador: idPepe })).tipo).toBe('ok');
+    expect((await pepe.esperar((m) => m.tipo === 'sala.expulsado')).datos).toEqual({ codigo });
+    expect((await anfitrion.esperar((m) => m.tipo === 'sala.jugadorSalio')).datos).toEqual({ idJugador: idPepe, expulsado: true });
+
+    // Su conexión ya no está en la sala: sus comandos no llegan y no puede volver, ni con el código ni reconectando.
+    expect((await pepe.pedir('chat.enviar', { texto: 'hola' })).datos).toMatchObject({ codigo: 'NO_PERTENECE_A_SALA' });
+    expect((await pepe.pedir('sala.unirse', { codigo })).datos).toMatchObject({ codigo: 'EXPULSADO' });
+    expect((await pepe.pedir('sala.reconectar')).datos).toMatchObject({ codigo: 'EXPULSADO' });
+    expect((await pepe.pedir('sala.consultar')).datos).toEqual({ vigente: false });
+    // Desde otra conexión con la misma sesión, tampoco.
+    const otra = await Cliente.conectar(url);
+    expect((await otra.pedir('cuenta.reanudar', { sesion: pepe.sesion })).tipo).toBe('ok');
+    expect((await otra.pedir('sala.unirse', { codigo })).datos).toMatchObject({ codigo: 'EXPULSADO' });
+    // Puede armar su propia sala.
+    expect((await pepe.pedir('sala.crear', {})).tipo).toBe('ok');
+  });
+
+  it('los mensajes de chat llegan a todos, sin seq, y quien entra después los ve en la foto', async () => {
+    const url = await levantar();
+    const { clientes, codigo } = await salaCon(url, 2);
+    expect((await clientes[1]!.pedir('chat.enviar', { texto: '  ¡Hola!  ' })).tipo).toBe('ok');
+    for (const cliente of clientes) {
+      const mensaje = await cliente.esperar((m) => m.tipo === 'chat.mensaje');
+      expect(mensaje).not.toHaveProperty('seq');
+      expect(mensaje.datos).toMatchObject({ id: 1, nombre: 'Invitado 1', texto: '¡Hola!' });
+    }
+    const tercero = await Cliente.invitado(url, 'Tercero');
+    expect((await tercero.pedir('sala.unirse', { codigo })).tipo).toBe('ok');
+    const foto = await tercero.esperar((m) => m.tipo === 'estado.foto');
+    expect((foto.datos as { chat: { texto: string }[] }).chat.map((m) => m.texto)).toEqual(['¡Hola!']);
+    expect((await clientes[0]!.pedir('chat.enviar', { texto: 'x'.repeat(201) })).datos).toMatchObject({ codigo: 'MENSAJE_INVALIDO' });
+  });
+});

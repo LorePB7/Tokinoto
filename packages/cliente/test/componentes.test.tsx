@@ -16,7 +16,7 @@ import { Mesa, mensajeDeTurno } from '../src/pantallas/Mesa';
 import { App } from '../src/App';
 import { CuentaRegresiva } from '../src/componentes/CuentaRegresiva';
 import { almacenEnMemoria } from '../src/estado/sesion';
-import { armarMesa, crearComo, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, type Mundo } from './ayuda';
+import { armarMesa, crearComo, esperar, jugarHasta, juegoDe, levantarMundo, salaDe, tiendaDePrueba, unirseComo, type Mundo } from './ayuda';
 
 const con = (tienda: Tienda, hijo: ReactNode) => render(<ProveedorTienda tienda={tienda}>{hijo}</ProveedorTienda>);
 
@@ -157,6 +157,59 @@ describe('con un servidor real', () => {
     expect(screen.getByText(salaDe(ana)!.codigo)).toBeInTheDocument();
     expect(screen.getByText(/^Ana/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /iniciar/i })).toBeDisabled();
+  });
+
+  it('Lobby: el anfitrión saca a alguien con confirmación; los demás no ven la cruz', async () => {
+    const ana = tiendaDePrueba(mundo.url);
+    const beto = tiendaDePrueba(mundo.url);
+    mundo.tiendas.push(ana, beto);
+    await crearComo(ana, 'Ana');
+    await unirseComo(beto, salaDe(ana)!.codigo, 'Beto');
+    await esperar(() => salaDe(ana)?.jugadores.length === 2);
+    const { unmount } = con(beto, <Lobby />);
+    expect(screen.queryByRole('button', { name: /^Sacar a/ })).toBeNull();
+    unmount();
+
+    con(ana, <Lobby />);
+    expect(screen.queryByRole('button', { name: 'Sacar a Ana de la sala' })).toBeNull();
+    const usuario = userEvent.setup();
+    await usuario.click(screen.getByRole('button', { name: 'Sacar a Beto de la sala' }));
+    const dialogo = screen.getByRole('alertdialog', { name: 'Sacar a Beto' });
+    await usuario.click(within(dialogo).getByRole('button', { name: 'Cancelar' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(salaDe(ana)!.jugadores).toHaveLength(2);
+    await usuario.click(screen.getByRole('button', { name: 'Sacar a Beto de la sala' }));
+    await usuario.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Sí, sacar' }));
+    await esperar(() => salaDe(ana)?.jugadores.length === 1);
+    expect(await screen.findByText(/Jugadores \(1 de 7\)/)).toBeInTheDocument();
+  });
+
+  it('Chat: muestra los sin leer, envía y muestra el texto tal cual', async () => {
+    const ana = tiendaDePrueba(mundo.url);
+    const beto = tiendaDePrueba(mundo.url);
+    mundo.tiendas.push(ana, beto);
+    await crearComo(ana, 'Ana');
+    await unirseComo(beto, salaDe(ana)!.codigo, 'Beto');
+    await esperar(() => salaDe(beto)?.jugadores.length === 2);
+    con(beto, <Lobby />);
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument();
+
+    await ana.getState().enviarChat('<b>hola</b>');
+    expect(await screen.findByRole('button', { name: 'Chat (1 sin leer)' })).toBeInTheDocument();
+    const usuario = userEvent.setup();
+    await usuario.click(screen.getByRole('button', { name: 'Chat (1 sin leer)' }));
+    const panel = screen.getByRole('dialog', { name: 'Chat' });
+    expect(within(panel).getByText('<b>hola</b>')).toBeInTheDocument();
+    expect(panel.querySelector('b')).toBeNull();
+    expect(within(panel).getByText('Los mensajes se borran al terminar.')).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Enviar' })).toBeDisabled();
+    await usuario.type(within(panel).getByLabelText('Mensaje'), 'Dale{Enter}');
+    await esperar(() => salaDe(ana)?.chat.length === 2);
+    expect(await within(panel).findByText('Dale')).toBeInTheDocument();
+    expect(within(panel).getByLabelText('Mensaje')).toHaveValue('');
+    await usuario.keyboard('{Escape}');
+    // Con el panel abierto todo quedó leído: el botón vuelve a decir solo "Chat".
+    expect(screen.getByRole('button', { name: 'Chat' })).toBeInTheDocument();
   });
 
   it('el panel de apuesta solo aparece en mi turno y deshabilita el valor prohibido del Pié', async () => {

@@ -30,6 +30,8 @@ import {
   type Rng,
 } from '@tokinoto/reglas';
 import {
+  LIMITE_CHAT,
+  MENSAJES_DE_CHAT_GUARDADOS,
   TIEMPO_TURNO_POR_DEFECTO_S,
   VENCIMIENTOS_PARA_PILOTO,
   VERSION_PROTOCOLO,
@@ -43,6 +45,7 @@ import {
   type DatosEventos,
   type ErrorServidor,
   type EstadoSala,
+  type MensajeDeChat,
   type MensajeEvento,
   type MensajeFoto,
   type MensajeServidor,
@@ -53,11 +56,14 @@ import {
 } from '@tokinoto/protocolo';
 import { eventoDeTurno, traducirEvento, type EventoSalida } from './eventos';
 import type { Historial } from './guardador';
+import { Limitador } from './limitador';
 import { relojReal, type Reloj } from './reloj';
 
 /** A dónde se le envían los mensajes a un jugador (su conexión). */
 export interface Destino {
   enviar(mensaje: MensajeServidor): void;
+  /** El anfitrión sacó al jugador de la sala (fase 7): la conexión deja de estar en ella. */
+  alExpulsar?(): void;
 }
 
 export interface OpcionesSala {
@@ -105,6 +111,11 @@ export type RegistroEvento = EventoSalida & { seq: number };
 export interface PerfilJugador {
   cuentaId: string | null;
   invitado: boolean;
+  /**
+   * Clave de la persona (`g:<cuentaId>` o `i:<idInvitado>`). Con ella se
+   * bloquea a quien el anfitrión expulsa (fase 7). null en algunas pruebas.
+   */
+  clave?: string | null;
 }
 
 interface Jugador {
@@ -123,6 +134,8 @@ interface Jugador {
   cancelarSalida: (() => void) | null;
   /** Respuestas ya dadas, por idPedido: un reintento no se ejecuta dos veces. */
   pedidos: Map<string, Respuesta>;
+  /** Ritmo de sus mensajes de chat (DP-22). */
+  chat: Limitador;
 }
 
 /** Cuántas respuestas recuerda la sala por jugador para la idempotencia. */
@@ -157,6 +170,13 @@ export class Sala {
 
   private seq = 0;
   private readonly registro: RegistroEvento[] = [];
+
+  /** Chat de la sala (DP-22): solo en memoria, se pierde al cerrarse la sala. */
+  private chat: MensajeDeChat[] = [];
+  private ultimoChat = 0;
+  /** Expulsados (fase 7): por clave de persona, para que no vuelvan a entrar, y por token, para avisarles al reconectar. */
+  private readonly bloqueados = new Set<string>();
+  private readonly tokensExpulsados = new Set<string>();
 
   private readonly cola: (() => void)[] = [];
   private ocupada = false;
@@ -309,7 +329,11 @@ export class Sala {
     this.encolar(() => {
       const jugador = this.cerrada ? undefined : this.jugadores.find((j) => mismoToken(j.token, token));
       if (!jugador) {
-        responder(respuestaError('SESION_INVALIDA', 'Tu lugar en esa sala ya no existe'));
+        responder(
+          !this.cerrada && this.tokensExpulsados.has(token)
+            ? respuestaError('EXPULSADO', 'El anfitrión te sacó de esta sala')
+            : respuestaError('SESION_INVALIDA', 'Tu lugar en esa sala ya no existe'),
+        );
         return;
       }
       const anterior = jugador.destino;
@@ -352,9 +376,15 @@ export class Sala {
     });
   }
 
-  /** Cierra la sala: cancela lo programado y deja de enviar mensajes. */
+  /** Mensajes de chat guardados (para las pruebas). */
+  get mensajesDeChat(): readonly MensajeDeChat[] {
+    return this.chat;
+  }
+
+  /** Cierra la sala: cancela lo programado, deja de enviar mensajes y borra el chat (DP-22). */
   cerrar(): void {
     this.cerrada = true;
+    this.chat = [];
     this.cancelarAvanceProgramado();
     this.cancelarTurno();
     this.cancelarAbortoProgramado();
@@ -419,6 +449,9 @@ export class Sala {
     if (this.jugadores.length >= this.opciones.maxJugadores) {
       return respuestaError('SALA_LLENA', `La sala está completa (${this.opciones.maxJugadores} jugadores)`);
     }
+    if (perfil.clave && this.bloqueados.has(perfil.clave)) {
+      return respuestaError('EXPULSADO', 'El anfitrión te sacó de esta sala: no podés volver a entrar');
+    }
     const nombreLimpio = nombre.trim();
     if (this.jugadores.some((j) => normalizarNombre(j.nombre) === normalizarNombre(nombreLimpio))) {
       return respuestaError('NOMBRE_EN_USO', `Ya hay un jugador llamado "${nombreLimpio}" en la sala`);
@@ -435,6 +468,7 @@ export class Sala {
       vencimientos: 0,
       cancelarSalida: null,
       pedidos: new Map(),
+      chat: new Limitador(LIMITE_CHAT, () => this.opciones.reloj.ahora()),
     };
     this.jugadores.push(jugador);
     if (this.anfitrion === null) this.anfitrion = jugador.id;
@@ -444,12 +478,12 @@ export class Sala {
     return respuestaOk({ codigo: this.codigo, idJugador: jugador.id, token: jugador.token });
   }
 
-  private quitarDelLobby(jugador: Jugador): void {
+  private quitarDelLobby(jugador: Jugador, expulsado = false): void {
     jugador.cancelarSalida?.();
     jugador.cancelarSalida = null;
     this.jugadores = this.jugadores.filter((j) => j !== jugador);
     jugador.destino = null;
-    this.emitir('sala.jugadorSalio', { idJugador: jugador.id });
+    this.emitir('sala.jugadorSalio', expulsado ? { idJugador: jugador.id, expulsado } : { idJugador: jugador.id });
     if (this.anfitrion === jugador.id) {
       this.cambiarAnfitrion(this.jugadores.find((j) => j.conectado) ?? this.jugadores[0] ?? null);
     }
@@ -641,6 +675,12 @@ export class Sala {
         else this.quitarDelLobby(jugador);
         return respuestaOk();
 
+      case 'sala.expulsar':
+        return this.expulsar(jugador, comando.datos.idJugador);
+
+      case 'chat.enviar':
+        return this.enviarChat(jugador, comando.datos.texto);
+
       case 'juego.retomarControl':
         if (!this.juegoEnCurso) return respuestaError('ESTADO_INVALIDO', 'No hay un juego en curso');
         this.cambiarPiloto(jugador, null);
@@ -708,6 +748,48 @@ export class Sala {
         throw new Error(`Comando desconocido: ${JSON.stringify(imposible)}`);
       }
     }
+  }
+
+  /**
+   * El anfitrión saca a alguien de la sala de espera (fase 7). La persona queda
+   * bloqueada en esta sala mientras exista: no puede volver a entrar.
+   */
+  private expulsar(anfitrion: Jugador, idJugador: string): Respuesta {
+    const noAnfitrion = this.exigirAnfitrion(anfitrion);
+    if (noAnfitrion) return noAnfitrion;
+    if (this.juego) return respuestaError('JUEGO_YA_INICIADO', 'Solo se puede sacar a alguien antes de empezar el juego');
+    const expulsado = this.buscar(idJugador);
+    if (!expulsado) return respuestaError('NO_PERTENECE_A_SALA', 'Ese jugador ya no está en la sala');
+    if (expulsado === anfitrion) return respuestaError('ESTADO_INVALIDO', 'No podés sacarte a vos mismo de la sala');
+
+    if (expulsado.perfil.clave) this.bloqueados.add(expulsado.perfil.clave);
+    this.tokensExpulsados.add(expulsado.token);
+    const destino = expulsado.destino;
+    // Primero el aviso privado (con su conexión todavía en la sala); después sale como cualquiera.
+    this.enviarA(expulsado, { v: VERSION_PROTOCOLO, tipo: 'sala.expulsado', datos: { codigo: this.codigo } });
+    this.quitarDelLobby(expulsado, true);
+    destino?.alExpulsar?.();
+    return respuestaOk();
+  }
+
+  /** Mensaje de chat para toda la sala (DP-22). Fuera de la secuencia de eventos y sin guardarse en la base. */
+  private enviarChat(jugador: Jugador, texto: string): Respuesta {
+    if (!jugador.chat.tomar()) {
+      return respuestaError('DEMASIADOS_MENSAJES', 'Esperá un momento antes de mandar otro mensaje');
+    }
+    const mensaje: MensajeDeChat = {
+      id: ++this.ultimoChat,
+      idJugador: jugador.id,
+      nombre: jugador.nombre,
+      texto,
+      hora: this.opciones.reloj.ahora(),
+    };
+    this.chat.push(mensaje);
+    if (this.chat.length > MENSAJES_DE_CHAT_GUARDADOS) this.chat = this.chat.slice(-MENSAJES_DE_CHAT_GUARDADOS);
+    for (const destinatario of this.jugadores) {
+      this.enviarA(destinatario, { v: VERSION_PROTOCOLO, tipo: 'chat.mensaje', datos: { ...mensaje } });
+    }
+    return respuestaOk({ id: mensaje.id });
   }
 
   private exigirAnfitrion(jugador: Jugador): Respuesta | null {
@@ -912,6 +994,7 @@ export class Sala {
         piloto: j.piloto,
       })),
       horaServidor: this.opciones.reloj.ahora(),
+      chat: this.chat.map((m) => ({ ...m })),
       juego: this.juego ? proyectarJuego(this.juego, jugador.id, this.fechaLimite) : null,
     };
   }

@@ -125,7 +125,9 @@ export class GestorSalas {
       return;
     }
     lugar.sala.reconectar(lugar.token, destino, (respuesta) => {
-      if (!respuesta.ok && respuesta.error.codigo === 'SESION_INVALIDA') this.lugares.delete(identidad.clave);
+      if (!respuesta.ok && (respuesta.error.codigo === 'SESION_INVALIDA' || respuesta.error.codigo === 'EXPULSADO')) {
+        this.lugares.delete(identidad.clave);
+      }
       responder(sinToken(respuesta), respuesta.ok ? lugar.sala : null);
     });
   }
@@ -158,7 +160,7 @@ export class GestorSalas {
         if (respuesta.ok) this.lugares.set(identidad.clave, { sala, token: String(respuesta.datos['token']) });
         responder(sinToken(respuesta));
       },
-      { cuentaId: identidad.cuentaId, invitado: identidad.tipo === 'invitado' },
+      { cuentaId: identidad.cuentaId, invitado: identidad.tipo === 'invitado', clave: identidad.clave },
     );
   }
 

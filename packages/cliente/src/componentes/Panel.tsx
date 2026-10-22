@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 
 interface PropiedadesPanel {
@@ -11,6 +11,11 @@ interface PropiedadesPanel {
   clase?: string;
   /** Clase del encabezado, si el panel ya tiene estilos propios para él. */
   claseEncabezado?: string;
+  /**
+   * Qué enfocar al abrir, en vez de "Cerrar" (el campo del chat, por ejemplo).
+   * Solo con mouse: en pantallas táctiles abriría el teclado sin que se pida.
+   */
+  foco?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }
 
@@ -24,12 +29,13 @@ const ENFOCABLES = 'button:not([disabled]), [href], input:not([disabled]), selec
  * Un toque en el fondo, Escape o el botón "Cerrar" lo cierran, y el foco no
  * se escapa del panel mientras está abierto.
  */
-export function Panel({ id, titulo, alCerrar, clase = '', claseEncabezado = '', children }: PropiedadesPanel) {
+export function Panel({ id, titulo, alCerrar, clase = '', claseEncabezado = '', foco, children }: PropiedadesPanel) {
   const panel = useRef<HTMLElement>(null);
   const cerrar = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    cerrar.current?.focus();
+    const conMouse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: fine)').matches;
+    (conMouse && foco?.current ? foco.current : cerrar.current)?.focus();
     const alTeclear = (evento: KeyboardEvent) => {
       if (evento.key === 'Escape') {
         alCerrar();
@@ -52,7 +58,7 @@ export function Panel({ id, titulo, alCerrar, clase = '', claseEncabezado = '', 
     };
     document.addEventListener('keydown', alTeclear);
     return () => document.removeEventListener('keydown', alTeclear);
-  }, [alCerrar]);
+  }, [alCerrar, foco]);
 
   // Va directo en <body>: si no, hereda los estilos de quien lo abre (la barra de la mesa, por ejemplo).
   return createPortal(

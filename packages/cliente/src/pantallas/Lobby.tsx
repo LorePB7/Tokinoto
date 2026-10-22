@@ -1,8 +1,9 @@
+import { BotonChat } from '../componentes/Chat';
 import { Firma } from '../componentes/Firma';
 import { ControlSonido } from '../componentes/ControlSonido';
 import { BotonReglas } from '../componentes/Reglas';
 import { TIEMPO_TURNO_POR_DEFECTO_S } from '@tokinoto/protocolo';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTienda } from '../estado/contexto';
 
 const MINIMO = 4;
@@ -27,15 +28,51 @@ function enlaceDeLaSala(codigo: string): string {
   }
 }
 
-/** Sala de espera: se ve quién entró y el anfitrión inicia el juego. */
+/** El anfitrión confirma antes de sacar a alguien: la persona no puede volver a la sala. */
+function ConfirmarExpulsion({ nombre, alConfirmar, alCancelar }: { nombre: string; alConfirmar: () => void; alCancelar: () => void }) {
+  const ocupado = useTienda((s) => s.ocupado);
+  const cancelar = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    cancelar.current?.focus();
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') alCancelar();
+    };
+    document.addEventListener('keydown', alTeclear);
+    return () => document.removeEventListener('keydown', alTeclear);
+  }, [alCancelar]);
+  return (
+    <>
+      <div className="panel-fondo" aria-hidden="true" onClick={alCancelar} />
+      <div className="confirmar-expulsion" role="alertdialog" aria-modal="true" aria-label={`Sacar a ${nombre}`}>
+        <p>
+          ¿Sacás a <strong>{nombre}</strong> de la sala? No va a poder volver a entrar.
+        </p>
+        <div className="acciones">
+          <button type="button" className="boton chico" disabled={ocupado} onClick={alConfirmar}>
+            Sí, sacar
+          </button>
+          <button ref={cancelar} type="button" className="boton chico secundario" onClick={alCancelar}>
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/** Sala de espera: se ve quién entró y el anfitrión inicia el juego (o saca a alguien). */
 export function Lobby() {
   const sala = useTienda((s) => s.seguimiento.sala);
   const iniciar = useTienda((s) => s.iniciar);
   const salir = useTienda((s) => s.salir);
   const ocupado = useTienda((s) => s.ocupado);
   const configurarTiempo = useTienda((s) => s.configurarTiempo);
+  const expulsar = useTienda((s) => s.expulsar);
   const [copiado, setCopiado] = useState<'codigo' | 'enlace' | null>(null);
+  const [aExpulsar, setAExpulsar] = useState<string | null>(null);
+  const [cancelarExpulsion] = useState(() => () => setAExpulsar(null));
   if (!sala) return null;
+  const expulsado = sala.jugadores.find((j) => j.idJugador === aExpulsar);
 
   const soyAnfitrion = sala.anfitrion === sala.yo;
   const anfitrion = sala.jugadores.find((j) => j.idJugador === sala.anfitrion);
@@ -54,7 +91,10 @@ export function Lobby() {
   return (
     <main className="inicio lobby">
       <ControlSonido flotante />
-      <BotonReglas flotante />
+      <div className="flotantes-derecha">
+        <BotonChat flotante />
+        <BotonReglas flotante />
+      </div>
       <h1 className="logo">Tokinoto</h1>
       <div className="hoja">
         <div className="lobby-info">
@@ -111,6 +151,18 @@ export function Lobby() {
                 </span>
                 {j.idJugador === sala.anfitrion && <i className="insignia">Anfitrión</i>}
                 {!j.conectado && <i className="insignia alerta">Sin conexión</i>}
+                {soyAnfitrion && j.idJugador !== sala.yo && (
+                  <button
+                    type="button"
+                    className="boton-expulsar"
+                    aria-label={`Sacar a ${j.nombre} de la sala`}
+                    title="Sacar de la sala"
+                    disabled={ocupado}
+                    onClick={() => setAExpulsar(j.idJugador)}
+                  >
+                    <span aria-hidden="true">×</span>
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -132,6 +184,16 @@ export function Lobby() {
           </div>
         </div>
       </div>
+      {soyAnfitrion && expulsado && (
+        <ConfirmarExpulsion
+          nombre={expulsado.nombre}
+          alCancelar={cancelarExpulsion}
+          alConfirmar={() => {
+            setAExpulsar(null);
+            void expulsar(expulsado.idJugador);
+          }}
+        />
+      )}
       <Firma />
     </main>
   );

@@ -26,6 +26,8 @@ export type CodigoError =
   | 'YA_ESTAS_EN_UNA_SALA'
   | 'SESION_INVALIDA'
   | 'SESION_REEMPLAZADA'
+  /** El anfitrión sacó a esta persona de la sala (fase 7): no puede volver a esa sala. */
+  | 'EXPULSADO'
   // Cuenta (fase 6)
   | 'NO_IDENTIFICADO'
   | 'CREDENCIAL_INVALIDA'

@@ -537,6 +537,32 @@ async function entrar(pagina: Page): Promise<void> {
   await carga.waitFor({ state: 'detached', timeout: 10_000 });
 }
 
+/**
+ * Chat (fase 7): abre el panel, verifica que el campo y "Enviar" se vean enteros
+ * dentro de la pantalla, mide y lo cierra.
+ */
+async function revisarChat(j: Jugador, vista: string): Promise<void> {
+  const p = j.pagina;
+  await p.getByRole('button', { name: /^Chat/ }).click();
+  const panel = p.getByRole('dialog', { name: 'Chat' });
+  await panel.waitFor();
+  // En celulares el panel sube con una animación corta: se mide cuando terminó.
+  await panel.evaluate((e) => Promise.all(e.getAnimations().map((a) => a.finished)));
+  const dentro = await panel.evaluate((e) => {
+    const enPantalla = (x: Element | null) => {
+      if (!x) return false;
+      const c = x.getBoundingClientRect();
+      return c.top >= -1 && c.left >= -1 && c.bottom <= window.innerHeight + 1 && c.right <= window.innerWidth + 1 && c.height > 0;
+    };
+    return { panel: e.parentElement === document.body && enPantalla(e), campo: enPantalla(e.querySelector('input')), enviar: enPantalla(e.querySelector('button[type="submit"]')) };
+  });
+  verificar(dentro.panel && dentro.campo && dentro.enviar, `${j.nombre}: el chat (${vista}) no entra en la pantalla (${JSON.stringify(dentro)})`);
+  await medir(j, vista, await excesoDe(j, '.panel-chat'));
+  await captura(j, `chat-${vista.replace(/[ ()]/g, '-')}-${j.tamano}`);
+  await p.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached' });
+}
+
 /** Un botón de la barra de la mesa: directo en pantallas anchas, dentro del Menú en celulares. */
 async function abrirDesdeBarra(p: Page, nombre: string): Promise<void> {
   const directo = p.getByRole('button', { name: nombre, exact: true });
@@ -600,6 +626,43 @@ await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
 verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"`);
 
+// Expulsar (fase 7): alguien entra, el anfitrión lo saca con confirmación y esa persona no puede volver.
+{
+  const contexto = await navegador.newContext({ viewport: { width: 390, height: 844 } });
+  await contexto.addInitScript('globalThis.__name = (f) => f;');
+  await contexto.route(URL_GOOGLE, (ruta) => ruta.fulfill({ contentType: 'text/javascript', body: GOOGLE_FALSO }));
+  const intruso = await contexto.newPage();
+  intruso.on('pageerror', (e) => problemas.push(`Error de página (intruso): ${e.message}`));
+  await irA(intruso, `${urlCliente}?sala=${codigo}`);
+  await intruso.getByLabel('Tu nombre').fill('Intruso');
+  await intruso.getByRole('button', { name: 'Jugar como invitado' }).click();
+  await intruso.getByText('Jugás como').waitFor({ timeout: 10_000 });
+  await intruso.getByRole('button', { name: 'Unirme' }).click();
+  await intruso.getByTestId('codigo').waitFor();
+  verificar((await intruso.getByRole('button', { name: /^Sacar a / }).count()) === 0, 'Alguien que no es anfitrión ve el botón para sacar jugadores');
+
+  await anfitrion.pagina.getByText('Jugadores (2 de 7)').waitFor();
+  await anfitrion.pagina.getByRole('button', { name: 'Sacar a Intruso de la sala' }).click();
+  const confirmar = anfitrion.pagina.getByRole('alertdialog', { name: 'Sacar a Intruso' });
+  await confirmar.waitFor();
+  await medir(anfitrion, 'confirmar expulsión');
+  await captura(anfitrion, '2g-confirmar-expulsion');
+  await confirmar.getByRole('button', { name: 'Cancelar' }).click();
+  await confirmar.waitFor({ state: 'detached' });
+  verificar(await anfitrion.pagina.getByText('Jugadores (2 de 7)').isVisible(), 'Cancelar la expulsión sacó igual al jugador');
+  await anfitrion.pagina.getByRole('button', { name: 'Sacar a Intruso de la sala' }).click();
+  await confirmar.getByRole('button', { name: 'Sí, sacar' }).click();
+  await anfitrion.pagina.getByText('Jugadores (1 de 7)').waitFor({ timeout: 5000 });
+  await intruso.getByText('El anfitrión te sacó de la sala.').waitFor({ timeout: 5000 });
+  verificar((await intruso.getByTestId('codigo').count()) === 0, 'El expulsado sigue viendo la sala de espera');
+  // Intenta volver con el código: no puede.
+  await intruso.getByLabel('Código de la sala').fill(codigo);
+  await intruso.getByRole('button', { name: 'Unirme' }).click();
+  await intruso.getByText('no podés volver a entrar').waitFor({ timeout: 5000 });
+  verificar((await intruso.getByTestId('codigo').count()) === 0, 'El expulsado pudo volver a entrar a la sala');
+  await contexto.close();
+}
+
 for (const j of invitados) {
   await irA(j.pagina, `${urlCliente}?sala=${codigo}`);
   await medir(j, 'inicio con ?sala=');
@@ -634,6 +697,36 @@ for (const j of jugadores) {
   }
   await j.pagina.keyboard.press('Escape');
   await j.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor({ state: 'detached' });
+}
+
+// Chat (fase 7): llega a todos, marca los sin leer y muestra el texto tal cual (nunca como HTML).
+{
+  const texto = '¿Arrancamos? <b>no es html</b> https://ejemplo.com';
+  const p = anfitrion.pagina;
+  await p.getByRole('button', { name: 'Chat', exact: true }).click();
+  const panel = p.getByRole('dialog', { name: 'Chat' });
+  await panel.getByText('Los mensajes se borran al terminar.').waitFor();
+  await panel.getByLabel('Mensaje').fill(texto);
+  await panel.getByRole('button', { name: 'Enviar' }).click();
+  await panel.getByText(texto).waitFor({ timeout: 5000 });
+  verificar((await panel.getByLabel('Mensaje').inputValue()) === '', 'El campo del chat no se vació al enviar');
+  verificar((await panel.locator('b, a').count()) === 0, 'El chat interpretó el texto como HTML');
+  await p.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached' });
+  verificar((await p.getByRole('button', { name: /sin leer/ }).count()) === 0, 'Los mensajes propios cuentan como sin leer');
+  for (const j of invitados) await j.pagina.getByRole('button', { name: 'Chat (1 sin leer)' }).waitFor({ timeout: 5000 });
+  const otro = invitados[0]!.pagina;
+  await otro.getByRole('button', { name: 'Chat (1 sin leer)' }).click();
+  const suyo = otro.getByRole('dialog', { name: 'Chat' });
+  await suyo.getByText(texto).waitFor();
+  await suyo.getByLabel('Mensaje').fill('Dale');
+  await suyo.getByLabel('Mensaje').press('Enter');
+  await suyo.getByText('Dale', { exact: true }).waitFor({ timeout: 5000 });
+  await otro.keyboard.press('Escape');
+  await otro.getByRole('button', { name: 'Chat', exact: true }).waitFor();
+  await p.getByRole('button', { name: 'Chat (1 sin leer)' }).waitFor({ timeout: 5000 });
+  for (const j of jugadores) await revisarChat(j, 'chat en la sala de espera');
+  await p.getByRole('button', { name: 'Chat', exact: true }).waitFor();
 }
 
 // Copiar: el código y el enlace llegan bien al portapapeles.
@@ -717,8 +810,8 @@ async function auditarVista(j: Jugador): Promise<void> {
       await p.getByRole('button', { name: 'Menú', exact: true }).click();
       await medir(j, 'menú abierto', await excesoDeScroll(j));
       await captura(j, `2e-menu-${j.tamano}`);
-      for (const nombre of ['Puntos', 'Menú']) {
-        const caja = await p.getByRole('button', { name: nombre, exact: true }).boundingBox();
+      for (const nombre of ['Puntos', 'Menú', 'Chat']) {
+        const caja = await p.getByRole('button', { name: nombre === 'Chat' ? /^Chat/ : nombre, exact: nombre !== 'Chat' }).boundingBox();
         verificar(!!caja && caja.width >= 43.5 && caja.height >= 43.5, `${j.nombre}: el botón ${nombre} mide ${caja?.width}×${caja?.height} (mínimo 44)`);
       }
       await p.keyboard.press('Escape');
@@ -729,6 +822,8 @@ async function auditarVista(j: Jugador): Promise<void> {
       await medir(j, 'confirmar salida', await excesoDeScroll(j));
       await p.getByRole('button', { name: 'Seguir jugando' }).click();
     }
+    // Chat en plena partida: entra en la pantalla y el campo queda a la vista.
+    await revisarChat(j, 'chat durante la partida');
     // Reglas abierto en plena partida: el panel no puede heredar los estilos de la barra de la mesa.
     await abrirDesdeBarra(p, 'Reglas');
     const reglas = p.getByRole('dialog', { name: 'Reglas del juego' });

@@ -187,7 +187,13 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
   const enviar = (mensaje: MensajeServidor): void => {
     socket.emit(CANAL_MENSAJES, mensaje);
   };
-  const destino: Destino = { enviar };
+  const destino: Destino = {
+    enviar,
+    // El anfitrión lo sacó de la sala (fase 7): esta conexión queda sin sala, pero identificada.
+    alExpulsar: () => {
+      vinculo = null;
+    },
+  };
 
   // Cuenta todo lo que llega (también nombres de evento desconocidos, que se ignoran).
   socket.onAny((canal: unknown, crudo: unknown) => {

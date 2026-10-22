@@ -32,7 +32,9 @@ export function describirEvento(
     case 'sala.jugadorEntro':
       return `${evento.datos.nombre} entró a la sala`;
     case 'sala.jugadorSalio':
-      return `${nombreDeJugador(antes, evento.datos.idJugador)} salió de la sala`;
+      return evento.datos.expulsado
+        ? `El anfitrión sacó a ${nombreDeJugador(antes, evento.datos.idJugador)} de la sala`
+        : `${nombreDeJugador(antes, evento.datos.idJugador)} salió de la sala`;
     case 'sala.anfitrionCambio':
       return `${nombreDeJugador(despues, evento.datos.anfitrion)} es el nuevo anfitrión`;
     case 'sala.resumenPausado':

@@ -34,6 +34,13 @@ export const TIEMPO_TURNO_MAXIMO_S = 120;
 /** Vencimientos seguidos tras los cuales el piloto automático toma el asiento (DP-13). */
 export const VENCIMIENTOS_PARA_PILOTO = 3;
 
+/** Chat de sala (DP-22, fase 7): largo máximo de un mensaje. */
+export const LARGO_MAXIMO_CHAT = 200;
+/** Cuántos mensajes de chat guarda la sala (en memoria) y recibe quien entra o vuelve. */
+export const MENSAJES_DE_CHAT_GUARDADOS = 50;
+/** Ritmo del chat por jugador: una ráfaga corta y después un mensaje por segundo. */
+export const LIMITE_CHAT = { capacidad: 3, porSegundo: 1 } as const;
+
 // ---------------------------------------------------------------------------
 // Comandos del cliente
 // ---------------------------------------------------------------------------
@@ -52,6 +59,18 @@ const codigoSala = z
   .regex(new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`), 'El código de sala no es válido');
 
 const sinDatos = z.strictObject({}).optional();
+
+/**
+ * Texto de chat: de 1 a 200 caracteres, una sola línea. Se rechazan los
+ * caracteres de control y los que invierten la dirección del texto (servirían
+ * para disfrazar un mensaje). Los emojis compuestos sí se aceptan.
+ */
+const textoChat = z
+  .string()
+  .trim()
+  .min(1, 'El mensaje está vacío')
+  .max(LARGO_MAXIMO_CHAT, `El mensaje puede tener hasta ${LARGO_MAXIMO_CHAT} caracteres`)
+  .regex(/^[^\p{Cc}\u202A-\u202E\u2066-\u2069]+$/u, 'El mensaje tiene caracteres no permitidos');
 
 /** Largo máximo de una sesión firmada por el servidor. */
 export const LARGO_MAXIMO_SESION = 512;
@@ -109,6 +128,16 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     datos: z.strictObject({
       tiempoTurno: z.int().min(TIEMPO_TURNO_MINIMO_S).max(TIEMPO_TURNO_MAXIMO_S).nullable(),
     }),
+  }),
+  z.strictObject({
+    tipo: z.literal('sala.expulsar'),
+    /** Solo el anfitrión, en la sala de espera, y nunca a sí mismo. La persona no puede volver a esa sala. */
+    datos: z.strictObject({ idJugador: z.string().min(1).max(64) }),
+  }),
+  z.strictObject({
+    tipo: z.literal('chat.enviar'),
+    /** Mensaje para toda la sala. No se guarda en la base: vive mientras exista la sala. */
+    datos: z.strictObject({ texto: textoChat }),
   }),
   z.strictObject({ tipo: z.literal('sala.salir'), datos: sinDatos }),
   z.strictObject({ tipo: z.literal('sala.iniciar'), datos: sinDatos }),
@@ -250,7 +279,8 @@ export type MotivoPiloto = 'desconexion' | 'tiempo' | 'abandono';
 /** Datos de cada evento numerado, por tipo. */
 export interface DatosEventos {
   'sala.jugadorEntro': { idJugador: string; nombre: string };
-  'sala.jugadorSalio': { idJugador: string };
+  /** `expulsado`: lo sacó el anfitrión (fase 7). */
+  'sala.jugadorSalio': { idJugador: string; expulsado?: boolean };
   'sala.anfitrionCambio': { anfitrion: string };
   'sala.resumenPausado': { pausado: boolean };
   /** El anfitrión cambió el tiempo por jugada (solo antes de iniciar). null = sin límite. */
@@ -289,6 +319,36 @@ export interface MensajeFoto {
   datos: VistaSala;
 }
 
+/** Un mensaje del chat de la sala (DP-22). */
+export interface MensajeDeChat {
+  /** Número creciente dentro de la sala: ordena los mensajes y evita duplicados. */
+  id: number;
+  idJugador: string;
+  /** Nombre de quien lo mandó en ese momento (queda aunque después salga de la sala). */
+  nombre: string;
+  texto: string;
+  /** Hora del servidor, en ms. */
+  hora: number;
+}
+
+/**
+ * Mensaje de chat. Va FUERA de la secuencia numerada de eventos (no lleva
+ * `seq`): no se guarda en el registro ni en la base y no afecta la
+ * reconstrucción de los juegos.
+ */
+export interface MensajeChat {
+  v: number;
+  tipo: 'chat.mensaje';
+  datos: MensajeDeChat;
+}
+
+/** Aviso privado a quien el anfitrión sacó de la sala (fase 7). Tampoco lleva `seq`. */
+export interface MensajeExpulsado {
+  v: number;
+  tipo: 'sala.expulsado';
+  datos: { codigo: string };
+}
+
 export interface MensajeOk {
   v: number;
   tipo: 'ok';
@@ -303,7 +363,7 @@ export interface MensajeError {
   datos: ErrorServidor;
 }
 
-export type MensajeServidor = MensajeOk | MensajeError | MensajeEvento | MensajeFoto;
+export type MensajeServidor = MensajeOk | MensajeError | MensajeEvento | MensajeFoto | MensajeChat | MensajeExpulsado;
 
 /** Respuesta a un comando: confirmación (con datos opcionales) o rechazo. */
 export type Respuesta = { ok: true; datos: Record<string, unknown> } | { ok: false; error: ErrorServidor };
