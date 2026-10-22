@@ -20,6 +20,7 @@ function foto(seq: number, cambios: Partial<VistaSala> = {}): MensajeServidor {
       jugadores: [{ idJugador: 'ana', nombre: 'Ana', conectado: true, piloto: null }],
       tiempoTurnoMs: 30000,
       horaServidor: 1000,
+      chat: [],
       juego: null,
       ...cambios,
     },

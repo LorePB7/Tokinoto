@@ -203,6 +203,7 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 
 **Sala**
 - código, anfitrión, estado de la sala, configuración (cantidad de jugadores, tiempos), lista de asientos.
+- Desde la fase 7: los últimos 50 mensajes de chat (solo en memoria, fuera del registro de eventos; se borran al cerrarse la sala) y la lista de personas expulsadas (por clave de identidad), que no pueden volver a esa sala.
 
 **Asiento / Jugador**
 - id de jugador, nombre, número de asiento, conectado o no, piloto automático activo o no, contador de vencimientos seguidos, puntajes por partida (hasta 14), puntaje total.
@@ -252,6 +253,7 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 - El asiento se recupera con la sesión: el servidor recuerda en qué sala está sentada cada persona (una sala activa a la vez). El token interno del asiento ya no sale del servidor.
 - Quien pierde la sesión (borra los datos del navegador) vuelve a entrar con Google y recupera su asiento; un invitado lo pierde, y lo cubre el piloto automático.
 - Detalle en [`protocolo.md`](protocolo.md#cuentas-y-sesiones).
+- Fase 7: la expulsión se hace sobre la clave de la persona (`g:<cuentaId>` o `i:<idInvitado>`), así no vuelve a esa sala ni con otra pestaña ni con otro nombre. Con otra cuenta de Google o como invitado nuevo sí podría: para un grupo de amigos alcanza.
 
 ### 3.9 Seguridad básica
 🔵
@@ -265,7 +267,7 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 ### 3.10 Sonido (cliente, fase 4)
 - Generado con Web Audio en el navegador (`cliente/src/sonido`): sin archivos de audio, sin cambios en la CSP, sin tocar servidor ni protocolo.
 - `control.ts`: preferencias (sonido, volumen, música) recordadas en el navegador, todo activado al inicio con volumen bajo; no suena hasta el primer toque; separación mínima por sonido para que turno y chat no suenen en cascada; la música se corta con la pestaña en segundo plano.
-- `eventos.ts`: función pura mensaje → sonidos (carta tirada, baza ganada por mí, mi turno, fin de partida, podio). Las fotos no suenan. El chat suma su sonido en la fase 7.
+- `eventos.ts`: función pura mensaje → sonidos (carta tirada, baza ganada por mí, mi turno, fin de partida, podio). Las fotos no suenan. Desde la fase 7, un `chat.mensaje` de otra persona suena con `chat` (los propios, no).
 - `sintetizador.ts`: tonos y música de fondo (La m, Fa, Do, Sol, en loop).
 - Control en la barra de la mesa y flotante en inicio y sala. Prueba de oído: agregar `#sonidos` al final de la dirección.
 

@@ -25,7 +25,7 @@ import {
   type GameState,
   type Phase,
 } from '@tokinoto/reglas';
-import type { AsientoPublico, CartaSacada, MotivoPiloto, PuestoEnRanking } from './protocolo';
+import type { AsientoPublico, CartaSacada, MensajeDeChat, MotivoPiloto, PuestoEnRanking } from './protocolo';
 
 /** ESPERANDO = lobby; JUGANDO = juego en curso; TERMINADO = juego terminado o abortado. */
 export type EstadoSala = 'ESPERANDO' | 'JUGANDO' | 'TERMINADO';
@@ -52,6 +52,8 @@ export interface VistaSala {
   jugadores: JugadorDeSala[];
   /** Hora del servidor al armar la foto (para calcular la diferencia de relojes). */
   horaServidor: number;
+  /** Últimos mensajes del chat de la sala (fase 7), del más viejo al más nuevo. */
+  chat: MensajeDeChat[];
   juego: VistaJuego | null;
 }
 

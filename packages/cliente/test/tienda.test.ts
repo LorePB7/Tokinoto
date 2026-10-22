@@ -140,6 +140,58 @@ describe('tienda contra un servidor real', () => {
 
 });
 
+describe('expulsar y chat (fase 7)', () => {
+  it('el anfitrión saca a alguien: vuelve al inicio con un aviso y no puede volver a esa sala', async () => {
+    const ana = tiendaDePrueba(mundo.url);
+    const beto = tiendaDePrueba(mundo.url);
+    mundo.tiendas.push(ana, beto);
+    await crearComo(ana, 'Ana');
+    const codigo = salaDe(ana)!.codigo;
+    await unirseComo(beto, codigo, 'Beto');
+    await esperar(() => salaDe(ana)?.jugadores.length === 2);
+    const idBeto = beto.getState().idJugador!;
+
+    // Un invitado no puede sacar a nadie.
+    expect(await beto.getState().expulsar(ana.getState().idJugador!)).toBe(false);
+    expect(await ana.getState().expulsar(idBeto)).toBe(true);
+    await esperar(() => salaDe(beto) === null);
+    expect(beto.getState().conexion).toBe('inactiva');
+    expect(beto.getState().aviso?.texto).toBe('El anfitrión te sacó de la sala.');
+    expect(beto.getState().cuenta).toEqual({ tipo: 'invitado', nombre: 'Beto' });
+    await esperar(() => salaDe(ana)?.jugadores.length === 1);
+    expect(ana.getState().registro.map((l) => l.texto)).toContain('El anfitrión sacó a Beto de la sala');
+
+    expect(await beto.getState().unirse(codigo)).toBe(false);
+    expect(beto.getState().aviso?.texto).toMatch(/no podés volver a entrar/);
+    // Puede armar otra sala.
+    expect(await beto.getState().crearSala()).toBe(true);
+  });
+
+  it('el chat llega a todos, cuenta los sin leer y no bloquea los botones del juego', async () => {
+    const ana = tiendaDePrueba(mundo.url);
+    const beto = tiendaDePrueba(mundo.url);
+    mundo.tiendas.push(ana, beto);
+    await crearComo(ana, 'Ana');
+    await unirseComo(beto, salaDe(ana)!.codigo, 'Beto');
+
+    const enviado = ana.getState().enviarChat('Hola');
+    expect(ana.getState().ocupado).toBe(false);
+    expect(await enviado).toBe(true);
+    await esperar(() => salaDe(beto)?.chat.length === 1);
+    expect(salaDe(beto)!.chat[0]).toMatchObject({ nombre: 'Ana', texto: 'Hola' });
+    expect(beto.getState().chatLeido).toBe(0);
+    beto.getState().marcarChatLeido();
+    expect(beto.getState().chatLeido).toBe(salaDe(beto)!.chat[0]!.id);
+
+    // El servidor rechaza los vacíos y la tienda lo avisa.
+    expect(await ana.getState().enviarChat('   ')).toBe(false);
+    expect(ana.getState().aviso).not.toBeNull();
+    // Al salir, el chat (y lo leído) se olvidan.
+    await beto.getState().salir();
+    expect(beto.getState().chatLeido).toBe(0);
+  });
+});
+
 describe('ausencias (etapa 6)', () => {
   it('la sala usa 30 s por jugada, o ninguno si se pide', async () => {
     const [ana, beto] = [tiendaDePrueba(mundo.url), tiendaDePrueba(mundo.url)];

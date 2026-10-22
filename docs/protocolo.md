@@ -44,6 +44,8 @@ Reglas generales:
 | `sala.unirse` | `{ codigo }` | Identificado, sin sala, con el lobby abierto. Si la persona ya tenía asiento en esa sala (otra pestaña u otro dispositivo), vuelve a ese asiento en vez de ocupar otro |
 | `sala.reconectar` | — | Identificado, sin sala. Vuelve al asiento que la persona tiene en una sala (DP-14) |
 | `sala.salir` | — | Cualquier jugador. Con el juego en curso es **abandonar**: el asiento queda y el piloto automático juega por él |
+| `sala.expulsar` | `{ idJugador }` | Anfitrión, en el lobby, antes de iniciar, nunca sobre sí mismo (fase 7, DP-15). Saca a ese jugador: recibe `sala.expulsado`, los demás `sala.jugadorSalio` con `expulsado: true`, y la persona queda bloqueada en esa sala (`EXPULSADO` si intenta volver) |
+| `chat.enviar` | `{ texto }` | Cualquier jugador de la sala, en cualquier momento (fase 7, DP-22). De 1 a 200 caracteres, se recorta, sin saltos de línea ni caracteres de control o de dirección del texto. Ráfaga de 3 y después 1 por segundo por jugador (`DEMASIADOS_MENSAJES`). Responde `{ id }` y todos (también quien lo mandó) reciben `chat.mensaje` |
 | `sala.iniciar` | — | Anfitrión, en el lobby, con 4 a 7 jugadores |
 | `sala.pausarResumen` | `{ pausar }` | Anfitrión, durante el juego (DP-23) |
 | `juego.apostar` | `{ valor }` | Quien tiene el turno de apuesta |
@@ -119,12 +121,13 @@ Si el mensaje no se puede leer, el `error` llega con `idPedido: null`. También 
 | `CREDENCIAL_INVALIDA` | Google no validó el token (firma, audiencia, emisor o vencimiento) |
 | `LOGIN_NO_DISPONIBLE` | El servidor no tiene configurado el ingreso con Google: solo invitados |
 | `SESION_REEMPLAZADA` | La misma sesión se abrió desde otra conexión: esta deja de valer |
+| `EXPULSADO` | El anfitrión sacó a esta persona de la sala: no puede volver a entrar ni reconectarse a ella |
 | `MENSAJE_INVALIDO` | No cumple el esquema |
 | `VERSION_NO_SOPORTADA` | Otra versión del protocolo: hay que actualizar la página |
 | `DEMASIADOS_MENSAJES` | Superó el límite de frecuencia |
 | `ERROR_INTERNO` | Falla inesperada del servidor |
 
-🔵 Respecto del diseño técnico se agregaron `JUEGO_NO_INICIADO`, `NOMBRE_EN_USO`, `YA_ESTAS_EN_UNA_SALA`, `SESION_INVALIDA`, `SESION_REEMPLAZADA`, `VERSION_NO_SOPORTADA` y `ERROR_INTERNO`; en la fase 6, `NO_IDENTIFICADO`, `CREDENCIAL_INVALIDA` y `LOGIN_NO_DISPONIBLE`.
+🔵 Respecto del diseño técnico se agregaron `JUEGO_NO_INICIADO`, `NOMBRE_EN_USO`, `YA_ESTAS_EN_UNA_SALA`, `SESION_INVALIDA`, `SESION_REEMPLAZADA`, `VERSION_NO_SOPORTADA` y `ERROR_INTERNO`; en la fase 6, `NO_IDENTIFICADO`, `CREDENCIAL_INVALIDA` y `LOGIN_NO_DISPONIBLE`; en la fase 7, `EXPULSADO`.
 
 ### Cuentas y sesiones
 
@@ -148,6 +151,7 @@ Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que e
 ```json
 { "v": 2, "tipo": "sala.jugadorEntro", "seq": 3, "datos": { "idJugador": "…", "nombre": "Caro" } }
 { "v": 2, "tipo": "sala.jugadorSalio", "seq": 4, "datos": { "idJugador": "…" } }
+{ "v": 2, "tipo": "sala.jugadorSalio", "seq": 5, "datos": { "idJugador": "…", "expulsado": true } }
 { "v": 2, "tipo": "sala.anfitrionCambio", "seq": 5, "datos": { "anfitrion": "…idJugador…" } }
 { "v": 2, "tipo": "sala.configuracion", "seq": 6, "datos": { "tiempoTurnoMs": 60000 } }
 { "v": 2, "tipo": "jugador.conexion", "seq": 90, "datos": { "idJugador": "…", "asiento": 2, "conectado": false } }
@@ -218,6 +222,20 @@ Reglas oficiales del modo online (DP-12 a DP-14):
 - Si la misma persona vuelve a la sala desde otra conexión (otra pestaña u otro dispositivo), la nueva reemplaza a la anterior, que recibe `SESION_REEMPLAZADA`.
 - En la revancha, quien sigue desconectado empieza con el piloto activo.
 
+### Fuera de la secuencia: chat y expulsión (fase 7)
+
+Estos dos mensajes **no llevan `seq`**: no entran al registro de eventos de la sala ni a la base, y no afectan la reconstrucción de los juegos.
+
+```json
+{ "v": 2, "tipo": "chat.mensaje", "datos": { "id": 7, "idJugador": "…", "nombre": "Ana", "texto": "¿Arrancamos?", "hora": 1760572800000 } }
+{ "v": 2, "tipo": "sala.expulsado", "datos": { "codigo": "K7QM2XPA" } }
+```
+
+- `chat.mensaje.id` crece dentro de cada sala. El cliente ignora uno con `id` menor o igual al último que tiene (repetido o ya incluido en la foto).
+- `nombre` es el que tenía quien lo mandó; el mensaje queda aunque esa persona salga de la sala.
+- La sala guarda en memoria los últimos 50 mensajes y los manda en la foto (`chat`). Al cerrarse la sala, se borran.
+- `sala.expulsado` llega solo a la persona expulsada, justo antes de que su conexión quede fuera de la sala. Sigue identificada: puede crear otra sala o unirse a otra, pero no a esa.
+
 ## Foto del estado
 
 La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que puede saber de su sala y del juego en curso, y nada más. Se envía al entrar a la sala, al volver con `sala.reconectar` y como respuesta a `sync.pedir`. Su `seq` es el del último evento que ya incluye, así que el siguiente evento llega con `seq + 1`.
@@ -230,6 +248,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
     "tiempoTurnoMs": 30000, "resumenPausado": false,
     "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true, "piloto": null } ],
     "horaServidor": 1760572800000,
+    "chat": [ { "id": 1, "idJugador": "…", "nombre": "Ana", "texto": "¡Suerte!", "hora": 1760572790000 } ],
     "juego": {
       "fase": "TIRADAS",
       "asientos": [ { "asiento": 0, "idJugador": "…", "nombre": "Ana" } ],
@@ -260,6 +279,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
 - `puntajes[asiento][partida - 1]` son los puntos de cada partida jugada. Sirven para el desempate final.
 - `jugadores[].piloto` indica si el piloto automático juega por ese jugador y por qué (`desconexion`, `abandono`, `tiempo`), o `null`.
 - `horaServidor` permite al cliente calcular la diferencia con su reloj y mostrar bien la cuenta regresiva.
+- `chat` trae los últimos mensajes del chat de la sala (hasta 50), del más viejo al más nuevo.
 
 ## Seguimiento del estado en el cliente
 
@@ -269,6 +289,7 @@ El cliente guarda la última foto y le aplica cada evento en orden, con `aplicar
 2. Al recibir el evento con `seq` siguiente, lo aplica.
 3. Si llega un evento repetido o viejo, lo ignora.
 4. Si detecta un salto en `seq`, queda **desincronizado**: ignora eventos, envía `sync.pedir` y espera la foto nueva.
+5. Los `chat.mensaje` se suman a `sala.chat` sin tocar `seq` (y se ignoran los repetidos). `sala.expulsado` no cambia el estado: la tienda del cliente vuelve al inicio.
 
 **Garantía** (verificada por las pruebas en cada paso de juegos completos): lo que el cliente reconstruye con los eventos es idéntico a la foto que le armaría el servidor en ese momento.
 

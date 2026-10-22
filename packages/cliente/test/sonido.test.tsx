@@ -196,6 +196,15 @@ describe('qué suena con cada mensaje', () => {
     expect(sonidosDelMensaje(cartaDeOtro, estado({}), estado(mio, 'tiempo'))).toEqual(['carta']);
   });
 
+  it('el chat suena solo con mensajes de otros', () => {
+    const chat = (idJugador: string) => ({ v: 1, tipo: 'chat.mensaje', datos: { id: 1, idJugador, nombre: 'X', texto: 'hola', hora: 0 } }) as unknown as MensajeServidor;
+    expect(sonidosDelMensaje(chat('b'), estado({}), estado({}))).toEqual(['chat']);
+    expect(sonidosDelMensaje(chat('a'), estado({}), estado({}))).toEqual([]);
+    // Repetido (el estado no cambió): no suena.
+    const mismo = estado({});
+    expect(sonidosDelMensaje(chat('b'), mismo, mismo)).toEqual([]);
+  });
+
   it('las fotos y los desfasajes no suenan', () => {
     const foto = { v: 1, tipo: 'estado.foto', seq: 5, datos: {} } as unknown as MensajeServidor;
     const mio = estado({ turno: { tipo: 'apuesta', asiento: 0 } });

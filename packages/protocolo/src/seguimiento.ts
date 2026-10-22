@@ -12,7 +12,7 @@
  * Todas las funciones son puras: no modifican el estado que reciben.
  */
 import { DEFAULT_CONFIG } from '@tokinoto/reglas';
-import type { AsientoPublico, MensajeEvento, MensajeServidor } from './protocolo';
+import { MENSAJES_DE_CHAT_GUARDADOS, type AsientoPublico, type MensajeEvento, type MensajeServidor } from './protocolo';
 import type { VistaJuego, VistaSala } from './vista';
 
 export interface EstadoCliente {
@@ -30,7 +30,8 @@ export function aplicarMensaje(estado: EstadoCliente, mensaje: MensajeServidor):
   if (mensaje.tipo === 'estado.foto') {
     return { seq: mensaje.seq, sala: structuredClone(mensaje.datos), desincronizado: false };
   }
-  if (mensaje.tipo === 'ok' || mensaje.tipo === 'error') return estado;
+  if (mensaje.tipo === 'ok' || mensaje.tipo === 'error' || mensaje.tipo === 'sala.expulsado') return estado;
+  if (mensaje.tipo === 'chat.mensaje') return agregarChat(estado, mensaje.datos);
 
   // Mientras espera una foto, ignora los eventos.
   if (!estado.sala || estado.desincronizado) return estado;
@@ -41,6 +42,19 @@ export function aplicarMensaje(estado: EstadoCliente, mensaje: MensajeServidor):
   const sala = structuredClone(estado.sala);
   if (!aplicarEvento(sala, mensaje)) return { ...estado, desincronizado: true };
   return { seq: mensaje.seq, sala, desincronizado: false };
+}
+
+/**
+ * Suma un mensaje de chat. El chat va fuera de la secuencia de eventos: no
+ * toca `seq` ni marca desincronización. Uno repetido o más viejo que el
+ * último se ignora (la foto ya lo trae).
+ */
+function agregarChat(estado: EstadoCliente, mensaje: Extract<MensajeServidor, { tipo: 'chat.mensaje' }>['datos']): EstadoCliente {
+  if (!estado.sala) return estado;
+  const ultimo = estado.sala.chat.at(-1);
+  if (ultimo && mensaje.id <= ultimo.id) return estado;
+  const chat = [...estado.sala.chat, { ...mensaje }].slice(-MENSAJES_DE_CHAT_GUARDADOS);
+  return { ...estado, sala: { ...estado.sala, chat } };
 }
 
 /** Un juego recién iniciado, antes del sorteo. */

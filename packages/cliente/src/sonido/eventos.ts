@@ -20,6 +20,10 @@ export function sonidosDelMensaje(
   previo: EstadoCliente,
   nuevo: EstadoCliente,
 ): NombreSonido[] {
+  // Chat (fase 7): suena solo con mensajes de otras personas, nunca con los propios.
+  if (mensaje.tipo === 'chat.mensaje') {
+    return nuevo !== previo && nuevo.sala && mensaje.datos.idJugador !== nuevo.sala.yo ? ['chat'] : [];
+  }
   if (!esEvento(mensaje) || nuevo === previo || nuevo.desincronizado || !nuevo.sala) return [];
   const juego = nuevo.sala.juego;
   const sonidos: NombreSonido[] = [];
