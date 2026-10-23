@@ -156,10 +156,21 @@ Quedan, sin cambiar (fuera de este alcance):
 
 ## Arreglo: sala de espera en una columna (desktop)
 
-- **Desktop (más de 820 px de ancho y al menos 700 de alto):** la sala de espera usa la misma tarjeta angosta que la entrada
+- **Desktop (más de 820 px de ancho y al menos 710 de alto):** la sala de espera usa la misma tarjeta angosta que la entrada
   (420 px) y todo va en vertical: Copiar código y Copiar enlace, los jugadores (uno por renglón) e Iniciar juego y Salir de
   la sala. El e2e verifica que cada grupo quede en una sola columna.
 - **Altura.** Apilada, con 7 jugadores hacen falta casi 1000 px de alto. Hasta 1000 px se compacta (logo de 30 px, renglones
-  y botones más bajos) y la firma no se muestra, como en el resto del juego. Con menos de 700 px de alto no hay lugar sin
+  y botones más bajos) y la firma no se muestra, como en el resto del juego. Con menos de 710 px de alto no hay lugar sin
   hacer scroll, así que ahí queda el diseño anterior (columnas y botones lado a lado), que sí entra.
 - **Celulares:** sin cambios.
+
+## Arreglo: logo de la sala y pantalla de crear o unirse (desktop)
+
+- **Logo de la sala.** En desktop mide igual que en la entrada y en crear o unirse (se sacó el tamaño propio que tenía la
+  sala y el de 30 px de la versión compacta). En celulares sigue un poco más chico, para que entren 7 jugadores.
+- **Crear o unirse a una sala.** En desktop (más de 820 px de ancho y al menos 700 de alto) «Crear una sala» y «Unirme a una
+  sala» van uno debajo del otro, en la misma tarjeta de 420 px. Con menos de 700 px de alto queda lado a lado, que es lo que
+  entra sin scroll. El e2e verifica la columna.
+- **Sala de espera compacta.** Con el logo grande hubo que ajustar más: en pantallas de hasta 1000 px de alto se oculta el aviso
+  del piloto automático (además de la firma) y los renglones y botones son un poco más bajos. El piso del diseño apilado pasó de
+  700 a 710 px de alto.
