@@ -21,6 +21,9 @@
  * Para el modo --publicado, construí el cliente con GOOGLE_CLIENT_ID definido
  * (cualquier valor) para que aparezca el botón.
  *
+ * Con --bots N (de 3 a 6) juega una sola persona contra N bots (fase 8):
+ * entra, elige "Contra bots", juega las 14 partidas y pide la revancha.
+ *
  * Si está definida DATABASE_URL, el servidor guarda el historial en esa base
  * (etapa 7) y al final se verifica que el juego quedó guardado y es consistente.
  *
@@ -37,9 +40,15 @@ import { chromium, devices, type Browser, type BrowserContext, type Page } from 
 import { createServer } from 'vite';
 
 const { values } = parseArgs({
-  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false }, barrido: { type: 'boolean', default: false }, dispositivos: { type: 'boolean', default: false }, ventanas: { type: 'string', default: '' }, publicado: { type: 'boolean', default: false }, auditoria: { type: 'boolean', default: false } },
+  options: { jugadores: { type: 'string', default: '4' }, capturas: { type: 'string', default: '' }, corto: { type: 'boolean', default: false }, barrido: { type: 'boolean', default: false }, dispositivos: { type: 'boolean', default: false }, ventanas: { type: 'string', default: '' }, publicado: { type: 'boolean', default: false }, auditoria: { type: 'boolean', default: false }, bots: { type: 'string', default: '' } },
 });
-const cantidad = Number(values.jugadores);
+/** Fase 8: con --bots N juega una sola persona contra N bots. */
+const cantidadBots = values.bots ? Number(values.bots) : 0;
+if (values.bots && (!Number.isInteger(cantidadBots) || cantidadBots < 3 || cantidadBots > 6)) throw new Error('--bots debe ser de 3 a 6');
+/** Jugadores en la mesa (personas y bots). */
+const cantidad = cantidadBots ? cantidadBots + 1 : Number(values.jugadores);
+/** Navegadores: uno por persona. */
+const personas = cantidadBots ? 1 : cantidad;
 const carpeta = values.capturas || '';
 if (carpeta) mkdirSync(carpeta, { recursive: true });
 if (!Number.isInteger(cantidad) || cantidad < 4 || cantidad > 7) throw new Error('--jugadores debe ser de 4 a 7');
@@ -171,7 +180,7 @@ const DISPOSITIVOS = [
 ];
 
 const jugadores: Jugador[] = [];
-for (let i = 0; i < cantidad; i++) {
+for (let i = 0; i < personas; i++) {
   const t = TAMANOS[i]!;
   const perfil = values.dispositivos ? DISPOSITIVOS[i]! : null;
   const vp = perfil?.opciones.viewport ?? { width: t.ancho, height: t.alto };
@@ -201,6 +210,8 @@ async function excesoDeScroll(j: Jugador): Promise<number> {
 /** Peor exceso de scroll visto en cada combinación de pantalla y vista. */
 const peor = new Map<string, number>();
 const medidas = new Set<string>();
+/** Capturas y revisiones ya hechas (una vez por jugador y vista). */
+const capturado = new Set<string>();
 
 /** Mide una sola vez por jugador y vista cuánto se pasa la página (o su ventana) del alto de la pantalla. */
 async function medir(j: Jugador, vista: string, exceso?: number, repetida = vista): Promise<void> {
@@ -590,6 +601,80 @@ async function abrirDesdeBarra(p: Page, nombre: string): Promise<void> {
   await parado.close();
 }
 
+/**
+ * Fase 8: una persona contra bots. Entra, abre "Contra bots", elige la
+ * cantidad y el nivel, juega las 14 partidas tocando la pantalla y pide la
+ * revancha. Los bots juegan solos en el servidor.
+ */
+async function jugarContraBots(): Promise<void> {
+  const j = jugadores[0]!;
+  const p = j.pagina;
+  await irA(p, urlCliente!);
+  await p.getByLabel('Tu nombre').fill(j.nombre);
+  await p.getByRole('button', { name: 'Jugar como invitado' }).click();
+  await p.getByText('Jugás como').waitFor({ timeout: 10_000 });
+  await medir(j, 'inicio con cuenta');
+  await p.getByRole('button', { name: 'Contra bots' }).click();
+  const panel = p.getByRole('dialog', { name: 'Jugar contra bots' });
+  await panel.waitFor();
+  await medir(j, 'jugar contra bots (panel)', await excesoDe(j, '.panel-bots'));
+  await captura(j, `bots-0-panel-${j.tamano}`);
+  await panel.getByLabel('Rivales').selectOption(String(cantidadBots));
+  await panel.getByRole('radio', { name: /Difícil/ }).check();
+  await panel.getByRole('button', { name: 'Empezar' }).click();
+  await p.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
+  const iconos = await p.locator('.asiento .nombre i.bot.nivel-dificil').count();
+  verificar(iconos === cantidadBots, `Se esperaban ${cantidadBots} íconos de bot difícil en la mesa y hay ${iconos}`);
+  await captura(j, `bots-1-mesa-${j.tamano}`);
+
+  const limiteBots = Date.now() + 600_000;
+  let fin = false;
+  while (!fin && Date.now() < limiteBots) {
+    await actuar(j);
+    fin = (await p.locator('.ranking').count()) > 0;
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  verificar(fin, 'El juego contra bots no terminó a tiempo');
+  if (fin) {
+    await captura(j, `bots-2-final-${j.tamano}`);
+    const filas = await p.locator('.ranking li, .ranking tr').count();
+    verificar(filas >= cantidad, `El ranking final no muestra a los ${cantidad} jugadores`);
+    verificar((await p.locator('.aviso').count()) === 0, 'Apareció un aviso de error jugando contra bots');
+    await p.getByRole('button', { name: 'Jugar de nuevo' }).click();
+    await p.locator('.ranking').waitFor({ state: 'detached', timeout: 10_000 });
+    await p.getByText('Partida 1 de 14').waitFor();
+  }
+
+  informarAuditoria();
+  {
+    const malos = [...muestreos].filter(([, r]) => r.v > 0 || r.h > 0 || r.mano > 0).sort();
+    console.log(`\nMuestreo durante toda la partida: ${muestreos.size} vistas, ${malos.length} con problemas.`);
+    for (const [k, r] of malos) verificar(false, `Muestreo: ${k} (v ${r.v}, h ${r.h}, mano ${r.mano})`);
+  }
+  if (values.barrido) {
+    const malos = [...barrido].filter(([, r]) => r.v > 0 || r.h > 0).sort();
+    console.log(`\nBarrido: ${barrido.size} combinaciones, ${malos.length} con scroll.`);
+    for (const [k, r] of malos) console.log(`  MAL ${k}: vertical ${r.v} px, horizontal ${r.h} px  ${r.culpables.join(' | ')}`);
+  }
+  console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
+  for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
+  for (const [k, v] of peor) verificar(v <= 0, `Hay que hacer scroll en ${k} (${v} px de más)`);
+
+  await navegador.close();
+  await vite?.close();
+  await servidor.cerrar();
+  if (problemas.length > 0) {
+    console.error('\nProblemas:\n- ' + problemas.join('\n- '));
+    process.exit(1);
+  }
+  console.log(`\nListo: una persona jugó contra ${cantidadBots} bots un juego completo, con revancha.`);
+}
+
+if (cantidadBots) {
+  await jugarContraBots();
+  process.exit(0);
+}
+
 // Entrada: el primero crea la sala y los demás se unen con el código.
 const [anfitrion, ...invitados] = jugadores as [Jugador, ...Jugador[]];
 // Pantalla de carga: se ve el nombre del estudio y el lema, y espera un toque ("Tocá para entrar").
@@ -629,6 +714,18 @@ await captura(anfitrion, '1b-inicio-con-cuenta');
     const izquierdas = await anfitrion.pagina.evaluate(() => Array.from(document.querySelectorAll('.inicio .bloques .bloque')).map((e) => Math.round(e.getBoundingClientRect().left)));
     verificar(izquierdas.length === 2 && new Set(izquierdas).size === 1, `Crear y Unirme no van uno debajo del otro en ${anfitrion.tamano} (${JSON.stringify(izquierdas)})`);
   }
+}
+// Jugar contra bots (fase 8): el panel se abre desde el inicio y entra en la pantalla.
+{
+  const p = anfitrion.pagina;
+  await p.getByRole('button', { name: 'Contra bots' }).click();
+  const panel = p.getByRole('dialog', { name: 'Jugar contra bots' });
+  await panel.waitFor();
+  verificar((await panel.getByRole('radio').count()) === 3, 'El panel de bots no ofrece los tres niveles');
+  await medir(anfitrion, 'jugar contra bots (panel)', await excesoDe(anfitrion, '.panel-bots'));
+  await captura(anfitrion, '1c-panel-bots');
+  await p.keyboard.press('Escape');
+  await panel.waitFor({ state: 'detached' });
 }
 await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
@@ -671,6 +768,24 @@ verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"
   await contexto.close();
 }
 
+// Bots en la sala de espera (fase 8): el anfitrión agrega uno con su nivel y lo quita con la cruz.
+{
+  const p = anfitrion.pagina;
+  await p.getByRole('button', { name: '+ Bot' }).click();
+  const panel = p.getByRole('dialog', { name: 'Agregar un bot' });
+  await panel.waitFor();
+  await medir(anfitrion, 'agregar bot (panel)', await excesoDe(anfitrion, '.panel-bots'));
+  await panel.getByRole('radio', { name: /Fácil/ }).check();
+  await panel.getByRole('button', { name: 'Agregar bot' }).click();
+  await panel.waitFor({ state: 'detached' });
+  await p.getByText('Jugadores (2 de 7)').waitFor({ timeout: 5000 });
+  verificar((await p.locator('.lobby .jugadores i.bot.nivel-facil').count()) === 1, 'El bot agregado no muestra su ícono de nivel');
+  await medir(anfitrion, 'sala de espera con un bot');
+  await captura(anfitrion, '2h-sala-con-bot');
+  await p.getByRole('button', { name: 'Quitar a Bot 1' }).click();
+  await p.getByText('Jugadores (1 de 7)').waitFor({ timeout: 5000 });
+}
+
 for (const j of invitados) {
   await irA(j.pagina, `${urlCliente}?sala=${codigo}`);
   await medir(j, 'inicio con ?sala=');
@@ -683,6 +798,8 @@ for (const j of invitados) {
   await j.pagina.getByTestId('codigo').waitFor();
 }
 await anfitrion.pagina.getByText(`Jugadores (${cantidad} de 7)`).waitFor();
+verificar((await invitados[0]!.pagina.getByRole('button', { name: '+ Bot' }).count()) === 0, 'Alguien que no es anfitrión ve el botón para agregar bots');
+verificar((await anfitrion.pagina.getByRole('button', { name: '+ Bot' }).count()) === (cantidad < 7 ? 1 : 0), 'El botón para agregar bots no respeta el tope de 7');
 // El anfitrión elige el tiempo por jugada en la sala; los demás lo ven cambiar (DP-11 / DP-13).
 {
   const tiempo = anfitrion.pagina.getByLabel('Tiempo por jugada');
@@ -783,7 +900,6 @@ if (values.corto) {
 await anfitrion.pagina.getByRole('button', { name: 'Iniciar juego' }).click();
 
 // Juego: cada jugador mira su pantalla y actúa cuando le toca.
-const capturado = new Set<string>();
 async function auditarVista(j: Jugador): Promise<void> {
   const p = j.pagina;
   const cartas = await p.locator('.mano .carta').count();

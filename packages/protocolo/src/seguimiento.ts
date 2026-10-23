@@ -92,7 +92,13 @@ export function juegoNuevo(asientos: AsientoPublico[], yo: string): VistaJuego {
 function aplicarEvento(sala: VistaSala, evento: MensajeEvento): boolean {
   switch (evento.tipo) {
     case 'sala.jugadorEntro':
-      sala.jugadores.push({ idJugador: evento.datos.idJugador, nombre: evento.datos.nombre, conectado: true, piloto: null });
+      sala.jugadores.push({
+        idJugador: evento.datos.idJugador,
+        nombre: evento.datos.nombre,
+        conectado: true,
+        piloto: null,
+        bot: evento.datos.bot ?? null,
+      });
       return true;
     case 'sala.jugadorSalio':
       sala.jugadores = sala.jugadores.filter((j) => j.idJugador !== evento.datos.idJugador);

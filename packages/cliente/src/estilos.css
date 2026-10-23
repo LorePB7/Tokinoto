@@ -3263,3 +3263,161 @@ button.carta:disabled {
     row-gap: 14px;
   }
 }
+
+/* ---------- Bots (fase 8) ---------- */
+
+/* Inicio: "Crear sala" y "Contra bots" en el mismo renglón, así la tarjeta no crece. */
+.acciones-crear {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.acciones-crear .boton {
+  min-width: 0;
+  padding-left: 8px;
+  padding-right: 8px;
+  white-space: nowrap;
+}
+
+/* Sala de espera: "+ Bot" va en el renglón del título, para no sumar alto con 7 jugadores. */
+.titulo-jugadores {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.boton-agregar-bot {
+  position: relative;
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 10px;
+  border: 1px solid var(--bordo);
+  border-radius: 999px;
+  color: var(--bordo);
+  background: rgba(123, 30, 44, 0.08);
+  cursor: pointer;
+}
+
+/* Área de toque más grande que el botón, sin agrandarlo. */
+.boton-agregar-bot::after {
+  content: '';
+  position: absolute;
+  inset: -12px -6px;
+}
+
+.boton-agregar-bot:hover:not(:disabled),
+.boton-agregar-bot:focus-visible {
+  background: rgba(123, 30, 44, 0.18);
+}
+
+.boton-agregar-bot:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.insignia-bot {
+  flex: none;
+  justify-content: flex-start;
+}
+
+/* Ícono del bot: un círculo chico con la cabecita, del color del nivel. */
+.insignias i.bot,
+.asiento .nombre i.bot {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5em;
+  height: 1.5em;
+  padding: 0;
+  border-radius: 50%;
+  font-style: normal;
+  color: #f7ecd2;
+}
+
+.insignias i.bot svg,
+.asiento .nombre i.bot svg {
+  width: 1.05em;
+  height: 1.05em;
+}
+
+.asiento .nombre i.bot {
+  width: 1.15em;
+  height: 1.15em;
+  margin-right: 0.25em;
+  vertical-align: -0.18em;
+}
+
+.asiento .nombre i.bot svg {
+  width: 0.85em;
+  height: 0.85em;
+}
+
+i.bot.nivel-facil {
+  background: #557a43;
+}
+
+i.bot.nivel-medio {
+  background: #9a6a28;
+}
+
+i.bot.nivel-dificil {
+  background: #7b1e2c;
+}
+
+/* Paneles de bots: elegir el nivel y, en el inicio, cuántos rivales. */
+.formulario-bots {
+  display: grid;
+  gap: 14px;
+}
+
+.niveles-bot {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.niveles-bot legend {
+  margin-bottom: 4px;
+  color: var(--texto-suave);
+  font-size: 14px;
+}
+
+.niveles-bot label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 2px solid #b39a68;
+  border-radius: 10px;
+  background: #fffaf0;
+  cursor: pointer;
+}
+
+.niveles-bot label.elegido {
+  border-color: var(--bordo);
+  background: #f6e3cf;
+}
+
+.niveles-bot input {
+  grid-row: span 2;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--bordo);
+}
+
+.niveles-bot .titulo {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.niveles-bot .nota {
+  font-size: 13px;
+}

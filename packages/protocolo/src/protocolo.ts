@@ -11,6 +11,7 @@
  * Este paquete lo comparten el servidor y el cliente.
  */
 import { z } from 'zod';
+import { BOT_LEVELS, type BotLevel } from '@tokinoto/reglas';
 import { error, type CodigoError, type ErrorServidor } from './errores';
 import type { VistaSala } from './vista';
 
@@ -72,6 +73,15 @@ const textoChat = z
   .max(LARGO_MAXIMO_CHAT, `El mensaje puede tener hasta ${LARGO_MAXIMO_CHAT} caracteres`)
   .regex(/^[^\p{Cc}\u202A-\u202E\u2066-\u2069]+$/u, 'El mensaje tiene caracteres no permitidos');
 
+/** Niveles de bot (fase 8). */
+export type NivelBot = BotLevel;
+export const NIVELES_BOT: readonly NivelBot[] = BOT_LEVELS;
+/** Jugar contra bots: vos y de 3 a 6 bots (la mesa es de 4 a 7). */
+export const BOTS_MINIMO = 3;
+export const BOTS_MAXIMO = 6;
+
+const nivelBot = z.enum(['facil', 'medio', 'dificil']);
+
 /** Largo máximo de una sesión firmada por el servidor. */
 export const LARGO_MAXIMO_SESION = 512;
 
@@ -109,6 +119,16 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     }),
   }),
   z.strictObject({
+    tipo: z.literal('sala.jugarContraBots'),
+    /** Crea una sala con vos y de 3 a 6 bots del mismo nivel, y la inicia sola (fase 8). */
+    datos: z.strictObject({
+      cantidad: z.int().min(BOTS_MINIMO).max(BOTS_MAXIMO),
+      nivel: nivelBot,
+      /** Segundos por jugada; null = sin límite (por defecto, sin límite: no hay nadie esperando). */
+      tiempoTurno: z.int().min(TIEMPO_TURNO_MINIMO_S).max(TIEMPO_TURNO_MAXIMO_S).nullable().optional(),
+    }),
+  }),
+  z.strictObject({
     tipo: z.literal('sala.unirse'),
     datos: z.strictObject({ codigo: codigoSala }),
   }),
@@ -132,6 +152,16 @@ const comandoSchema = z.discriminatedUnion('tipo', [
   z.strictObject({
     tipo: z.literal('sala.expulsar'),
     /** Solo el anfitrión, en la sala de espera, y nunca a sí mismo. La persona no puede volver a esa sala. */
+    datos: z.strictObject({ idJugador: z.string().min(1).max(64) }),
+  }),
+  z.strictObject({
+    tipo: z.literal('sala.agregarBot'),
+    /** Solo el anfitrión, en la sala de espera (fase 8). El bot ocupa un lugar como una persona. */
+    datos: z.strictObject({ nivel: nivelBot }),
+  }),
+  z.strictObject({
+    tipo: z.literal('sala.quitarBot'),
+    /** Solo el anfitrión, en la sala de espera (fase 8). */
     datos: z.strictObject({ idJugador: z.string().min(1).max(64) }),
   }),
   z.strictObject({
@@ -168,10 +198,19 @@ export type Comando = z.infer<typeof comandoSchema>;
 export type TipoComando = Comando['tipo'];
 /** Comandos de identidad (fase 6). */
 export type ComandoDeCuenta = Extract<Comando, { tipo: `cuenta.${string}` }>;
-/** Comandos que se ejecutan dentro de una sala (todos menos los de cuenta, crear, unirse, reconectar, consultar y ping). */
+/** Comandos que se ejecutan dentro de una sala (todos menos los de cuenta, crear, jugar contra bots, unirse, reconectar, consultar y ping). */
 export type ComandoDeSala = Exclude<
   Comando,
-  { tipo: 'sala.crear' | 'sala.unirse' | 'sala.reconectar' | 'sala.consultar' | 'ping' | `cuenta.${string}` }
+  {
+    tipo:
+      | 'sala.crear'
+      | 'sala.jugarContraBots'
+      | 'sala.unirse'
+      | 'sala.reconectar'
+      | 'sala.consultar'
+      | 'ping'
+      | `cuenta.${string}`;
+  }
 >;
 
 /** Lo que el servidor responde al identificarse: la sesión para volver y cómo se llama la persona. */
@@ -278,7 +317,8 @@ export type MotivoPiloto = 'desconexion' | 'tiempo' | 'abandono';
 
 /** Datos de cada evento numerado, por tipo. */
 export interface DatosEventos {
-  'sala.jugadorEntro': { idJugador: string; nombre: string };
+  /** `bot`: el anfitrión sumó un bot de ese nivel (fase 8). */
+  'sala.jugadorEntro': { idJugador: string; nombre: string; bot?: NivelBot };
   /** `expulsado`: lo sacó el anfitrión (fase 7). */
   'sala.jugadorSalio': { idJugador: string; expulsado?: boolean };
   'sala.anfitrionCambio': { anfitrion: string };

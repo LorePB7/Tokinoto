@@ -41,10 +41,13 @@ Reglas generales:
 | `sala.crear` | `{ tiempoTurno? }` | Identificado, sin sala. El nombre sale de la cuenta o del invitado. La sala admite hasta 7 jugadores y el anfitrión inicia con 4 a 7 (DP-11). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13). `maxJugadores` es **obsoleto**: se acepta y se ignora, para no romper pestañas con un cliente viejo |
 | `sala.configurar` | `{ tiempoTurno }` | Anfitrión, en el lobby, antes de iniciar. Cambia los segundos por jugada (10 a 120, o `null` sin límite) y todos reciben `sala.configuracion` |
 | `sala.consultar` | — | Cualquiera, sin estar en una sala. Responde `{ vigente }` (y `codigo` y `estado` si es `true`): si la persona identificada tiene un asiento en una sala con el juego sin terminar. Sin identificarse, `{ vigente: false }`. No conecta a nadie; sirve para ofrecer "volver a tu partida" solo cuando existe |
+| `sala.jugarContraBots` | `{ cantidad, nivel, tiempoTurno? }` | Identificado, sin sala (fase 8, DP-19). Crea una sala con la persona como anfitrión, le suma `cantidad` bots (3 a 6) del `nivel` (`facil`, `medio` o `dificil`) y la inicia sola. Responde como `sala.crear`; después llegan la foto, los `sala.jugadorEntro` de los bots y `juego.iniciado`. `tiempoTurno` como en `sala.crear`, pero por defecto **sin límite** |
 | `sala.unirse` | `{ codigo }` | Identificado, sin sala, con el lobby abierto. Si la persona ya tenía asiento en esa sala (otra pestaña u otro dispositivo), vuelve a ese asiento en vez de ocupar otro |
 | `sala.reconectar` | — | Identificado, sin sala. Vuelve al asiento que la persona tiene en una sala (DP-14) |
 | `sala.salir` | — | Cualquier jugador. Con el juego en curso es **abandonar**: el asiento queda y el piloto automático juega por él |
 | `sala.expulsar` | `{ idJugador }` | Anfitrión, en el lobby, antes de iniciar, nunca sobre sí mismo (fase 7, DP-15). Saca a ese jugador: recibe `sala.expulsado`, los demás `sala.jugadorSalio` con `expulsado: true`, y la persona queda bloqueada en esa sala (`EXPULSADO` si intenta volver) |
+| `sala.agregarBot` | `{ nivel }` | Anfitrión, en el lobby, antes de iniciar (fase 8). Suma un bot ("Bot 1", "Bot 2"…). Cuenta para el mínimo de 4 y el tope de 7 (`SALA_LLENA`). Responde `{ idJugador }` y todos reciben `sala.jugadorEntro` con `bot` |
+| `sala.quitarBot` | `{ idJugador }` | Anfitrión, en el lobby, antes de iniciar (fase 8). Saca un bot (`ESTADO_INVALIDO` si es una persona). Todos reciben `sala.jugadorSalio`. `sala.expulsar` sobre un bot hace lo mismo |
 | `chat.enviar` | `{ texto }` | Cualquier jugador de la sala, en cualquier momento (fase 7, DP-22). De 1 a 200 caracteres, se recorta, sin saltos de línea ni caracteres de control o de dirección del texto. Ráfaga de 3 y después 1 por segundo por jugador (`DEMASIADOS_MENSAJES`). Responde `{ id }` y todos (también quien lo mandó) reciben `chat.mensaje` |
 | `sala.iniciar` | — | Anfitrión, en el lobby, con 4 a 7 jugadores |
 | `sala.pausarResumen` | `{ pausar }` | Anfitrión, durante el juego (DP-23) |
@@ -150,6 +153,7 @@ Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que e
 
 ```json
 { "v": 2, "tipo": "sala.jugadorEntro", "seq": 3, "datos": { "idJugador": "…", "nombre": "Caro" } }
+{ "v": 2, "tipo": "sala.jugadorEntro", "seq": 4, "datos": { "idJugador": "…", "nombre": "Bot 1", "bot": "medio" } }
 { "v": 2, "tipo": "sala.jugadorSalio", "seq": 4, "datos": { "idJugador": "…" } }
 { "v": 2, "tipo": "sala.jugadorSalio", "seq": 5, "datos": { "idJugador": "…", "expulsado": true } }
 { "v": 2, "tipo": "sala.anfitrionCambio", "seq": 5, "datos": { "anfitrion": "…idJugador…" } }
@@ -222,6 +226,13 @@ Reglas oficiales del modo online (DP-12 a DP-14):
 - Si la misma persona vuelve a la sala desde otra conexión (otra pestaña u otro dispositivo), la nueva reemplaza a la anterior, que recibe `SESION_REEMPLAZADA`.
 - En la revancha, quien sigue desconectado empieza con el piloto activo.
 
+### Bots (fase 8)
+
+- Un bot es un jugador del servidor: no tiene conexión, sesión ni cuenta. En la foto figura con `bot` (su nivel) y `conectado: true`.
+- Su turno se anuncia como cualquier otro (`apuesta.turno` / `baza.turno`) con `fechaLimite: null`, y juega tras una pausa de **1 s**. Sus jugadas llegan como las de cualquiera (`porPiloto: false`).
+- Decide con `botChoice` del paquete `reglas`, que recibe solo su mano y lo público (apuestas, bazas ganadas, la baza en curso y, de las bazas cerradas, la carta ganadora).
+- No usa tiempo límite ni piloto automático, y no cuenta como "alguien conectado": sin personas conectadas no juega, y a los 3 minutos el juego se aborta. El anfitrión nunca pasa a un bot y una sala sin personas se cierra.
+
 ### Fuera de la secuencia: chat y expulsión (fase 7)
 
 Estos dos mensajes **no llevan `seq`**: no entran al registro de eventos de la sala ni a la base, y no afectan la reconstrucción de los juegos.
@@ -246,7 +257,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
   "datos": {
     "codigo": "K7QM2XPA", "estado": "JUGANDO", "yo": "…", "anfitrion": "…", "maxJugadores": 7,
     "tiempoTurnoMs": 30000, "resumenPausado": false,
-    "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true, "piloto": null } ],
+    "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true, "piloto": null, "bot": null } ],
     "horaServidor": 1760572800000,
     "chat": [ { "id": 1, "idJugador": "…", "nombre": "Ana", "texto": "¡Suerte!", "hora": 1760572790000 } ],
     "juego": {
@@ -277,6 +288,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
 - `fase` puede ser `SORTEO`, `APUESTAS`, `TIRADAS`, `BAZA_RESUELTA` (la pausa de ~3 s), `RESUMEN` (la pausa de ~10 s), `TERMINADO` o `ABORTADO`.
 - **Regla de oro:** `miMano` trae solo las cartas propias. De los demás, solo `cantidades`. De las bazas cerradas, solo la carta ganadora y quién ganó. La baza en curso muestra todas sus cartas, que son públicas. El mazo no aparece.
 - `puntajes[asiento][partida - 1]` son los puntos de cada partida jugada. Sirven para el desempate final.
+- `jugadores[].bot` es el nivel del bot (`facil`, `medio` o `dificil`) o `null` si es una persona (fase 8).
 - `jugadores[].piloto` indica si el piloto automático juega por ese jugador y por qué (`desconexion`, `abandono`, `tiempo`), o `null`.
 - `horaServidor` permite al cliente calcular la diferencia con su reloj y mostrar bien la cuenta regresiva.
 - `chat` trae los últimos mensajes del chat de la sala (hasta 50), del más viejo al más nuevo.

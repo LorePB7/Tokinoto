@@ -4,6 +4,7 @@ import { posicionAsiento, RADIO } from '../util/geometria';
 import { Carta } from './Carta';
 import { CuentaRegresiva } from './CuentaRegresiva';
 import { Ficha } from './Ficha';
+import { InsigniaBot } from './Bots';
 
 const TEXTO_PILOTO = {
   desconexion: 'Se desconectó: el piloto automático juega por él',
@@ -44,6 +45,7 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const jugador = sala.jugadores.find((j) => j.idJugador === datos.idJugador);
   const desconectado = jugador?.conectado === false;
   const piloto = jugador?.piloto ?? null;
+  const bot = jugador?.bot ?? null;
   const fechaLimite = enTurno ? (juego.turno?.fechaLimite ?? null) : null;
   const montones = juego.bazasCerradas.filter((b) => b.ganador === asiento);
   // Los montones van hacia afuera de la mesa, para no tapar las cartas de la baza.
@@ -63,6 +65,8 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
     <div className={clases} style={direccion} data-asiento={asiento}>
       <div className="placa">
         <span className="nombre" title={datos.nombre}>
+          {/* Fase 8: el ícono del bot va en el renglón del nombre, así la placa no crece. */}
+          {bot && <InsigniaBot nivel={bot} />}
           {datos.nombre}
           {soyYo ? ' (vos)' : ''}
         </span>

@@ -30,6 +30,7 @@ import {
   type MensajeError,
   type MensajeOk,
   type MensajeServidor,
+  type NivelBot,
 } from '@tokinoto/protocolo';
 import { io as socketIo, type Socket } from 'socket.io-client';
 import { createStore, type StoreApi } from 'zustand/vanilla';
@@ -82,6 +83,12 @@ export interface EstadoTienda {
   /** Olvida la cuenta en este navegador. */
   cerrarSesion(): void;
   crearSala(): Promise<boolean>;
+  /** Fase 8: crea una sala con vos y `cantidad` bots del nivel elegido, y empieza enseguida. */
+  jugarContraBots(cantidad: number, nivel: NivelBot): Promise<boolean>;
+  /** Anfitrión, en la sala de espera: suma un bot (fase 8). */
+  agregarBot(nivel: NivelBot): Promise<boolean>;
+  /** Anfitrión, en la sala de espera: quita un bot (fase 8). */
+  quitarBot(idJugador: string): Promise<boolean>;
   /** Anfitrión, antes de iniciar: segundos por jugada (null = sin límite). */
   configurarTiempo(tiempoTurno: number | null): Promise<boolean>;
   /**
@@ -476,6 +483,10 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         olvidarCuenta();
       },
       crearSala: () => ingresarAvisando((id) => armarComando('sala.crear', id, {})),
+      jugarContraBots: (cantidad, nivel) =>
+        ingresarAvisando((id) => armarComando('sala.jugarContraBots', id, { cantidad, nivel })),
+      agregarBot: (nivel) => aceptado((id) => armarComando('sala.agregarBot', id, { nivel })),
+      quitarBot: (idJugador) => aceptado((id) => armarComando('sala.quitarBot', id, { idJugador })),
       configurarTiempo: (tiempoTurno) => aceptado((id) => armarComando('sala.configurar', id, { tiempoTurno })),
       consultarUltima() {
         // Una sola consulta a la vez (React monta dos veces en desarrollo): comparten la respuesta.

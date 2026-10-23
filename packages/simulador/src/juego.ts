@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import {
   apply,
+  botChoice,
   checkInvariants,
   createGame,
   createSeededRng,
@@ -10,6 +11,7 @@ import {
   type Action,
   type GameEvent,
   type GameState,
+  type BotLevel,
   type PlayerInfo,
 } from '@tokinoto/reglas';
 
@@ -23,6 +25,11 @@ export interface OpcionesJuego {
   semilla: number;
   /** Chequea los invariantes después de cada acción (más lento, más seguro). */
   verificar?: boolean;
+  /**
+   * Nivel de bot de cada asiento. Un asiento sin nivel (o con null) juega al
+   * azar, siempre legal. Sirve para medir la fuerza de los bots.
+   */
+  niveles?: readonly (BotLevel | null)[];
 }
 
 export interface ResultadoJuego {
@@ -111,6 +118,16 @@ export function simularJuego(opciones: OpcionesJuego): ResultadoJuego {
         case 'BETTING': {
           const turno = currentTurn(estado);
           if (!turno) break;
+          const nivel = opciones.niveles?.[turno.seat] ?? null;
+          if (nivel) {
+            const eleccion = botChoice(estado, turno.seat, nivel, azarJugadas);
+            if (eleccion?.type !== 'APOSTAR') {
+              violaciones.push(`El bot del asiento ${turno.seat} no apostó`);
+              break;
+            }
+            accion = { type: 'APOSTAR', playerId: nombreDe(turno.seat), value: eleccion.value };
+            break;
+          }
           const validas = validBetsFor(estado, turno.seat);
           const value = validas[azarJugadas.nextInt(validas.length)];
           if (value === undefined) {
@@ -123,6 +140,16 @@ export function simularJuego(opciones: OpcionesJuego): ResultadoJuego {
         case 'PLAYING': {
           const turno = currentTurn(estado);
           if (!turno) break;
+          const nivelCarta = opciones.niveles?.[turno.seat] ?? null;
+          if (nivelCarta) {
+            const eleccion = botChoice(estado, turno.seat, nivelCarta, azarJugadas);
+            if (eleccion?.type !== 'JUGAR_CARTA') {
+              violaciones.push(`El bot del asiento ${turno.seat} no tiró carta`);
+              break;
+            }
+            accion = { type: 'JUGAR_CARTA', playerId: nombreDe(turno.seat), cardId: eleccion.cardId };
+            break;
+          }
           const mano = estado.hands[turno.seat] ?? [];
           const carta = mano[azarJugadas.nextInt(Math.max(mano.length, 1))];
           if (!carta) {

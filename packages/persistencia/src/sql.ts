@@ -14,6 +14,7 @@ import {
   type EstadoJuegoGuardado,
   type EventoGuardado,
   type JuegoGuardado,
+  type JugadorGuardado,
   type Repositorio,
   type ResumenJuego,
 } from './tipos';
@@ -48,6 +49,7 @@ export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promi
               nombre: j.nombre,
               cuentaId: j.cuentaId ?? null,
               invitado: j.invitado ?? false,
+              bot: j.bot ?? null,
             })),
           )
           .onConflictDoNothing();
@@ -152,7 +154,14 @@ export function crearRepositorioSql(bd: BaseDeDatos, cerrarConexion: () => Promi
         cantidadJugadores: jugadores.length,
         iniciadoEn: juego.iniciadoEn,
         terminadoEn: juego.terminadoEn,
-        jugadores: jugadores.map(({ asiento, idJugador, nombre, cuentaId, invitado }) => ({ asiento, idJugador, nombre, cuentaId, invitado })),
+        jugadores: jugadores.map(({ asiento, idJugador, nombre, cuentaId, invitado, bot }) => ({
+          asiento,
+          idJugador,
+          nombre,
+          cuentaId,
+          invitado,
+          bot: (bot ?? null) as JugadorGuardado['bot'],
+        })),
         puntajes: puntajes.map(({ partida, asiento, apuesta, bazasGanadas, puntos }) => ({ partida, asiento, apuesta, bazasGanadas, puntos })),
         ranking: ranking.map(({ asiento, total, puesto }) => ({ asiento, total, puesto })),
       } satisfies JuegoGuardado;

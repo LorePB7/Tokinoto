@@ -28,6 +28,16 @@ npm run simular -w @tokinoto/simulador -- --juegos 5000 --jugadores 6
 | `--sin-verificar` | No chequea invariantes tras cada acción (más rápido) |
 | `-h`, `--ayuda` | Muestra la ayuda |
 
+## Torneo de bots (fase 8)
+
+Hace jugar a los niveles de bot entre sí (y contra jugadas al azar) y muestra cuántos puntos suma cada uno por juego. Sirve para ajustar la estrategia de `reglas/src/bots.ts`: lo que se promete es el orden difícil > medio > fácil, y un test lo exige.
+
+```bash
+npm run torneo -w @tokinoto/simulador -- --juegos 200 --jugadores todos --niveles facil,medio,dificil,azar
+```
+
+Cada participante va pasando por todos los asientos. El difícil es más lento (simula repartijas en cada jugada): con muchos juegos tarda unos minutos.
+
 Con la verificación activada se procesan unos 19 juegos por segundo. El programa termina con código `0` si todo salió bien, `1` si algún juego violó una regla y `2` si los argumentos son inválidos.
 
 ## Qué verifica

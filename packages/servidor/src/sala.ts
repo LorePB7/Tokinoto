@@ -20,6 +20,7 @@
  */
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  botChoice,
   createCryptoRng,
   createGame,
   currentTurn,
@@ -50,6 +51,7 @@ import {
   type MensajeFoto,
   type MensajeServidor,
   type MotivoPiloto,
+  type NivelBot,
   type Respuesta,
   type TipoEvento,
   type VistaSala,
@@ -77,6 +79,8 @@ export interface OpcionesSala {
   tiempoTurnoMs: number | null;
   /** Cuánto espera el piloto automático antes de jugar, para que la mesa se pueda seguir. */
   pausaPilotoMs: number;
+  /** Cuánto espera un bot antes de jugar (fase 8), para que la mesa se siga a simple vista. */
+  pausaBotMs: number;
   /** Si no queda nadie conectado con el juego en curso, cuánto se espera antes de abortarlo (DP-12). */
   esperaAbortoMs: number;
   /** En el lobby, cuánto se guarda el lugar de quien se desconecta (por ejemplo, al recargar la página). */
@@ -96,6 +100,7 @@ export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
   pausaResumenMs: 10000,
   tiempoTurnoMs: TIEMPO_TURNO_POR_DEFECTO_S * 1000,
   pausaPilotoMs: 1000,
+  pausaBotMs: 1000,
   esperaAbortoMs: 3 * 60 * 1000,
   graciaLobbyMs: 15000,
   reloj: relojReal,
@@ -136,6 +141,12 @@ interface Jugador {
   pedidos: Map<string, Respuesta>;
   /** Ritmo de sus mensajes de chat (DP-22). */
   chat: Limitador;
+  /**
+   * Bot del servidor (fase 8): su nivel, o null si es una persona. Un bot no
+   * tiene conexión ni sesión, no usa tiempo límite ni piloto automático, y no
+   * cuenta como "alguien conectado": sin personas, la mesa se detiene y se aborta.
+   */
+  bot: NivelBot | null;
 }
 
 /** Cuántas respuestas recuerda la sala por jugador para la idempotencia. */
@@ -163,6 +174,8 @@ export class Sala {
   private anfitrion: string | null = null;
   private juego: GameState | null = null;
   private azar: Rng | null = null;
+  /** Azar de los bots (separado del reparto). */
+  private azarBots: Rng | null = null;
   private resumenPausado = false;
   /** Identificador del juego en el historial, y cuántos eventos del motor lleva. */
   private juegoId: string | null = null;
@@ -469,6 +482,7 @@ export class Sala {
       cancelarSalida: null,
       pedidos: new Map(),
       chat: new Limitador(LIMITE_CHAT, () => this.opciones.reloj.ahora()),
+      bot: null,
     };
     this.jugadores.push(jugador);
     if (this.anfitrion === null) this.anfitrion = jugador.id;
@@ -485,9 +499,11 @@ export class Sala {
     jugador.destino = null;
     this.emitir('sala.jugadorSalio', expulsado ? { idJugador: jugador.id, expulsado } : { idJugador: jugador.id });
     if (this.anfitrion === jugador.id) {
-      this.cambiarAnfitrion(this.jugadores.find((j) => j.conectado) ?? this.jugadores[0] ?? null);
+      const personas = this.jugadores.filter((j) => j.bot === null);
+      this.cambiarAnfitrion(personas.find((j) => j.conectado) ?? personas[0] ?? null);
     }
-    if (this.jugadores.length === 0) this.vaciar();
+    // Una sala sin personas se cierra, aunque queden bots (fase 8).
+    if (!this.jugadores.some((j) => j.bot === null)) this.vaciar();
   }
 
   /**
@@ -525,7 +541,9 @@ export class Sala {
       this.emitir('jugador.conexion', { idJugador: jugador.id, asiento: this.asientoDe(jugador), conectado: false });
     }
     jugador.destino = null;
-    if (this.anfitrion === jugador.id) this.cambiarAnfitrion(this.jugadores.find((j) => j.conectado) ?? null);
+    if (this.anfitrion === jugador.id) {
+      this.cambiarAnfitrion(this.jugadores.find((j) => j.conectado && j.bot === null) ?? null);
+    }
     if (this.juegoEnCurso) this.cambiarPiloto(jugador, motivo);
     if (!this.hayConectados()) {
       // Nadie puede ver la mesa: el piloto no juega y, si nadie vuelve, se aborta (DP-12).
@@ -543,8 +561,9 @@ export class Sala {
     return this.jugadores.indexOf(jugador);
   }
 
+  /** ¿Hay alguna PERSONA conectada? Los bots no cuentan (fase 8). */
   private hayConectados(): boolean {
-    return this.jugadores.some((j) => j.conectado);
+    return this.jugadores.some((j) => j.conectado && j.bot === null);
   }
 
   private get juegoEnCurso(): boolean {
@@ -596,6 +615,16 @@ export class Sala {
     if (!jugador) throw new Error(`No hay jugador en el asiento ${turno.seat}`);
     const numero = ++this.numeroTurno;
 
+    const nivel = jugador.bot;
+    if (nivel) {
+      this.emitirSalida(eventoDeTurno(juego, turno, null));
+      // Sin personas conectadas la mesa no sigue: los bots solos no terminan el juego.
+      if (this.hayConectados()) {
+        this.programarTurno(this.opciones.pausaBotMs, numero, () => this.jugarBot(jugador, nivel));
+      }
+      return;
+    }
+
     if (jugador.piloto) {
       this.emitirSalida(eventoDeTurno(juego, turno, null));
       // Sin nadie conectado, la mesa espera (y, si nadie vuelve, se aborta).
@@ -611,6 +640,31 @@ export class Sala {
     this.fechaLimite = tiempo === null ? null : this.opciones.reloj.ahora() + tiempo;
     this.emitirSalida(eventoDeTurno(juego, turno, this.fechaLimite));
     if (tiempo !== null) this.programarTurno(tiempo, numero, () => this.vencerTurno(jugador));
+  }
+
+  /**
+   * Juega un bot (fase 8). Decide con `botChoice`, que solo mira su mano y lo
+   * público. Si por un error la jugada no fuera válida, juega el piloto.
+   */
+  private jugarBot(jugador: Jugador, nivel: NivelBot): void {
+    const juego = this.juego;
+    const turno = juego ? currentTurn(juego) : null;
+    if (!juego || !turno || juego.players[turno.seat]?.id !== jugador.id) return;
+    // Si la última persona se fue mientras el bot "pensaba", espera a que alguien vuelva.
+    if (!this.hayConectados()) return;
+    const azar = (this.azarBots ??= this.opciones.crearAzar());
+    const eleccion = botChoice(juego, turno.seat, nivel, azar);
+    const accion: Action | null =
+      eleccion?.type === 'APOSTAR'
+        ? { type: 'APOSTAR', playerId: jugador.id, value: eleccion.value }
+        : eleccion?.type === 'JUGAR_CARTA'
+          ? { type: 'JUGAR_CARTA', playerId: jugador.id, cardId: eleccion.cardId }
+          : null;
+    const problema = accion ? this.aplicar(accion) : error('ERROR_INTERNO', 'El bot no decidió');
+    if (problema) {
+      this.opciones.alError(new Error(`El bot ${jugador.nombre} no pudo jugar: ${problema.codigo} ${problema.mensaje}`));
+      this.aplicarDelServidor({ type: 'PILOTO_AUTOMATICO', playerId: jugador.id });
+    }
   }
 
   /** Se le venció el tiempo: el piloto juega esta vez; tras 3 seguidas, toma el asiento. */
@@ -680,6 +734,12 @@ export class Sala {
 
       case 'chat.enviar':
         return this.enviarChat(jugador, comando.datos.texto);
+
+      case 'sala.agregarBot':
+        return this.agregarBot(jugador, comando.datos.nivel);
+
+      case 'sala.quitarBot':
+        return this.quitarBot(jugador, comando.datos.idJugador);
 
       case 'juego.retomarControl':
         if (!this.juegoEnCurso) return respuestaError('ESTADO_INVALIDO', 'No hay un juego en curso');
@@ -761,6 +821,8 @@ export class Sala {
     const expulsado = this.buscar(idJugador);
     if (!expulsado) return respuestaError('NO_PERTENECE_A_SALA', 'Ese jugador ya no está en la sala');
     if (expulsado === anfitrion) return respuestaError('ESTADO_INVALIDO', 'No podés sacarte a vos mismo de la sala');
+    // "Expulsar" a un bot es quitarlo (fase 8): no hay nadie a quien bloquear.
+    if (expulsado.bot) return this.quitarBot(anfitrion, idJugador);
 
     if (expulsado.perfil.clave) this.bloqueados.add(expulsado.perfil.clave);
     this.tokensExpulsados.add(expulsado.token);
@@ -770,6 +832,73 @@ export class Sala {
     this.quitarDelLobby(expulsado, true);
     destino?.alExpulsar?.();
     return respuestaOk();
+  }
+
+  /** El anfitrión suma un bot en la sala de espera (fase 8). Cuenta para el mínimo de 4 y el tope de 7. */
+  private agregarBot(anfitrion: Jugador, nivel: NivelBot): Respuesta {
+    const noAnfitrion = this.exigirAnfitrion(anfitrion);
+    if (noAnfitrion) return noAnfitrion;
+    if (this.juego) return respuestaError('JUEGO_YA_INICIADO', 'Los bots se agregan antes de empezar el juego');
+    if (this.jugadores.length >= this.opciones.maxJugadores) {
+      return respuestaError('SALA_LLENA', `La sala está completa (${this.opciones.maxJugadores} jugadores)`);
+    }
+    const bot = this.crearBot(nivel);
+    this.jugadores.push(bot);
+    this.emitir('sala.jugadorEntro', { idJugador: bot.id, nombre: bot.nombre, bot: nivel });
+    return respuestaOk({ idJugador: bot.id });
+  }
+
+  /** El anfitrión saca un bot de la sala de espera (fase 8). */
+  private quitarBot(anfitrion: Jugador, idJugador: string): Respuesta {
+    const noAnfitrion = this.exigirAnfitrion(anfitrion);
+    if (noAnfitrion) return noAnfitrion;
+    if (this.juego) return respuestaError('JUEGO_YA_INICIADO', 'Los bots se quitan antes de empezar el juego');
+    const bot = this.buscar(idJugador);
+    if (!bot) return respuestaError('NO_PERTENECE_A_SALA', 'Ese jugador ya no está en la sala');
+    if (!bot.bot) return respuestaError('ESTADO_INVALIDO', 'Ese jugador no es un bot');
+    this.quitarDelLobby(bot);
+    return respuestaOk();
+  }
+
+  /** Un bot nuevo: "Bot 1", "Bot 2"... con el primer número libre. Sin conexión, sesión ni cuenta. */
+  private crearBot(nivel: NivelBot): Jugador {
+    const usados = new Set(this.jugadores.map((j) => normalizarNombre(j.nombre)));
+    let numero = 1;
+    while (usados.has(normalizarNombre(`Bot ${numero}`))) numero++;
+    return {
+      id: randomUUID(),
+      nombre: `Bot ${numero}`,
+      perfil: { cuentaId: null, invitado: false, clave: null },
+      // Nunca se entrega a nadie: un bot no reconecta.
+      token: `${this.codigo}.${randomBytes(24).toString('base64url')}`,
+      conectado: true,
+      destino: null,
+      piloto: null,
+      vencimientos: 0,
+      cancelarSalida: null,
+      pedidos: new Map(),
+      chat: new Limitador(LIMITE_CHAT, () => this.opciones.reloj.ahora()),
+      bot: nivel,
+    };
+  }
+
+  /**
+   * Jugar contra bots (fase 8): suma `cantidad` bots del nivel elegido y
+   * empieza el juego. Lo usa el gestor justo después de crear la sala.
+   */
+  iniciarContraBots(idAnfitrion: string, cantidad: number, nivel: NivelBot, responder: (respuesta: Respuesta) => void): void {
+    this.encolar(() => {
+      const respuesta = this.intentar(() => {
+        const anfitrion = this.buscar(idAnfitrion);
+        if (!anfitrion) return respuestaError('NO_PERTENECE_A_SALA', 'No formás parte de esta sala');
+        for (let i = 0; i < cantidad; i++) {
+          const sumado = this.agregarBot(anfitrion, nivel);
+          if (!sumado.ok) return sumado;
+        }
+        return this.empezarJuego();
+      });
+      responder(respuesta);
+    });
   }
 
   /** Mensaje de chat para toda la sala (DP-22). Fuera de la secuencia de eventos y sin guardarse en la base. */
@@ -842,16 +971,28 @@ export class Sala {
     }
     this.juego = creado.value;
     this.azar = this.opciones.crearAzar();
-    const juegoId = randomUUID();
+    this.azarBots = this.opciones.crearAzar();
+    // Un juego con bots se guarda solo si alguna persona entró con su cuenta:
+    // de los invitados no se guarda nada (fase 8).
+    const conBots = this.jugadores.some((j) => j.bot !== null);
+    const conCuenta = this.jugadores.some((j) => j.bot === null && j.perfil.cuentaId !== null);
+    const juegoId = conBots && !conCuenta ? null : randomUUID();
     this.juegoId = juegoId;
     this.eventosDelMotor = 0;
-    this.guardar(() =>
+    if (juegoId) this.guardar(() =>
       this.opciones.historial?.juegoNuevo({
         id: juegoId,
         sala: this.codigo,
         jugadores: creado.value.players.map((j) => {
-          const perfil = this.buscar(j.id)?.perfil;
-          return { idJugador: j.id, nombre: j.name, cuentaId: perfil?.cuentaId ?? null, invitado: perfil?.invitado ?? false };
+          const jugador = this.buscar(j.id);
+          const perfil = jugador?.perfil;
+          return {
+            idJugador: j.id,
+            nombre: j.name,
+            cuentaId: perfil?.cuentaId ?? null,
+            invitado: perfil?.invitado ?? false,
+            bot: jugador?.bot ?? null,
+          };
         }),
         config: creado.value.config,
       }),
@@ -992,6 +1133,7 @@ export class Sala {
         nombre: j.nombre,
         conectado: j.conectado,
         piloto: j.piloto,
+        bot: j.bot,
       })),
       horaServidor: this.opciones.reloj.ahora(),
       chat: this.chat.map((m) => ({ ...m })),

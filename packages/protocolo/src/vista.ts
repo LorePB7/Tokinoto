@@ -25,7 +25,7 @@ import {
   type GameState,
   type Phase,
 } from '@tokinoto/reglas';
-import type { AsientoPublico, CartaSacada, MensajeDeChat, MotivoPiloto, PuestoEnRanking } from './protocolo';
+import type { AsientoPublico, CartaSacada, MensajeDeChat, MotivoPiloto, NivelBot, PuestoEnRanking } from './protocolo';
 
 /** ESPERANDO = lobby; JUGANDO = juego en curso; TERMINADO = juego terminado o abortado. */
 export type EstadoSala = 'ESPERANDO' | 'JUGANDO' | 'TERMINADO';
@@ -36,6 +36,8 @@ export interface JugadorDeSala {
   conectado: boolean;
   /** Si el piloto automático juega por este jugador, y por qué (null si no). */
   piloto: MotivoPiloto | null;
+  /** Si es un bot del servidor, su nivel (fase 8); null si es una persona. */
+  bot: NivelBot | null;
 }
 
 /** Todo lo que un jugador sabe de su sala. Es el contenido de `estado.foto`. */
