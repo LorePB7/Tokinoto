@@ -687,6 +687,17 @@ await anfitrion.pagina.getByText(`Jugadores (${cantidad} de 7)`).waitFor();
 await captura(anfitrion, '2-sala-de-espera');
 for (const j of jugadores) {
   await medir(j, `sala de espera (${cantidad} jugadores)`);
+  // En desktop con alto suficiente la sala va en una sola columna: jugadores, copiar e iniciar uno debajo del otro.
+  {
+    const vp = j.pagina.viewportSize()!;
+    if (vp.width > 820 && vp.height >= 700) {
+      const columnas = await j.pagina.evaluate(() => {
+        const izquierdas = (sel: string) => new Set(Array.from(document.querySelectorAll(sel)).map((e) => Math.round(e.getBoundingClientRect().left)));
+        return { jugadores: izquierdas('.lobby .jugadores li').size, copiar: izquierdas('.lobby-info .acciones .boton').size, acciones: izquierdas('.lobby .acciones.fila .boton').size };
+      });
+      verificar(columnas.jugadores === 1 && columnas.copiar === 1 && columnas.acciones === 1, `La sala de espera de ${j.tamano} no está en una sola columna (${JSON.stringify(columnas)})`);
+    }
+  }
   await captura(j, `2-sala-${j.tamano}`);
   await j.pagina.getByRole('button', { name: 'Reglas' }).click();
   await j.pagina.getByRole('dialog', { name: 'Reglas del juego' }).waitFor();

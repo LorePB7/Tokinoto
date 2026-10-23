@@ -153,3 +153,13 @@ Quedan, sin cambiar (fuera de este alcance):
 - El botón de Google mide 40 px de alto: es el tamaño "large" de Google y no se puede agrandar.
 - Los botones flotantes Sonido y Reglas miden 36 px de alto en celulares (menos de los 44 recomendados). Son los mismos de la
   sala de espera, así que agrandarlos se prueba aparte.
+
+## Arreglo: sala de espera en una columna (desktop)
+
+- **Desktop (más de 820 px de ancho y al menos 700 de alto):** la sala de espera usa la misma tarjeta angosta que la entrada
+  (420 px) y todo va en vertical: Copiar código y Copiar enlace, los jugadores (uno por renglón) e Iniciar juego y Salir de
+  la sala. El e2e verifica que cada grupo quede en una sola columna.
+- **Altura.** Apilada, con 7 jugadores hacen falta casi 1000 px de alto. Hasta 1000 px se compacta (logo de 30 px, renglones
+  y botones más bajos) y la firma no se muestra, como en el resto del juego. Con menos de 700 px de alto no hay lugar sin
+  hacer scroll, así que ahí queda el diseño anterior (columnas y botones lado a lado), que sí entra.
+- **Celulares:** sin cambios.
