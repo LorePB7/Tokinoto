@@ -8,6 +8,7 @@ const NOMBRES: Record<NombreSonido, string> = {
   carta: 'Tirar carta',
   baza: 'Ganar baza',
   turno: 'Tu turno',
+  turnoAjeno: 'Turno de otro',
   finPartida: 'Fin de partida',
   podio: 'Podio',
   chat: 'Mensaje de chat',

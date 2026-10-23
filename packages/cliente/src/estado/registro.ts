@@ -37,8 +37,6 @@ export function describirEvento(
         : `${nombreDeJugador(antes, evento.datos.idJugador)} salió de la sala`;
     case 'sala.anfitrionCambio':
       return `${nombreDeJugador(despues, evento.datos.anfitrion)} es el nuevo anfitrión`;
-    case 'sala.resumenPausado':
-      return evento.datos.pausado ? 'El anfitrión pausó el resumen' : 'Se reanudó el resumen';
     case 'sala.configuracion':
       return evento.datos.tiempoTurnoMs === null
         ? 'El anfitrión sacó el límite de tiempo por jugada'

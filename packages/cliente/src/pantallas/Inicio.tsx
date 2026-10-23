@@ -275,7 +275,7 @@ function Salas() {
                 aria-controls="panel-bots"
                 onClick={() => setContraBots(true)}
               >
-                Contra bots
+                Jugar solo
               </button>
             </div>
           </form>

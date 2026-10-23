@@ -50,7 +50,6 @@ export interface VistaSala {
   maxJugadores: number;
   /** Tiempo por apuesta y por tirada, en ms; null = sin límite. */
   tiempoTurnoMs: number | null;
-  resumenPausado: boolean;
   jugadores: JugadorDeSala[];
   /** Hora del servidor al armar la foto (para calcular la diferencia de relojes). */
   horaServidor: number;
@@ -61,7 +60,7 @@ export interface VistaSala {
 
 /**
  * Fase visible del juego. SORTEO dura solo un instante (el servidor sortea
- * enseguida); BAZA_RESUELTA es la pausa de ~3 s y RESUMEN la de ~10 s.
+ * enseguida); BAZA_RESUELTA es la pausa de ~3 s y RESUMEN la de 6 s.
  */
 export type FaseVista = 'SORTEO' | 'APUESTAS' | 'TIRADAS' | 'BAZA_RESUELTA' | 'RESUMEN' | 'TERMINADO' | 'ABORTADO';
 
@@ -116,6 +115,8 @@ export interface VistaJuego {
   turno: TurnoVista | null;
   ranking: PuestoEnRanking[] | null;
   motivoAborto: string | null;
+  /** Hora del servidor en que termina el resumen (solo en RESUMEN; null en otra fase). */
+  finResumen: number | null;
 }
 
 const FASES: Record<Phase, FaseVista> = {
@@ -137,9 +138,15 @@ export function repitenEnSorteo(sacadas: readonly DrawEntry[]): number[] {
 
 /**
  * Arma la vista del juego para un jugador. `fechaLimite` es la del turno en
- * curso, si la hay (la maneja la sala).
+ * curso, si la hay, y `finResumen` la hora en que termina el resumen de la
+ * partida (las dos las maneja la sala).
  */
-export function proyectarJuego(juego: GameState, idJugador: string, fechaLimite: number | null = null): VistaJuego {
+export function proyectarJuego(
+  juego: GameState,
+  idJugador: string,
+  fechaLimite: number | null = null,
+  finResumen: number | null = null,
+): VistaJuego {
   const miAsiento = juego.players.findIndex((jugador) => jugador.id === idJugador);
   if (miAsiento < 0) throw new Error('El jugador no participa de este juego');
 
@@ -193,5 +200,6 @@ export function proyectarJuego(juego: GameState, idJugador: string, fechaLimite:
     turno: turnoVista,
     ranking: juego.ranking ? juego.ranking.map((r) => ({ asiento: r.seat, total: r.total, puesto: r.position })) : null,
     motivoAborto: juego.abortReason,
+    finResumen: juego.phase === 'ROUND_SUMMARY' ? finResumen : null,
   };
 }

@@ -78,7 +78,7 @@ export function PanelContraBots({ alCerrar }: { alCerrar: () => void }) {
   }
 
   return (
-    <Panel id="panel-bots" titulo="Jugar contra bots" alCerrar={alCerrar} clase="panel-bots">
+    <Panel id="panel-bots" titulo="Jugar solo contra bots" alCerrar={alCerrar} clase="panel-bots">
       <form className="panel-cuerpo formulario-bots" onSubmit={alEmpezar}>
         <label className="campo">
           <span>Rivales</span>

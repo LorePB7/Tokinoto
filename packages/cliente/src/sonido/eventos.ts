@@ -42,6 +42,11 @@ export function sonidosDelMensaje(
     case 'juego.terminado':
       sonidos.push('podio');
       break;
+    case 'apuesta.turno':
+    case 'baza.turno':
+      // Le toca a otro (persona o bot): un aviso suave, para seguir el ritmo de la mesa.
+      if (juego && mensaje.datos.asiento !== juego.miAsiento) sonidos.push('turnoAjeno');
+      break;
     default:
       break;
   }

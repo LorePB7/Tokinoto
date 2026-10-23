@@ -67,25 +67,16 @@ describe('foto = eventos', () => {
     });
   }
 
-  it('también con pausas del resumen, desconexiones, cambio de anfitrión y revancha', () => {
+  it('también con desconexiones, cambio de anfitrión y revancha', () => {
     const mesa = armarMesa(5, { semilla: 77, pausaBazaMs: 0 });
     const seguidos = seguidores(mesa);
     const conectados = new Set([0, 1, 2, 3, 4]);
     mesa.comando(0, { tipo: 'sala.iniciar' });
-    mesa.comando(0, { tipo: 'sala.pausarResumen', datos: { pausar: true } });
     verificarCoincidencia(mesa, seguidos, conectados);
 
-    let reanudado = false;
     let desconectado = false;
     jugarHastaElFinal(mesa, createSeededRng(3), () => {
       const juego = mesa.sala.estadoDelJuego!;
-      if (juego.phase === 'ROUND_SUMMARY' && mesa.sala.resumenEnPausa) {
-        // Con el resumen en pausa el reloj no tiene nada pendiente: se reanuda.
-        verificarCoincidencia(mesa, seguidos, conectados);
-        const anfitrion = mesa.jugadores.findIndex((j) => j.id === mesa.sala.idAnfitrion);
-        expect(mesa.comando(anfitrion, { tipo: 'sala.pausarResumen', datos: { pausar: false } })).toEqual(OK);
-        reanudado = true;
-      }
       if (!desconectado && juego.roundNumber === 3) {
         // El anfitrión se desconecta: el rol pasa a otro. Su asiento sigue (juega la prueba por él).
         mesa.sala.desconectar(mesa.jugadores[0]!.id);
@@ -94,13 +85,10 @@ describe('foto = eventos', () => {
       }
       verificarCoincidencia(mesa, seguidos, conectados);
     });
-    expect(reanudado && desconectado).toBe(true);
+    expect(desconectado).toBe(true);
     expect(mesa.sala.idAnfitrion).toBe(mesa.jugadores[1]!.id);
 
-    // Revancha con el resumen en pausa: el juego nuevo empieza sin pausa, y se avisa.
-    expect(mesa.comando(1, { tipo: 'sala.pausarResumen', datos: { pausar: true } })).toEqual(OK);
     expect(mesa.comando(1, { tipo: 'juego.revancha' })).toEqual(OK);
-    expect(mesa.sala.resumenEnPausa).toBe(false);
     verificarCoincidencia(mesa, seguidos, conectados);
     jugarHastaElFinal(mesa, createSeededRng(4), () => verificarCoincidencia(mesa, seguidos, conectados));
     expect(mesa.errores).toEqual([]);

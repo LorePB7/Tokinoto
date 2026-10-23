@@ -172,10 +172,6 @@ const comandoSchema = z.discriminatedUnion('tipo', [
   z.strictObject({ tipo: z.literal('sala.salir'), datos: sinDatos }),
   z.strictObject({ tipo: z.literal('sala.iniciar'), datos: sinDatos }),
   z.strictObject({
-    tipo: z.literal('sala.pausarResumen'),
-    datos: z.strictObject({ pausar: z.boolean() }),
-  }),
-  z.strictObject({
     tipo: z.literal('juego.apostar'),
     // El rango (0..N) y que sea entero lo valida el motor, con su propio código de error.
     datos: z.strictObject({ valor: z.number() }),
@@ -322,7 +318,6 @@ export interface DatosEventos {
   /** `expulsado`: lo sacó el anfitrión (fase 7). */
   'sala.jugadorSalio': { idJugador: string; expulsado?: boolean };
   'sala.anfitrionCambio': { anfitrion: string };
-  'sala.resumenPausado': { pausado: boolean };
   /** El anfitrión cambió el tiempo por jugada (solo antes de iniciar). null = sin límite. */
   'sala.configuracion': { tiempoTurnoMs: number | null };
   'jugador.conexion': { idJugador: string; asiento: number; conectado: boolean };
@@ -340,7 +335,8 @@ export interface DatosEventos {
   'baza.turno': { asiento: number; baza: number; fechaLimite: number | null };
   'baza.cartaJugada': { asiento: number; carta: string; porPiloto: boolean };
   'baza.resuelta': { baza: number; ganador: number; cartaGanadora: string; tieneFicha: boolean };
-  'partida.puntajes': { partida: number; resultados: ResultadoDePartida[]; totales: number[] };
+  /** `finResumen`: hora del servidor en que termina el resumen y sigue el juego (DP-23: 6 s, sin pausa). */
+  'partida.puntajes': { partida: number; resultados: ResultadoDePartida[]; totales: number[]; finResumen: number };
   'juego.terminado': { ranking: PuestoEnRanking[] };
   'juego.abortado': { motivo: string };
 }

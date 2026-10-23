@@ -32,7 +32,6 @@ describe('lectura de comandos', () => {
       sobre('sala.salir'),
       sobre('sala.salir', {}),
       sobre('sala.iniciar'),
-      sobre('sala.pausarResumen', { pausar: true }),
       sobre('sala.configurar', { tiempoTurno: 60 }),
       sobre('sala.configurar', { tiempoTurno: null }),
       sobre('sala.consultar'),
@@ -105,7 +104,7 @@ describe('lectura de comandos', () => {
       sobre('sala.unirse', { codigo: 'ABCD234O' }), // la O no está en el alfabeto
       sobre('sala.unirse', { codigo: 'ABCD2345', nombre: 'Ana' }),
       sobre('sala.iniciar', { forzar: true }),
-      sobre('sala.pausarResumen', { pausar: 'si' }),
+      sobre('sala.pausarResumen', { pausar: true }), // ya no existe: el resumen no se pausa (DP-23)
       sobre('sala.configurar', {}),
       sobre('sala.configurar', { tiempoTurno: 5 }),
       sobre('sala.configurar', { tiempoTurno: 60, maxJugadores: 5 }),

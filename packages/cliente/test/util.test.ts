@@ -67,6 +67,22 @@ describe('posicionAsiento', () => {
     expect(d?.x).toBeLessThan(20);
   });
 
+  it('con 7 jugadores la ronda es simétrica, sigue girando hacia la derecha y deja más aire a mis vecinos', () => {
+    const p = [0, 1, 2, 3, 4, 5, 6].map((i) => posicionAsiento(i, 0, 7));
+    for (let i = 1; i < 7; i++) {
+      const espejo = p[7 - i]!;
+      expect(p[i]!.x).toBeCloseTo(100 - espejo.x);
+      expect(p[i]!.y).toBeCloseTo(espejo.y);
+    }
+    // Hacia la derecha y luego arriba: x crece y y baja, hasta el asiento de arriba a la derecha.
+    expect(p[1]!.x).toBeGreaterThan(50);
+    expect(p[2]!.y).toBeLessThan(p[1]!.y);
+    expect(p[3]!.y).toBeLessThan(p[2]!.y);
+    // Mis vecinos quedan más lejos que con el reparto en partes iguales (51°).
+    const igual = 50 + 41 * Math.sin((2 * Math.PI) / 7);
+    expect(p[1]!.x).toBeGreaterThan(igual);
+  });
+
   it('haciaElCentro interpola entre el centro y el punto', () => {
     expect(haciaElCentro({ x: 90, y: 50 }, 0)).toEqual({ x: 50, y: 50 });
     expect(haciaElCentro({ x: 90, y: 50 }, 1)).toEqual({ x: 90, y: 50 });

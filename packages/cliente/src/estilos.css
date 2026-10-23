@@ -3266,7 +3266,7 @@ button.carta:disabled {
 
 /* ---------- Bots (fase 8) ---------- */
 
-/* Inicio: "Crear sala" y "Contra bots" en el mismo renglón, así la tarjeta no crece. */
+/* Inicio: "Crear sala" y "Jugar solo" en el mismo renglón, así la tarjeta no crece. */
 .acciones-crear {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -3368,6 +3368,38 @@ i.bot.nivel-dificil {
   background: #7b1e2c;
 }
 
+/* Paneles de bots: en pantallas anchas son una ventana en el centro, no un cajón; en celulares siguen subiendo desde abajo. */
+@media (min-width: 821px) {
+  .panel.panel-bots {
+    inset: 0;
+    margin: auto;
+    width: min(440px, calc(100vw - 48px));
+    height: fit-content;
+    max-height: calc(100dvh - 48px);
+    border: 3px solid #6d4a26;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    animation: panel-aparece 0.16s ease-out;
+  }
+}
+
+@keyframes panel-aparece {
+  from {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel.panel-bots {
+    animation: none;
+  }
+}
+
 /* Paneles de bots: elegir el nivel y, en el inicio, cuántos rivales. */
 .formulario-bots {
   display: grid;
@@ -3420,4 +3452,72 @@ i.bot.nivel-dificil {
 
 .niveles-bot .nota {
   font-size: 13px;
+}
+
+/* ---------- Resumen entre partidas: cuenta regresiva de 6 s (sin pausa) ---------- */
+
+.hoja.resumen .cuenta-resumen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.hoja.resumen .cuenta-resumen strong {
+  display: inline-grid;
+  place-items: center;
+  width: 1.9em;
+  height: 1.9em;
+  border-radius: 50%;
+  font-family: var(--serif);
+  font-size: 1.25em;
+  font-variant-numeric: tabular-nums;
+  color: #f7ecd2;
+  background: var(--bordo);
+}
+
+/* ---------- Mesas llenas (6 y 7 jugadores) ---------- */
+
+/* Con tantos asientos las placas se encimaban. Para que entren: Pié, Mano y el reloj van en una pestaña
+   sobre el borde de arriba (no suman un renglón), no se muestran los dorsos y la placa propia dice "Vos". */
+.mesa.llena .placa {
+  position: relative;
+}
+
+.mesa.llena .placa:has(> .insignias) {
+  padding-top: 0.55em;
+}
+
+.mesa.llena .asiento .insignias {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: none;
+  flex-wrap: nowrap;
+  transform: translate(-50%, -62%);
+}
+
+.mesa.llena .dorsos {
+  display: none;
+}
+
+/* Si la mesa es baja (notebooks, ventanas chicas, celular acostado), los asientos se abren más hacia los
+   costados, sin salirse de la zona de la mesa. Con alto de sobra no hace falta: quedarían lejos de la mesa. */
+@container (max-height: 400px) {
+  .mesa.llena {
+    --rx: clamp(var(--lado) * 0.41, 50cqw - 52px, var(--lado) * 0.95);
+  }
+}
+
+/* Los montones de arriba dejan lugar a la pestaña. */
+.mesa.llena .asiento:has(.insignias) .montones.arriba:not(.cima) {
+  bottom: calc(100% + 0.9em);
+}
+
+@media (max-width: 820px) {
+  .mesa.llena .asiento:has(.insignias) .montones.arriba.cima {
+    bottom: calc(100% + 0.9em);
+  }
 }

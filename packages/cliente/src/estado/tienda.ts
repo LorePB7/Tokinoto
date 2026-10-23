@@ -106,7 +106,6 @@ export interface EstadoTienda {
   apostar(valor: number): Promise<boolean>;
   jugarCarta(idCarta: string): Promise<boolean>;
   retomarControl(): Promise<boolean>;
-  pausarResumen(pausar: boolean): Promise<boolean>;
   revancha(): Promise<boolean>;
   /** Anfitrión, en la sala de espera: saca a alguien de la sala (no puede volver). */
   expulsar(idJugador: string): Promise<boolean>;
@@ -517,7 +516,6 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       apostar: (valor) => aceptado((id) => armarComando('juego.apostar', id, { valor })),
       jugarCarta: (idCarta) => aceptado((id) => armarComando('juego.jugarCarta', id, { idCarta })),
       retomarControl: () => aceptado((id) => armarComando('juego.retomarControl', id)),
-      pausarResumen: (pausar) => aceptado((id) => armarComando('sala.pausarResumen', id, { pausar })),
       revancha: () => aceptado((id) => armarComando('juego.revancha', id)),
       expulsar: (idJugador) => aceptado((id) => armarComando('sala.expulsar', id, { idJugador })),
       async enviarChat(texto) {

@@ -204,7 +204,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
 
       <Registro abierto={registroAbierto} alCerrar={() => setRegistroAbierto(false)} />
 
-      <Resumen sala={sala} juego={juego} />
+      <Resumen juego={juego} />
       <Resultados sala={sala} juego={juego} />
     </div>
   );

@@ -12,9 +12,9 @@
 import { createStore, type StoreApi } from 'zustand/vanilla';
 import { guardarPreferencia, leerPreferencia } from '../util/preferencias';
 
-export type NombreSonido = 'clic' | 'carta' | 'baza' | 'turno' | 'finPartida' | 'podio' | 'chat';
+export type NombreSonido = 'clic' | 'carta' | 'baza' | 'turno' | 'turnoAjeno' | 'finPartida' | 'podio' | 'chat';
 
-export const SONIDOS: readonly NombreSonido[] = ['clic', 'carta', 'baza', 'turno', 'finPartida', 'podio', 'chat'];
+export const SONIDOS: readonly NombreSonido[] = ['clic', 'carta', 'baza', 'turno', 'turnoAjeno', 'finPartida', 'podio', 'chat'];
 
 /** Lo que genera el audio de verdad. `volumen` va de 0 a 1. */
 export interface Sintetizador {
@@ -37,6 +37,7 @@ export const SEPARACION_MS: Record<NombreSonido, number> = {
   carta: 40,
   baza: 200,
   turno: 1500,
+  turnoAjeno: 250,
   finPartida: 1000,
   podio: 1000,
   chat: 1000,

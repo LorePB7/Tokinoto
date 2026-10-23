@@ -167,7 +167,7 @@ El sistema (no un jugador) dispara `SORTEAR_REPARTIDOR`, `AVANZAR` y `PILOTO_AUT
 1. **Servidor autoritativo:** el cliente envía **intenciones** ("quiero tirar esta carta"); el servidor decide. Ningún dato del cliente se acepta como cierto.
 2. **Una sala = un estado en memoria = una cola de acciones.** Las acciones de una sala se procesan **de a una, en orden**. Eso elimina las condiciones de carrera (dos jugadores tirando a la vez).
 3. **Registro de eventos como fuente de verdad:** cada acción válida genera eventos numerados que se guardan. El estado actual se puede reconstruir desde ellos.
-4. **El tiempo lo maneja el servidor:** temporizadores, pausas de 3 y 10 segundos, y piloto automático viven en la sala, no en el cliente.
+4. **El tiempo lo maneja el servidor:** temporizadores, pausas de 3 y 6 segundos, y piloto automático viven en la sala, no en el cliente.
 5. **Cada jugador recibe su propia vista:** nunca el estado completo (sección 3.4).
 
 ### 3.3 Componentes del servidor
@@ -268,7 +268,7 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 ### 3.10 Sonido (cliente, fase 4)
 - Generado con Web Audio en el navegador (`cliente/src/sonido`): sin archivos de audio, sin cambios en la CSP, sin tocar servidor ni protocolo.
 - `control.ts`: preferencias (sonido, volumen, música) recordadas en el navegador, todo activado al inicio con volumen bajo; no suena hasta el primer toque; separación mínima por sonido para que turno y chat no suenen en cascada; la música se corta con la pestaña en segundo plano.
-- `eventos.ts`: función pura mensaje → sonidos (carta tirada, baza ganada por mí, mi turno, fin de partida, podio). Las fotos no suenan. Desde la fase 7, un `chat.mensaje` de otra persona suena con `chat` (los propios, no).
+- `eventos.ts`: función pura mensaje → sonidos (carta tirada, baza ganada por mí, mi turno, fin de partida, podio). Las fotos no suenan. Desde la fase 7, un `chat.mensaje` de otra persona suena con `chat` (los propios, no). Cuando le toca a otro (persona o bot), `apuesta.turno` / `baza.turno` suenan con `turnoAjeno`: una nota corta y suave, distinta del aviso del turno propio.
 - `sintetizador.ts`: tonos y música de fondo (La m, Fa, Do, Sol, en loop).
 - Control en la barra de la mesa y flotante en inicio y sala. Prueba de oído: agregar `#sonidos` al final de la dirección.
 
@@ -277,7 +277,7 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 - **Niveles:** fácil cuenta cartas altas con margen de error y juega "alta si me faltan, baja si no". Medio estima la probabilidad de ganar con cada carta, elige la apuesta que más puntos espera (`(5 + b) · P(ganar b)`) y juega para cumplirla (descarta la carta más alta que no gana, gana con la justa). Difícil imagina 40 a 48 repartijas de las cartas que no ve, juega cada una hasta el final con la estrategia media para todos y elige la apuesta o la carta que más veces cumple. Tarda unos pocos milisegundos por jugada (peor caso medido: ~35 ms con 7 jugadores).
 - **Fuerza medida** con `npm run torneo -w @tokinoto/simulador`. Referencia (200 juegos de 4 a 7 jugadores, todos contra todos): difícil ~66, medio ~58, fácil ~36 puntos por juego; el azar, ~18. Un test exige difícil > medio > fácil > azar.
 - **Servidor:** el bot es un `Jugador` de la sala con `bot: nivel`, sin conexión ni sesión. La sala agenda su jugada con `pausaBotMs` (1 s) en la misma cola; no usa tiempo límite ni piloto, y no cuenta para "hay alguien conectado".
-- **Cliente:** "Contra bots" en el inicio (panel con rivales y nivel), "+ Bot" en la sala de espera (solo el anfitrión) y una cabecita de robot del color del nivel junto al nombre en la mesa.
+- **Cliente:** "Jugar solo" en el inicio (panel con rivales y nivel), "+ Bot" en la sala de espera (solo el anfitrión); en pantallas anchas los dos paneles son una ventana en el centro y en celulares suben desde abajo y una cabecita de robot del color del nivel junto al nombre en la mesa.
 
 ---
 
@@ -313,7 +313,6 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 | `sala.reconectar` | token de sesión | Al volver |
 | `sala.salir` | — | Lobby (en juego, el piloto automático toma el asiento) |
 | `sala.iniciar` | — | Solo anfitrión, con 4 a 7 jugadores |
-| `sala.pausarResumen` | sí / no | Solo anfitrión, entre partidas (decisión DP-23) |
 | `juego.apostar` | valor entero | `BETTING`, en turno |
 | `juego.jugarCarta` | idCarta | `PLAYING`, en turno |
 | `juego.revancha` | — | Solo anfitrión, tras `FINISHED` |
@@ -372,7 +371,7 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 | `baza.turno` | jugador al que le toca, fecha límite |
 | `baza.cartaJugada` | jugador, carta |
 | `baza.resuelta` | ganador, carta ganadora, tiene ficha sí/no, nuevo Mano |
-| `partida.puntajes` | apuesta, bazas ganadas y puntos de cada jugador, totales |
+| `partida.puntajes` | apuesta, bazas ganadas y puntos de cada jugador, totales y hora en que termina el resumen |
 | `juego.terminado` | ranking final con empates y podio compartido |
 | `juego.abortado` | motivo |
 
