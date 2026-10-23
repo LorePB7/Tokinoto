@@ -3,7 +3,14 @@
  * olvida cuando quedan vacías.
  */
 import { randomInt } from 'node:crypto';
-import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, respuestaError, respuestaOk, type Respuesta } from '@tokinoto/protocolo';
+import {
+  ALFABETO_CODIGO,
+  LARGO_CODIGO_SALA,
+  respuestaError,
+  respuestaOk,
+  type NivelBot,
+  type Respuesta,
+} from '@tokinoto/protocolo';
 import type { Identidad } from './cuentas';
 import { Sala, type Destino, type OpcionesSala } from './sala';
 
@@ -92,6 +99,33 @@ export class GestorSalas {
       if (!respuesta.ok) this.olvidar(sala); // no dejar salas vacías colgadas
       responder(respuesta, respuesta.ok ? sala : null);
     });
+  }
+
+  /**
+   * Jugar contra bots (fase 8): crea una sala con la persona como anfitrión,
+   * le suma `cantidad` bots del nivel elegido y la inicia sola. Por defecto,
+   * sin límite de tiempo por jugada: no hay nadie más esperando.
+   */
+  jugarContraBots(
+    identidad: Identidad,
+    destino: Destino,
+    responder: AlResponderIngreso,
+    cantidad: number,
+    nivel: NivelBot,
+    tiempoTurno: number | null = null,
+  ): void {
+    this.crear(
+      identidad,
+      destino,
+      (respuesta, sala) => {
+        responder(respuesta, sala);
+        if (!respuesta.ok || !sala) return;
+        sala.iniciarContraBots(String(respuesta.datos['idJugador']), cantidad, nivel, (inicio) => {
+          if (!inicio.ok) console.error('[sala] no se pudo empezar el juego contra bots:', inicio.error);
+        });
+      },
+      tiempoTurno,
+    );
   }
 
   /**

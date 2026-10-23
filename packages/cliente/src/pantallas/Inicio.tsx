@@ -1,6 +1,7 @@
 import { Firma } from '../componentes/Firma';
 import { ControlSonido } from '../componentes/ControlSonido';
 import { BotonReglas } from '../componentes/Reglas';
+import { PanelContraBots } from '../componentes/Bots';
 import { ALFABETO_CODIGO, LARGO_CODIGO_SALA, LARGO_MAXIMO_NOMBRE } from '@tokinoto/protocolo';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useTienda } from '../estado/contexto';
@@ -169,6 +170,8 @@ function Salas() {
   const [codigo, setCodigo] = useState(codigoDeLaURL);
   const codigoValido = new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`).test(codigo.trim().toUpperCase());
 
+  const [contraBots, setContraBots] = useState(false);
+  const [cerrarBots] = useState(() => () => setContraBots(false));
   const [editando, setEditando] = useState(false);
   const [nombreNuevo, setNombreNuevo] = useState(cuenta.nombre);
   const nombreLimpio = nombreNuevo.trim();
@@ -260,9 +263,21 @@ function Salas() {
             <p className="nota">
               Invitás a tus amigos con el código y empezás cuando estén todos: de 4 a 7 jugadores.
             </p>
-            <button type="submit" className="boton" disabled={ocupado}>
-              Crear sala
-            </button>
+            <div className="acciones-crear">
+              <button type="submit" className="boton" disabled={ocupado}>
+                Crear sala
+              </button>
+              <button
+                type="button"
+                className="boton secundario"
+                disabled={ocupado}
+                aria-haspopup="dialog"
+                aria-controls="panel-bots"
+                onClick={() => setContraBots(true)}
+              >
+                Contra bots
+              </button>
+            </div>
           </form>
 
           <form onSubmit={alUnirse} className="bloque">
@@ -285,6 +300,7 @@ function Salas() {
           </form>
         </div>
       </div>
+      {contraBots && <PanelContraBots alCerrar={cerrarBots} />}
     </>
   );
 }

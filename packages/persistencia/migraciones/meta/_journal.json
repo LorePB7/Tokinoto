@@ -15,6 +15,13 @@
       "when": 1792626861157,
       "tag": "0001_cuentas",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792721362689,
+      "tag": "0002_bots",
+      "breakpoints": true
     }
   ]
 }

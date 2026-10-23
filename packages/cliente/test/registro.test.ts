@@ -10,8 +10,8 @@ const sala = {
   yo: 'a',
   anfitrion: 'a',
   jugadores: [
-    { idJugador: 'a', nombre: 'Ana', conectado: true, piloto: null },
-    { idJugador: 'b', nombre: 'Beto', conectado: true, piloto: null },
+    { idJugador: 'a', nombre: 'Ana', conectado: true, piloto: null, bot: null },
+    { idJugador: 'b', nombre: 'Beto', conectado: true, piloto: null, bot: null },
   ],
   juego: null,
 } as unknown as VistaSala;

@@ -61,6 +61,8 @@ export const jugadoresDeJuego = pgTable(
     cuentaId: text('cuenta_id').references(() => cuentas.id),
     /** Jugó como invitado: sin cuenta y sin historial propio. */
     invitado: boolean('invitado').notNull().default(false),
+    /** Nivel del bot que ocupó el asiento (fase 8): 'facil' | 'medio' | 'dificil'. Vacío si jugó una persona. */
+    bot: text('bot'),
   },
   (tabla) => [primaryKey({ columns: [tabla.juegoId, tabla.asiento] }), index('jugadores_cuenta_idx').on(tabla.cuentaId)],
 );

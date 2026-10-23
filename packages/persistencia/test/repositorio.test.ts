@@ -201,6 +201,32 @@ describe.each(variantes)('repositorio (%s)', (_nombre, abrir) => {
     expect(suyos[0]!.cantidadJugadores).toBe(4);
   });
 
+  it('bots (fase 8): cada asiento guarda si lo ocupó un bot y de qué nivel', async () => {
+    const cuenta = await repo.cuentaDeGoogle('sub-bots', 'Dani', AHORA);
+    const juego = juegoSimulado(4, 22);
+    const id = randomUUID();
+    const niveles = [null, 'facil', 'medio', 'dificil'] as const;
+    await repo.abrirJuego({
+      id,
+      sala: 'SALABOT1',
+      jugadores: juego.inicial!.players.map((p, i) => ({
+        idJugador: p.id,
+        nombre: p.name,
+        cuentaId: i === 0 ? cuenta.id : null,
+        bot: niveles[i] ?? null,
+      })),
+      config: DEFAULT_CONFIG,
+      iniciadoEn: AHORA,
+    });
+    const guardado = await repo.obtenerJuego(id);
+    expect(guardado!.jugadores.map((j) => [j.cuentaId, j.bot])).toEqual([
+      [cuenta.id, null],
+      [null, 'facil'],
+      [null, 'medio'],
+      [null, 'dificil'],
+    ]);
+  });
+
   it('obtenerJuego devuelve null si no existe', async () => {
     expect(await repo.obtenerJuego(randomUUID())).toBeNull();
   });

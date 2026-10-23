@@ -1,0 +1,1 @@
+ALTER TABLE "jugadores_de_juego" ADD COLUMN "bot" text;

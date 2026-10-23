@@ -48,6 +48,7 @@ export function crearRepositorioEnMemoria(): Repositorio {
           nombre: j.nombre,
           cuentaId: j.cuentaId ?? null,
           invitado: j.invitado ?? false,
+          bot: j.bot ?? null,
         })),
         puntajes: [],
         ranking: [],

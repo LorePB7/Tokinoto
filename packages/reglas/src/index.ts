@@ -10,5 +10,6 @@ export * from './puntaje';
 export * from './ranking';
 export * from './selectores';
 export * from './piloto';
+export * from './bots';
 export * from './maquina';
 export * from './invariantes';

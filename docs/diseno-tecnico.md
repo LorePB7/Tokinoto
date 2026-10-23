@@ -235,6 +235,7 @@ La función `vista(estado, jugador)` produce lo que cada uno recibe:
 🔵 Notas:
 - Las dos tablas de puntajes son **derivables** de `eventos`; se guardan igual por comodidad de consulta.
 - Fase 6: se sumó la tabla `cuentas` (id, `sub` de Google, nombre editable, alta) y, en `jugadores_de_juego`, las columnas opcionales `cuenta_id` e `invitado`. Los juegos anteriores quedan sin cuenta. La migración es aditiva.
+- Fase 8: `jugadores_de_juego` suma la columna opcional `bot` (nivel del bot, o vacía si jugó una persona). Migración `0002_bots.sql`, aditiva. Un juego con bots se guarda solo si alguna persona tiene cuenta.
 - Guardar `semilla` permite **repetir un juego exacto** para investigar un error.
 - 🔵 Al guardar eventos que contienen cartas privadas, restringir el acceso: **estos datos nunca se exponen a los clientes**.
 
@@ -270,6 +271,13 @@ Cambió en la fase 6 del plan de mejoras (DP-16). Antes había un token por asie
 - `eventos.ts`: función pura mensaje → sonidos (carta tirada, baza ganada por mí, mi turno, fin de partida, podio). Las fotos no suenan. Desde la fase 7, un `chat.mensaje` de otra persona suena con `chat` (los propios, no).
 - `sintetizador.ts`: tonos y música de fondo (La m, Fa, Do, Sol, en loop).
 - Control en la barra de la mesa y flotante en inicio y sala. Prueba de oído: agregar `#sonidos` al final de la dirección.
+
+### 3.11 Bots (fase 8)
+- **Estrategia** en `reglas/src/bots.ts`, pura: `botView(estado, asiento)` arma lo que ve una persona en ese asiento (su mano, apuestas, bazas, la baza en curso y la carta ganadora de cada baza cerrada) y `botChoice(estado, asiento, nivel, azar)` decide **solo con esa vista**. Un test reparte distinto las cartas que el bot no ve y exige la misma decisión.
+- **Niveles:** fácil cuenta cartas altas con margen de error y juega "alta si me faltan, baja si no". Medio estima la probabilidad de ganar con cada carta, elige la apuesta que más puntos espera (`(5 + b) · P(ganar b)`) y juega para cumplirla (descarta la carta más alta que no gana, gana con la justa). Difícil imagina 40 a 48 repartijas de las cartas que no ve, juega cada una hasta el final con la estrategia media para todos y elige la apuesta o la carta que más veces cumple. Tarda unos pocos milisegundos por jugada (peor caso medido: ~35 ms con 7 jugadores).
+- **Fuerza medida** con `npm run torneo -w @tokinoto/simulador`. Referencia (200 juegos de 4 a 7 jugadores, todos contra todos): difícil ~66, medio ~58, fácil ~36 puntos por juego; el azar, ~18. Un test exige difícil > medio > fácil > azar.
+- **Servidor:** el bot es un `Jugador` de la sala con `bot: nivel`, sin conexión ni sesión. La sala agenda su jugada con `pausaBotMs` (1 s) en la misma cola; no usa tiempo límite ni piloto, y no cuenta para "hay alguien conectado".
+- **Cliente:** "Contra bots" en el inicio (panel con rivales y nivel), "+ Bot" en la sala de espera (solo el anfitrión) y una cabecita de robot del color del nivel junto al nombre en la mesa.
 
 ---
 

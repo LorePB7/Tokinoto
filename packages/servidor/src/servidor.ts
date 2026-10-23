@@ -341,6 +341,7 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
         return;
 
       case 'sala.crear':
+      case 'sala.jugarContraBots':
       case 'sala.unirse':
       case 'sala.reconectar': {
         const anterior = ingresos.get(idPedido);
@@ -365,6 +366,9 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
         if (comando.tipo === 'sala.crear') {
           // `maxJugadores` ya no se usa (DP-11): toda sala admite hasta 7.
           gestor.crear(quien, destino, alResponder, comando.datos.tiempoTurno);
+        } else if (comando.tipo === 'sala.jugarContraBots') {
+          const { cantidad, nivel, tiempoTurno } = comando.datos;
+          gestor.jugarContraBots(quien, destino, alResponder, cantidad, nivel, tiempoTurno ?? null);
         } else if (comando.tipo === 'sala.unirse') {
           gestor.unirse(comando.datos.codigo, quien, destino, alResponder);
         } else {

@@ -2,6 +2,7 @@ import { BotonChat } from '../componentes/Chat';
 import { Firma } from '../componentes/Firma';
 import { ControlSonido } from '../componentes/ControlSonido';
 import { BotonReglas } from '../componentes/Reglas';
+import { InsigniaBot, NOMBRE_NIVEL, PanelAgregarBot } from '../componentes/Bots';
 import { TIEMPO_TURNO_POR_DEFECTO_S } from '@tokinoto/protocolo';
 import { useEffect, useRef, useState } from 'react';
 import { useTienda } from '../estado/contexto';
@@ -68,6 +69,9 @@ export function Lobby() {
   const ocupado = useTienda((s) => s.ocupado);
   const configurarTiempo = useTienda((s) => s.configurarTiempo);
   const expulsar = useTienda((s) => s.expulsar);
+  const quitarBot = useTienda((s) => s.quitarBot);
+  const [agregando, setAgregando] = useState(false);
+  const [cerrarAgregar] = useState(() => () => setAgregando(false));
   const [copiado, setCopiado] = useState<'codigo' | 'enlace' | null>(null);
   const [aExpulsar, setAExpulsar] = useState<string | null>(null);
   const [cancelarExpulsion] = useState(() => () => setAExpulsar(null));
@@ -139,9 +143,23 @@ export function Lobby() {
         </div>
 
         <div className="lobby-jugadores">
-          <h3>
-            Jugadores ({sala.jugadores.length} de {MAXIMO})
-          </h3>
+          <div className="titulo-jugadores">
+            <h3>
+              Jugadores ({sala.jugadores.length} de {MAXIMO})
+            </h3>
+            {soyAnfitrion && sala.jugadores.length < MAXIMO && (
+              <button
+                type="button"
+                className="boton-agregar-bot"
+                disabled={ocupado}
+                aria-haspopup="dialog"
+                aria-controls="panel-agregar-bot"
+                onClick={() => setAgregando(true)}
+              >
+                + Bot
+              </button>
+            )}
+          </div>
           <ul className="jugadores">
             {sala.jugadores.map((j) => (
               <li key={j.idJugador} className={j.idJugador === sala.yo ? 'yo' : ''}>
@@ -150,15 +168,21 @@ export function Lobby() {
                   {j.idJugador === sala.yo ? ' (vos)' : ''}
                 </span>
                 {j.idJugador === sala.anfitrion && <i className="insignia">Anfitrión</i>}
+                {j.bot && (
+                  <span className="insignias insignia-bot">
+                    <InsigniaBot nivel={j.bot} />
+                    <i className="nivel">{NOMBRE_NIVEL[j.bot]}</i>
+                  </span>
+                )}
                 {!j.conectado && <i className="insignia alerta">Sin conexión</i>}
                 {soyAnfitrion && j.idJugador !== sala.yo && (
                   <button
                     type="button"
                     className="boton-expulsar"
-                    aria-label={`Sacar a ${j.nombre} de la sala`}
-                    title="Sacar de la sala"
+                    aria-label={j.bot ? `Quitar a ${j.nombre}` : `Sacar a ${j.nombre} de la sala`}
+                    title={j.bot ? 'Quitar el bot' : 'Sacar de la sala'}
                     disabled={ocupado}
-                    onClick={() => setAExpulsar(j.idJugador)}
+                    onClick={() => (j.bot ? void quitarBot(j.idJugador) : setAExpulsar(j.idJugador))}
                   >
                     <span aria-hidden="true">×</span>
                   </button>
@@ -194,6 +218,7 @@ export function Lobby() {
           }}
         />
       )}
+      {soyAnfitrion && agregando && <PanelAgregarBot alCerrar={cerrarAgregar} />}
       <Firma />
     </main>
   );

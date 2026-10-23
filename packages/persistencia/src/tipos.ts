@@ -16,7 +16,12 @@ export interface JugadorGuardado {
   /** Cuenta de Google con la que jugó; null en invitados y en juegos anteriores a las cuentas. */
   cuentaId: string | null;
   invitado: boolean;
+  /** Nivel del bot que ocupó el asiento (fase 8); null si jugó una persona. */
+  bot: NivelBotGuardado | null;
 }
+
+/** Niveles de bot (fase 8). */
+export type NivelBotGuardado = 'facil' | 'medio' | 'dificil';
 
 /** Quién juega: lo que el servidor sabe al empezar el juego. */
 export interface JugadorDeJuego {
@@ -24,6 +29,7 @@ export interface JugadorDeJuego {
   nombre: string;
   cuentaId?: string | null;
   invitado?: boolean;
+  bot?: NivelBotGuardado | null;
 }
 
 /** Cuenta de Google (fase 6). No guarda el email: solo el `sub`, el nombre y la fecha de alta. */

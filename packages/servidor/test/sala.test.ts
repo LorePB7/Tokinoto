@@ -59,8 +59,8 @@ describe('lobby', () => {
       anfitrion: ana!.id,
       maxJugadores: 7,
       jugadores: [
-        { idJugador: ana!.id, nombre: 'Jugador 1', conectado: true, piloto: null },
-        { idJugador: beto!.id, nombre: 'Jugador 2', conectado: true, piloto: null },
+        { idJugador: ana!.id, nombre: 'Jugador 1', conectado: true, piloto: null, bot: null },
+        { idJugador: beto!.id, nombre: 'Jugador 2', conectado: true, piloto: null, bot: null },
       ],
     });
     // El token es secreto: no aparece en lo que reciben los demás.
