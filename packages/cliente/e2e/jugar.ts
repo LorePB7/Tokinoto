@@ -668,7 +668,7 @@ async function jugarContraBots(): Promise<void> {
   await p.getByText('Jugás como').waitFor({ timeout: 10_000 });
   await medir(j, 'inicio con cuenta');
   await p.getByRole('button', { name: 'Jugar solo' }).click();
-  const panel = p.getByRole('dialog', { name: 'Jugar solo contra bots' });
+  const panel = p.getByRole('dialog', { name: 'Jugar solo' });
   await panel.waitFor();
   await medir(j, 'jugar contra bots (panel)', await excesoDe(j, '.panel-bots'));
   await captura(j, `bots-0-panel-${j.tamano}`);
@@ -773,7 +773,7 @@ await captura(anfitrion, '1b-inicio-con-cuenta');
 {
   const p = anfitrion.pagina;
   await p.getByRole('button', { name: 'Jugar solo' }).click();
-  const panel = p.getByRole('dialog', { name: 'Jugar solo contra bots' });
+  const panel = p.getByRole('dialog', { name: 'Jugar solo' });
   await panel.waitFor();
   verificar((await panel.getByRole('radio').count()) === 3, 'El panel de bots no ofrece los tres niveles');
   await medir(anfitrion, 'jugar contra bots (panel)', await excesoDe(anfitrion, '.panel-bots'));
