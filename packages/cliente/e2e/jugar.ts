@@ -1111,7 +1111,8 @@ async function probarAusencias(): Promise<void> {
     await recarga.pagina.reload();
     await entrar(recarga.pagina);
     await recarga.pagina.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
-    const yo = await recarga.pagina.locator('.asiento.yo .nombre').innerText();
+    // En las mesas llenas la placa propia dice "Vos": el nombre completo queda en el título.
+    const yo = (await recarga.pagina.locator('.asiento.yo .nombre').getAttribute('title')) ?? '';
     verificar(yo.includes(recarga.nombre), `Tras recargar volvió con otro nombre: "${yo}"`);
     ausentes.delete(recarga);
     console.log(`Partida ${partida}: ${recarga.nombre} recargó la página y volvió a su asiento.`);
