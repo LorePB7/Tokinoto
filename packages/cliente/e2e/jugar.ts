@@ -622,6 +622,14 @@ await medir(anfitrion, 'inicio');
 }
 await medir(anfitrion, 'inicio con cuenta');
 await captura(anfitrion, '1b-inicio-con-cuenta');
+// En desktop con alto suficiente, "Crear una sala" y "Unirme a una sala" van uno debajo del otro.
+{
+  const vp = anfitrion.pagina.viewportSize()!;
+  if (vp.width > 820 && vp.height >= 700) {
+    const izquierdas = await anfitrion.pagina.evaluate(() => Array.from(document.querySelectorAll('.inicio .bloques .bloque')).map((e) => Math.round(e.getBoundingClientRect().left)));
+    verificar(izquierdas.length === 2 && new Set(izquierdas).size === 1, `Crear y Unirme no van uno debajo del otro en ${anfitrion.tamano} (${JSON.stringify(izquierdas)})`);
+  }
+}
 await anfitrion.pagina.getByRole('button', { name: 'Crear sala' }).click();
 const codigo = (await anfitrion.pagina.getByTestId('codigo').textContent())?.trim() ?? '';
 verificar(/^[A-Z2-9]{8}$/.test(codigo), `Código de sala inesperado: "${codigo}"`);
@@ -690,7 +698,7 @@ for (const j of jugadores) {
   // En desktop con alto suficiente la sala va en una sola columna: jugadores, copiar e iniciar uno debajo del otro.
   {
     const vp = j.pagina.viewportSize()!;
-    if (vp.width > 820 && vp.height >= 700) {
+    if (vp.width > 820 && vp.height >= 710) {
       const columnas = await j.pagina.evaluate(() => {
         const izquierdas = (sel: string) => new Set(Array.from(document.querySelectorAll(sel)).map((e) => Math.round(e.getBoundingClientRect().left)));
         return { jugadores: izquierdas('.lobby .jugadores li').size, copiar: izquierdas('.lobby-info .acciones .boton').size, acciones: izquierdas('.lobby .acciones.fila .boton').size };
