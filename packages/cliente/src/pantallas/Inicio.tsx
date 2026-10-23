@@ -156,8 +156,12 @@ function Salas() {
   const conectando = useTienda((s) => s.conexion === 'conectando');
   const ocupado = useTienda((s) => s.ocupado) || conectando;
   const consultarUltima = useTienda((s) => s.consultarUltima);
+  const abandonarUltima = useTienda((s) => s.abandonarUltima);
+  // Cada vez que el servidor responde "ya estás en otra sala", se vuelve a consultar para ofrecer Volver o Abandonar.
+  const avisosOtraPartida = useTienda((s) => s.avisosOtraPartida);
   // "Volver a esa partida" aparece solo si el servidor confirma que sigue en curso.
   const [ultima, setUltima] = useState<{ codigo: string } | null>(null);
+  const [confirmarAbandono, setConfirmarAbandono] = useState(false);
   useEffect(() => {
     let vigente = true;
     void consultarUltima().then((encontrada) => {
@@ -166,7 +170,15 @@ function Salas() {
     return () => {
       vigente = false;
     };
-  }, [consultarUltima]);
+  }, [consultarUltima, avisosOtraPartida]);
+
+  async function alAbandonar() {
+    if (ocupado) return;
+    if (await abandonarUltima()) {
+      setUltima(null);
+      setConfirmarAbandono(false);
+    }
+  }
   const [codigo, setCodigo] = useState(codigoDeLaURL);
   const codigoValido = new RegExp(`^[${ALFABETO_CODIGO}]{${LARGO_CODIGO_SALA}}$`).test(codigo.trim().toUpperCase());
 
@@ -206,12 +218,36 @@ function Salas() {
     <>
       {ultima && (
         <div className="hoja volver">
-          <p>
-            Tenés una partida en la sala <strong>{ultima.codigo}</strong>.
-          </p>
-          <button type="button" className="boton" disabled={ocupado} onClick={() => void reconectar()}>
-            Volver a esa partida
-          </button>
+          {confirmarAbandono ? (
+            <>
+              <p>
+                ¿Abandonás la partida de la sala <strong>{ultima.codigo}</strong>? Si quedan otras personas, el piloto
+                automático juega por vos hasta el final; si no, la partida se cierra.
+              </p>
+              <div className="acciones-volver">
+                <button type="button" className="boton" disabled={ocupado} onClick={() => void alAbandonar()}>
+                  Sí, abandonar
+                </button>
+                <button type="button" className="boton secundario" onClick={() => setConfirmarAbandono(false)}>
+                  No
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                Tenés una partida en la sala <strong>{ultima.codigo}</strong>.
+              </p>
+              <div className="acciones-volver">
+                <button type="button" className="boton" disabled={ocupado} onClick={() => void reconectar()}>
+                  Volver a esa partida
+                </button>
+                <button type="button" className="boton secundario" disabled={ocupado} onClick={() => setConfirmarAbandono(true)}>
+                  Abandonarla
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 

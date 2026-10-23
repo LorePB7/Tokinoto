@@ -233,6 +233,26 @@ describe('ausencias (etapa 6)', () => {
     expect(await tiendaDePrueba(mundo.url).getState().consultarUltima()).toBeNull();
   });
 
+  it('desde el inicio se puede abandonar la partida para empezar otra', async () => {
+    const almacen = almacenEnMemoria();
+    const ana = tiendaDePrueba(mundo.url, almacen);
+    mundo.tiendas.push(ana);
+    await ana.getState().entrarComoInvitado('Ana');
+    expect(await ana.getState().jugarContraBots(3, 'facil')).toBe(true);
+    await esperar(() => salaDe(ana)?.juego !== null && salaDe(ana)?.juego !== undefined);
+    // Otra pestaña (misma cuenta): no puede empezar otra, y el inicio vuelve a ofrecer Volver o Abandonar.
+    const otra = tiendaDePrueba(mundo.url, almacenEnMemoria(almacen.cuenta));
+    mundo.tiendas.push(otra);
+    const avisos = otra.getState().avisosOtraPartida;
+    expect(await otra.getState().jugarContraBots(3, 'facil')).toBe(false);
+    expect(otra.getState().avisosOtraPartida).toBe(avisos + 1);
+    expect(await otra.getState().consultarUltima()).not.toBeNull();
+    expect(await otra.getState().abandonarUltima()).toBe(true);
+    // Estaba sola contra bots: la partida se cerró y ya no se ofrece volver.
+    expect(await otra.getState().consultarUltima()).toBeNull();
+    expect(await otra.getState().jugarContraBots(3, 'facil')).toBe(true);
+  });
+
   it('el turno trae fecha límite y la tienda mide el desfase del reloj', async () => {
     const tiendas = await armarMesa(mundo, 4);
     await esperar(() => tiendas.every((t) => juegoDe(t)?.turno !== null && juegoDe(t)?.fase === 'APUESTAS'));

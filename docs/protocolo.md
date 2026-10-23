@@ -40,7 +40,8 @@ Reglas generales:
 | `cuenta.cambiarNombre` | `{ nombre }` | Identificado, sin sala. El nombre nuevo se usa desde la próxima sala |
 | `sala.crear` | `{ tiempoTurno? }` | Identificado, sin sala. El nombre sale de la cuenta o del invitado. La sala admite hasta 7 jugadores y el anfitrión inicia con 4 a 7 (DP-11). `tiempoTurno` son los segundos por jugada, de 10 a 120 (por defecto 30), o `null` para jugar sin límite (DP-13). `maxJugadores` es **obsoleto**: se acepta y se ignora, para no romper pestañas con un cliente viejo |
 | `sala.configurar` | `{ tiempoTurno }` | Anfitrión, en el lobby, antes de iniciar. Cambia los segundos por jugada (10 a 120, o `null` sin límite) y todos reciben `sala.configuracion` |
-| `sala.consultar` | — | Cualquiera, sin estar en una sala. Responde `{ vigente }` (y `codigo` y `estado` si es `true`): si la persona identificada tiene un asiento en una sala con el juego sin terminar. Sin identificarse, `{ vigente: false }`. No conecta a nadie; sirve para ofrecer "volver a tu partida" solo cuando existe |
+| `sala.abandonar` | — | Cualquiera, sin estar en una sala. Deja la partida en la que la persona identificada tiene lugar, sin volver a entrar: lo mismo que `sala.salir` (con el juego en curso, el piloto juega por ella). Si no tiene ninguna, no hace nada. Responde `{}` |
+| `sala.consultar` | — | Cualquiera, sin estar en una sala. Responde `{ vigente }` (y `codigo` y `estado` si es `true`): si la persona identificada tiene un asiento en una sala con el juego sin terminar y no la abandonó a propósito. Sin identificarse, `{ vigente: false }`. No conecta a nadie; sirve para ofrecer "volver a tu partida" solo cuando existe |
 | `sala.jugarContraBots` | `{ cantidad, nivel, tiempoTurno? }` | Identificado, sin sala (fase 8, DP-19). Crea una sala con la persona como anfitrión, le suma `cantidad` bots (3 a 6) del `nivel` (`facil`, `medio` o `dificil`) y la inicia sola. Responde como `sala.crear`; después llegan la foto, los `sala.jugadorEntro` de los bots y `juego.iniciado`. `tiempoTurno` como en `sala.crear`, pero por defecto **sin límite** |
 | `sala.unirse` | `{ codigo }` | Identificado, sin sala, con el lobby abierto. Si la persona ya tenía asiento en esa sala (otra pestaña u otro dispositivo), vuelve a ese asiento en vez de ocupar otro |
 | `sala.reconectar` | — | Identificado, sin sala. Vuelve al asiento que la persona tiene en una sala (DP-14) |
@@ -137,7 +138,7 @@ Fase 6 del plan de mejoras (DP-16 y DP-21):
 - **Google.** El cliente muestra el botón oficial de Google (Google Identity Services, modo ventana emergente) y manda el token de identidad con `cuenta.entrar`. El servidor lo verifica con `google-auth-library` (firma con las claves públicas de Google, audiencia = nuestro ID de cliente, emisor y vencimiento). Se identifica a la persona por el `sub` de Google, **nunca por el email**, que no se guarda. La primera vez se crea la cuenta (tabla `cuentas`) con el nombre de Google recortado a 20 caracteres; después la persona lo puede cambiar y Google no lo pisa.
 - **Invitado.** Solo un nombre. No tiene fila en `cuentas` ni historial propio. Si se borran los datos del navegador, esa identidad se pierde.
 - **Sesión.** El servidor entrega su propia sesión, firmada con HMAC-SHA256 y válida 30 días; se renueva con cada respuesta de cuenta. Como es firmada (y no en memoria), sobrevive a un reinicio del servidor si la clave (`TOKINOTO_SECRETO_SESION`) es la misma.
-- **Una sala a la vez.** Una persona tiene como mucho un asiento en una sala activa. No puede crear ni unirse a otra salvo que la primera haya terminado o que la haya abandonado a propósito (`sala.salir` con el juego en curso).
+- **Una sala a la vez.** Una persona tiene como mucho un asiento en una sala activa. No puede crear ni unirse a otra salvo que la primera haya terminado o que la haya abandonado a propósito (`sala.salir` con el juego en curso, o `sala.abandonar` desde el inicio). Si lo intenta, recibe `YA_ESTAS_EN_UNA_SALA`.
 - **Límites.** Por conexión, 5 ingresos seguidos y después uno cada 20 s. En todo el servidor, 30 invitados nuevos seguidos y después uno por segundo.
 - **Modo de prueba.** Con `TOKINOTO_AUTH_PRUEBA=1` el servidor acepta credenciales `prueba:<nombre>` en vez de Google. Se niega a arrancar si eso está activo en producción.
 
@@ -209,7 +210,7 @@ Reglas oficiales del modo online (DP-12 a DP-14):
 
 - **Tiempo límite** (DP-13): cada apuesta y cada tirada tiene el tiempo de la sala (30 s por defecto). Si vence, el piloto automático hace esa jugada. Tras **3 vencimientos seguidos**, el piloto toma el asiento hasta que el jugador actúe de nuevo.
 - **Piloto automático** (DP-12b): apuesta el menor valor válido (0, o 1 si 0 está prohibido) y juega la carta de menor valor.
-- **Desconexión o abandono** (DP-12): el asiento nunca se elimina. El piloto juega por él y sus puntos se conservan.
+- **Desconexión o abandono** (DP-12): el asiento nunca se elimina. El piloto juega por él y sus puntos se conservan. Si todas las personas abandonaron (los bots no cuentan), el juego se aborta en el acto con el motivo "Todos los jugadores dejaron la mesa"; si alguna solo perdió la conexión, se espera como siempre.
 - **Reconexión** (DP-14): con su sesión, el jugador vuelve a su asiento sin límite de tiempo mientras el juego siga. Recibe la foto completa y el piloto se desactiva. Si le tocaba, su turno vuelve a empezar con el plazo completo.
 - **Nadie conectado** (DP-12): si no queda ningún jugador conectado durante **3 minutos**, el juego pasa a `ABORTADO` y la sala se cierra.
 

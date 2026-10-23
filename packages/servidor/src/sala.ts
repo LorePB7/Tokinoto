@@ -164,6 +164,8 @@ function mismoToken(a: string, b: string): boolean {
 }
 
 export const MOTIVO_ABORTO_SIN_JUGADORES = 'No quedó ningún jugador conectado';
+/** Todas las personas dejaron la mesa a propósito (Salir o Abandonar): no se espera a nadie. */
+export const MOTIVO_ABORTO_TODOS_SALIERON = 'Todos los jugadores dejaron la mesa';
 
 export class Sala {
   readonly codigo: string;
@@ -314,9 +316,29 @@ export class Sala {
   consultar(token: string, responder: (respuesta: Respuesta) => void): void {
     this.encolar(() => {
       const jugador = this.cerrada ? undefined : this.jugadores.find((j) => mismoToken(j.token, token));
-      const vigente = Boolean(jugador) && this.estado !== 'TERMINADO';
+      // Una partida que la persona dejó a propósito ya no se ofrece para volver (puede entrar con el código).
+      const vigente = Boolean(jugador) && this.estado !== 'TERMINADO' && jugador?.piloto !== 'abandono';
       responder(respuestaOk(vigente ? { vigente, codigo: this.codigo, estado: this.estado } : { vigente }));
     });
+  }
+
+  /**
+   * Dejar la sala desde afuera (el inicio), sin volver a entrar: lo mismo que
+   * `sala.salir`. Con el juego en curso, el piloto juega por la persona; si no
+   * queda nadie más, el juego se cierra. En la sala de espera, la persona sale.
+   */
+  abandonar(token: string, responder: (respuesta: Respuesta) => void): void {
+    this.encolar(() => {
+      const jugador = this.cerrada ? undefined : this.jugadores.find((j) => mismoToken(j.token, token));
+      if (jugador) this.salirDeLaSala(jugador);
+      responder(respuestaOk());
+    });
+  }
+
+  private salirDeLaSala(jugador: Jugador): void {
+    // Con el juego en curso, el asiento queda y el piloto automático juega por él.
+    if (this.juego) this.marcarDesconectado(jugador, this.juegoEnCurso ? 'abandono' : 'desconexion');
+    else this.quitarDelLobby(jugador);
   }
 
   /**
@@ -544,9 +566,16 @@ export class Sala {
     if (this.juegoEnCurso) this.cambiarPiloto(jugador, motivo);
     if (!this.hayConectados()) {
       // Nadie puede ver la mesa: el piloto no juega y, si nadie vuelve, se aborta (DP-12).
-      if (this.juegoEnCurso) this.programarAborto();
+      // Si todas las personas se fueron a propósito, no hay a quién esperar: se aborta ya.
+      if (this.juegoEnCurso && this.todasSeFueron()) this.abortarSinJugadores(MOTIVO_ABORTO_TODOS_SALIERON);
+      else if (this.juegoEnCurso) this.programarAborto();
       else this.vaciar();
     }
+  }
+
+  /** ¿Todas las personas de la mesa la dejaron con Salir o Abandonar? (Los bots no cuentan.) */
+  private todasSeFueron(): boolean {
+    return this.jugadores.every((j) => j.bot !== null || (!j.conectado && j.piloto === 'abandono'));
   }
 
   private cambiarAnfitrion(nuevo: Jugador | null, excluir?: string): void {
@@ -693,14 +722,20 @@ export class Sala {
       this.encolar(() => {
         this.cancelarAborto = null;
         if (this.cerrada || this.hayConectados()) return;
-        if (this.juegoEnCurso) {
-          this.cancelarAvanceProgramado();
-          this.cancelarTurno();
-          this.aplicarDelServidor({ type: 'ABORTAR_JUEGO', reason: MOTIVO_ABORTO_SIN_JUGADORES });
-        }
-        this.vaciar();
+        this.abortarSinJugadores(MOTIVO_ABORTO_SIN_JUGADORES);
       });
     });
+  }
+
+  /** Sin personas en la mesa: se aborta el juego (si sigue) y la sala se cierra. */
+  private abortarSinJugadores(motivo: string): void {
+    this.cancelarAbortoProgramado();
+    if (this.juegoEnCurso) {
+      this.cancelarAvanceProgramado();
+      this.cancelarTurno();
+      this.aplicarDelServidor({ type: 'ABORTAR_JUEGO', reason: motivo });
+    }
+    this.vaciar();
   }
 
   private cancelarAbortoProgramado(): void {
@@ -721,9 +756,7 @@ export class Sala {
   private ejecutar(jugador: Jugador, comando: ComandoDeSala): Respuesta {
     switch (comando.tipo) {
       case 'sala.salir':
-        // Con el juego en curso, el asiento queda y el piloto automático juega por él.
-        if (this.juego) this.marcarDesconectado(jugador, this.juegoEnCurso ? 'abandono' : 'desconexion');
-        else this.quitarDelLobby(jugador);
+        this.salirDeLaSala(jugador);
         return respuestaOk();
 
       case 'sala.expulsar':

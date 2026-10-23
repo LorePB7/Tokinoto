@@ -340,6 +340,15 @@ function atenderConexion(socket: Socket, gestor: GestorSalas, limite: OpcionesLi
         gestor.consultar(identidad, responder);
         return;
 
+      case 'sala.abandonar':
+        // Desde el inicio: deja la partida que tenía, sin volver a entrar.
+        if (!identidad) {
+          responder(respuestaOk());
+          return;
+        }
+        gestor.abandonar(identidad, responder);
+        return;
+
       case 'sala.crear':
       case 'sala.jugarContraBots':
       case 'sala.unirse':

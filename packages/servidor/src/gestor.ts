@@ -179,6 +179,19 @@ export class GestorSalas {
     lugar.sala.consultar(lugar.token, responder);
   }
 
+  /**
+   * Deja, desde el inicio, la sala en la que la persona tiene lugar (como
+   * `sala.salir`, sin volver a entrar). Si no tiene ninguna, no hace nada.
+   */
+  abandonar(identidad: Identidad, responder: (respuesta: Respuesta) => void): void {
+    const lugar = this.lugarVigente(identidad.clave);
+    if (!lugar) {
+      responder(respuestaOk());
+      return;
+    }
+    lugar.sala.abandonar(lugar.token, responder);
+  }
+
   /** Cierra todas las salas (al apagar el servidor). */
   cerrarTodas(): void {
     for (const sala of this.salas.values()) sala.cerrar();
@@ -215,7 +228,7 @@ export class GestorSalas {
     if (!lugar || lugar.sala === destinoSala || !lugar.sala.ocupaLugar(lugar.token)) return null;
     return respuestaError(
       'YA_ESTAS_EN_UNA_SALA',
-      `Ya estás en la sala ${lugar.sala.codigo}. Volvé a esa partida o salí de ella para entrar a otra.`,
+      `Ya estás en la sala ${lugar.sala.codigo}. Volvé a esa partida o abandonala para entrar a otra.`,
     );
   }
 

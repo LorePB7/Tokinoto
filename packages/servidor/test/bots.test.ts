@@ -19,7 +19,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import type { Historial } from '../src/guardador';
 import { GestorSalas } from '../src/gestor';
-import { MOTIVO_ABORTO_SIN_JUGADORES, type Destino, type PerfilJugador } from '../src/sala';
+import { MOTIVO_ABORTO_SIN_JUGADORES, MOTIVO_ABORTO_TODOS_SALIERON, type Destino, type PerfilJugador } from '../src/sala';
 import { armarMesa, RelojManual, type Mesa } from './ayudas';
 
 const OK = { ok: true, datos: {} };
@@ -188,6 +188,102 @@ describe('juego con bots (fase 8)', () => {
     jugarConBots(mesa);
     expect(mesa.sala.estadoDelJuego?.phase).toBe('FINISHED');
     expect(mesa.errores).toEqual([]);
+  });
+});
+
+describe('salir de un juego con bots', () => {
+  it('solo contra bots: al tocar Salir el juego se cierra en el acto', () => {
+    const mesa = armarMesa(1, { pausaBotMs: 1000, esperaAbortoMs: 60_000 });
+    for (let i = 0; i < 3; i++) mesa.comando(0, agregar());
+    mesa.comando(0, { tipo: 'sala.iniciar' });
+    expect(mesa.comando(0, { tipo: 'sala.salir' })).toEqual(OK);
+    expect(mesa.sala.estadoDelJuego?.phase).toBe('ABORTED');
+    expect(mesa.sala.estadoDelJuego?.abortReason).toBe(MOTIVO_ABORTO_TODOS_SALIERON);
+    expect(mesa.vaciada()).toBe(true);
+    expect(mesa.errores).toEqual([]);
+  });
+
+  it('solo contra bots: si solo se corta la conexión, sigue esperando a que vuelva', () => {
+    const mesa = armarMesa(1, { pausaBotMs: 1000, esperaAbortoMs: 60_000 });
+    for (let i = 0; i < 3; i++) mesa.comando(0, agregar());
+    mesa.comando(0, { tipo: 'sala.iniciar' });
+    mesa.sala.desconectar(mesa.jugadores[0]!.id);
+    expect(mesa.sala.estadoDelJuego?.phase).not.toBe('ABORTED');
+    expect(mesa.vaciada()).toBe(false);
+  });
+
+  it('con amigos: sigue mientras quede alguien; cuando salen todos, se cierra en el acto', () => {
+    const mesa = armarMesa(2, { pausaBotMs: 1000, esperaAbortoMs: 60_000 });
+    for (let i = 0; i < 2; i++) mesa.comando(0, agregar());
+    mesa.comando(0, { tipo: 'sala.iniciar' });
+    expect(mesa.comando(0, { tipo: 'sala.salir' })).toEqual(OK);
+    expect(mesa.sala.estadoDelJuego?.phase).not.toBe('ABORTED');
+    expect(mesa.comando(1, { tipo: 'sala.salir' })).toEqual(OK);
+    expect(mesa.sala.estadoDelJuego?.abortReason).toBe(MOTIVO_ABORTO_TODOS_SALIERON);
+    expect(mesa.vaciada()).toBe(true);
+  });
+
+  it('con amigos: si uno salió y el otro solo perdió la conexión, se espera como siempre', () => {
+    const mesa = armarMesa(2, { pausaBotMs: 1000, esperaAbortoMs: 60_000 });
+    for (let i = 0; i < 2; i++) mesa.comando(0, agregar());
+    mesa.comando(0, { tipo: 'sala.iniciar' });
+    mesa.sala.desconectar(mesa.jugadores[1]!.id);
+    expect(mesa.comando(0, { tipo: 'sala.salir' })).toEqual(OK);
+    expect(mesa.vaciada()).toBe(false);
+    mesa.reloj.avanzar(60_000);
+    expect(mesa.sala.estadoDelJuego?.abortReason).toBe(MOTIVO_ABORTO_SIN_JUGADORES);
+  });
+});
+
+describe('abandonar desde el inicio', () => {
+  const ana = { tipo: 'invitado' as const, clave: 'i:ana', nombre: 'Ana', cuentaId: null };
+  const beto = { tipo: 'invitado' as const, clave: 'i:beto', nombre: 'Beto', cuentaId: null };
+  const destino = (): Destino => ({ enviar: () => undefined });
+  function pedir<T>(hacer: (responder: (r: T) => void) => void): T {
+    let r: T | null = null;
+    hacer((x) => (r = x));
+    if (r === null) throw new Error('Sin respuesta');
+    return r;
+  }
+
+  it('con la conexión cortada, Abandonar cierra el juego contra bots y deja empezar otro', () => {
+    const reloj = new RelojManual();
+    const gestor = new GestorSalas({ sala: { reloj, crearAzar: () => createSeededRng(3), pausaBotMs: 1000 } });
+    const r = pedir<Respuesta>((ok) => gestor.jugarContraBots(ana, destino(), ok, 3, 'medio'));
+    const sala = gestor.buscar(String(r.ok && r.datos['codigo']))!;
+    sala.desconectar(String(r.ok && r.datos['idJugador']));
+    // Con la conexión cortada sigue teniendo lugar: no puede empezar otra.
+    expect(pedir<Respuesta>((ok) => gestor.crear(ana, destino(), ok))).toMatchObject({ error: { codigo: 'YA_ESTAS_EN_UNA_SALA' } });
+    expect(pedir<Respuesta>((ok) => gestor.consultar(ana, ok))).toMatchObject({ datos: { vigente: true } });
+    expect(pedir<Respuesta>((ok) => gestor.abandonar(ana, ok))).toEqual(OK);
+    expect(sala.estadoDelJuego?.abortReason).toBe(MOTIVO_ABORTO_TODOS_SALIERON);
+    expect(pedir<Respuesta>((ok) => gestor.consultar(ana, ok))).toMatchObject({ datos: { vigente: false } });
+    expect(pedir<Respuesta>((ok) => gestor.jugarContraBots(ana, destino(), ok, 3, 'medio')).ok).toBe(true);
+    gestor.cerrarTodas();
+  });
+
+  it('con amigos, Abandonar deja al piloto en su lugar, ya no ofrece volver y libera para otra sala', () => {
+    const reloj = new RelojManual();
+    const gestor = new GestorSalas({ sala: { reloj, crearAzar: () => createSeededRng(4), pausaBotMs: 1000 } });
+    const r = pedir<Respuesta>((ok) => gestor.crear(ana, destino(), ok));
+    const codigo = String(r.ok && r.datos['codigo']);
+    const sala = gestor.buscar(codigo)!;
+    const idAna = String(r.ok && r.datos['idJugador']);
+    expect(pedir<Respuesta>((ok) => gestor.unirse(codigo, beto, destino(), ok)).ok).toBe(true);
+    for (let i = 0; i < 2; i++) pedir<Respuesta>((ok) => sala.comando(idAna, `b${i}`, agregar(), ok));
+    expect(pedir<Respuesta>((ok) => sala.comando(idAna, 'ini', { tipo: 'sala.iniciar' }, ok))).toEqual(OK);
+    sala.desconectar(idAna);
+    expect(pedir<Respuesta>((ok) => gestor.abandonar(ana, ok))).toEqual(OK);
+    expect(sala.estadoDelJuego?.phase).not.toBe('ABORTED');
+    expect(sala.vistaPara(idAna)?.jugadores.find((j) => j.idJugador === idAna)?.piloto).toBe('abandono');
+    expect(pedir<Respuesta>((ok) => gestor.consultar(ana, ok))).toMatchObject({ datos: { vigente: false } });
+    expect(pedir<Respuesta>((ok) => gestor.crear(ana, destino(), ok)).ok).toBe(true);
+    gestor.cerrarTodas();
+  });
+
+  it('sin partida, Abandonar no hace nada', () => {
+    const gestor = new GestorSalas();
+    expect(pedir<Respuesta>((ok) => gestor.abandonar(ana, ok))).toEqual(OK);
   });
 });
 

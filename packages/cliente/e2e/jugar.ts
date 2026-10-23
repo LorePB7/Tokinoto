@@ -696,6 +696,20 @@ async function jugarContraBots(): Promise<void> {
     await p.getByRole('button', { name: 'Jugar de nuevo' }).click();
     await p.locator('.ranking').waitFor({ state: 'detached', timeout: 10_000 });
     await p.getByText('Partida 1 de 14').waitFor();
+
+    // Salir de la revancha: jugando solo, la partida se cierra y se puede empezar otra enseguida.
+    await p.getByRole('button', { name: 'Salir', exact: true }).click();
+    const confirmar = p.getByRole('alertdialog', { name: 'Salir del juego' });
+    verificar((await confirmar.innerText()).includes('la partida se cierra'), 'Al salir solo contra bots no avisa que la partida se cierra');
+    await confirmar.getByRole('button', { name: 'Sí, salir' }).click();
+    await p.getByRole('button', { name: 'Jugar solo' }).waitFor({ timeout: 10_000 });
+    await p.waitForTimeout(800);
+    verificar((await p.getByRole('button', { name: 'Volver a esa partida' }).count()) === 0, 'Después de salir sigue ofreciendo volver a la partida contra bots');
+    await p.getByRole('button', { name: 'Jugar solo' }).click();
+    await p.getByRole('dialog', { name: 'Jugar solo' }).getByRole('button', { name: 'Empezar' }).click();
+    await p.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
+    verificar((await p.locator('.aviso').count()) === 0, 'No dejó empezar otra partida contra bots después de salir');
+    console.log('Listo: salió de la partida contra bots y empezó otra.');
   }
 
   informarAuditoria();

@@ -35,6 +35,7 @@ describe('lectura de comandos', () => {
       sobre('sala.configurar', { tiempoTurno: 60 }),
       sobre('sala.configurar', { tiempoTurno: null }),
       sobre('sala.consultar'),
+      sobre('sala.abandonar'),
       sobre('juego.apostar', { valor: 2 }),
       sobre('juego.jugarCarta', { idCarta: 'K-picas' }),
       sobre('juego.revancha'),
