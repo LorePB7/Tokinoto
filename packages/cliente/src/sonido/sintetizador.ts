@@ -292,6 +292,10 @@ export function crearSintetizadorWebAudio(): Sintetizador {
           pulsar(N.E5, t + 0.18, efectos, 0.28 * k, { duracion: 1.4, brillo: 0.3, sostenido: 0.997 });
           pulsar(N.B5, t + 0.18, efectos, 0.07 * k, { duracion: 0.8, brillo: 0.3 });
           break;
+        case 'turnoAjeno':
+          // Le toca a otro: una nota corta y baja, mucho más suave que la del turno propio.
+          pulsar(N.A4, t + 0.18, efectos, 0.09 * k, { duracion: 0.45, brillo: 0.2 });
+          break;
         case 'finPartida':
           bombo(t, 0.5 * k, efectos);
           rasguear([N.G2, N.B2, N.D3, N.G3, N.B3, N.G4], t + 0.02, efectos, 0.24 * k);

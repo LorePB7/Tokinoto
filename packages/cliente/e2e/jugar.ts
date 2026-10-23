@@ -22,7 +22,7 @@
  * (cualquier valor) para que aparezca el botón.
  *
  * Con --bots N (de 3 a 6) juega una sola persona contra N bots (fase 8):
- * entra, elige "Contra bots", juega las 14 partidas y pide la revancha.
+ * entra, elige "Jugar solo", juega las 14 partidas y pide la revancha.
  *
  * Si está definida DATABASE_URL, el servidor guarda el historial en esa base
  * (etapa 7) y al final se verifica que el juego quedó guardado y es consistente.
@@ -269,7 +269,7 @@ async function barrer(j: Jugador, vista: string): Promise<void> {
       // Nada de la mesa puede pisar la barra de arriba (el caso de los montones del asiento de arriba).
       const barra = document.querySelector('.barra')?.getBoundingClientRect();
       if (barra) {
-        for (const e of Array.from(document.querySelectorAll('.asiento .placa, .montones'))) {
+        for (const e of Array.from(document.querySelectorAll('.asiento .placa, .asiento .insignias, .montones'))) {
           const c = e.getBoundingClientRect();
           if (c.width && c.top < barra.bottom - 1 && c.bottom > barra.top && c.left < barra.right && c.right > barra.left) {
             culpables.unshift(`pisa la barra: ${String(e.className)} arriba=${Math.round(c.top)} barra=${Math.round(barra.bottom)}`);
@@ -295,6 +295,7 @@ async function barrer(j: Jugador, vista: string): Promise<void> {
       }
       return { v, h, culpables: culpables.slice(0, 3) };
     });
+    anotarEncime(`${w}x${h} (barrido)`, await j.pagina.evaluate(medirEncime));
     const k = `${w}x${h} · ${vista}`;
     const antes = barrido.get(k);
     if (!antes || r.v > antes.v || r.h > antes.h) barrido.set(k, r);
@@ -305,6 +306,57 @@ async function barrer(j: Jugador, vista: string): Promise<void> {
 
 /** Peor caso visto de scroll vertical y horizontal en cada vista, muestreando durante toda la partida. */
 const muestreos = new Map<string, { v: number; h: number; mano: number; culpables: string[] }>();
+
+/**
+ * Cuánto se enciman las placas de los asientos entre sí, o una placa con los
+ * montones de otro asiento (en px; 0 = nada se pisa). Corre en el navegador.
+ */
+function medirEncime(): { px: number; pares: string[] } {
+  // La placa cuenta con su pestaña de insignias (en las mesas llenas sobresale del borde de arriba).
+  const unir = (a: DOMRect, b: DOMRect | undefined): DOMRect =>
+    b && b.width ? new DOMRect(Math.min(a.left, b.left), Math.min(a.top, b.top), Math.max(a.right, b.right) - Math.min(a.left, b.left), Math.max(a.bottom, b.bottom) - Math.min(a.top, b.top)) : a;
+  const asientos = Array.from(document.querySelectorAll('.asiento')).map((a) => {
+    const placa = a.querySelector('.placa')?.getBoundingClientRect();
+    return {
+      nombre: a.querySelector('.nombre')?.textContent ?? '?',
+      placa: placa ? unir(placa, a.querySelector('.insignias')?.getBoundingClientRect()) : null,
+      montones: Array.from(a.querySelectorAll('.montones')).map((m) => m.getBoundingClientRect()),
+    };
+  });
+  const cruce = (a: DOMRect, b: DOMRect): number => {
+    const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+    const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    return x > 0 && y > 0 ? Math.min(x, y) : 0;
+  };
+  let px = 0;
+  const pares: string[] = [];
+  for (const a of asientos) {
+    for (const b of asientos) {
+      if (a === b || !a.placa || !b.placa) continue;
+      const placas = a.nombre < b.nombre ? cruce(a.placa, b.placa) : 0;
+      const monton = Math.max(0, ...b.montones.map((m) => cruce(a.placa!, m)));
+      const peor = Math.max(placas, monton);
+      if (peor > 1) pares.push(`${a.nombre} / ${b.nombre}${monton > placas ? ' (montón)' : ''}: ${Math.round(peor)} px`);
+      px = Math.max(px, peor);
+    }
+  }
+  return { px: Math.round(px), pares: pares.slice(0, 3) };
+}
+/**
+ * Informa los asientos encimados. Como los demás solapes, es informativo (no hace fallar la prueba):
+ * en celulares muy chicos con 7 jugadores no hay lugar (ver docs/auditoria-responsive.md).
+ */
+function informarEncimes(): void {
+  const malos = [...encimes].filter(([, e]) => e.px > 1).sort();
+  console.log(`\nAsientos encimados: ${encimes.size} pantallas, ${malos.length} con placas que se pisan.`);
+  for (const [k, e] of malos) console.log(`  MAL ${k}: ${e.px} px  ${e.pares.join(' | ')}`);
+}
+/** Peor encime de asientos visto en cada pantalla (muestreo durante el juego y barrido). */
+const encimes = new Map<string, { px: number; pares: string[] }>();
+function anotarEncime(k: string, e: { px: number; pares: string[] }): void {
+  const antes = encimes.get(k);
+  if (!antes || e.px > antes.px) encimes.set(k, e);
+}
 const ultimoMuestreo = new Map<string, number>();
 const lugaresMesa = new Map<string, { lugar: string; vista: string; detalle: string }>();
 const mesaMovida = new Set<string>();
@@ -380,6 +432,7 @@ async function muestrear(j: Jugador, vista: string): Promise<void> {
     der: Math.max(dd.der, r.desborde.der),
     lado: Math.max(dd.lado, r.desborde.lado),
   });
+  anotarEncime(j.tamano, await j.pagina.evaluate(medirEncime));
   const k = `${j.tamano} · ${vista}`;
   const antes = muestreos.get(k);
   if (!antes || r.v > antes.v || r.h > antes.h || r.mano > antes.mano) muestreos.set(k, { v: Math.max(r.v, antes?.v ?? -9e9), h: Math.max(r.h, antes?.h ?? -9e9), mano: Math.max(r.mano, antes?.mano ?? 0), culpables: r.culpables.length ? r.culpables : (antes?.culpables ?? []) });
@@ -602,7 +655,7 @@ async function abrirDesdeBarra(p: Page, nombre: string): Promise<void> {
 }
 
 /**
- * Fase 8: una persona contra bots. Entra, abre "Contra bots", elige la
+ * Fase 8: una persona contra bots. Entra, abre "Jugar solo", elige la
  * cantidad y el nivel, juega las 14 partidas tocando la pantalla y pide la
  * revancha. Los bots juegan solos en el servidor.
  */
@@ -614,8 +667,8 @@ async function jugarContraBots(): Promise<void> {
   await p.getByRole('button', { name: 'Jugar como invitado' }).click();
   await p.getByText('Jugás como').waitFor({ timeout: 10_000 });
   await medir(j, 'inicio con cuenta');
-  await p.getByRole('button', { name: 'Contra bots' }).click();
-  const panel = p.getByRole('dialog', { name: 'Jugar contra bots' });
+  await p.getByRole('button', { name: 'Jugar solo' }).click();
+  const panel = p.getByRole('dialog', { name: 'Jugar solo' });
   await panel.waitFor();
   await medir(j, 'jugar contra bots (panel)', await excesoDe(j, '.panel-bots'));
   await captura(j, `bots-0-panel-${j.tamano}`);
@@ -646,6 +699,7 @@ async function jugarContraBots(): Promise<void> {
   }
 
   informarAuditoria();
+  informarEncimes();
   {
     const malos = [...muestreos].filter(([, r]) => r.v > 0 || r.h > 0 || r.mano > 0).sort();
     console.log(`\nMuestreo durante toda la partida: ${muestreos.size} vistas, ${malos.length} con problemas.`);
@@ -718,8 +772,8 @@ await captura(anfitrion, '1b-inicio-con-cuenta');
 // Jugar contra bots (fase 8): el panel se abre desde el inicio y entra en la pantalla.
 {
   const p = anfitrion.pagina;
-  await p.getByRole('button', { name: 'Contra bots' }).click();
-  const panel = p.getByRole('dialog', { name: 'Jugar contra bots' });
+  await p.getByRole('button', { name: 'Jugar solo' }).click();
+  const panel = p.getByRole('dialog', { name: 'Jugar solo' });
   await panel.waitFor();
   verificar((await panel.getByRole('radio').count()) === 3, 'El panel de bots no ofrece los tres niveles');
   await medir(anfitrion, 'jugar contra bots (panel)', await excesoDe(anfitrion, '.panel-bots'));
@@ -891,6 +945,7 @@ if (values.corto) {
   console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
   for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
   informarAuditoria();
+  informarEncimes();
   await navegador.close();
   await vite?.close();
   await servidor.cerrar();
@@ -1056,7 +1111,8 @@ async function probarAusencias(): Promise<void> {
     await recarga.pagina.reload();
     await entrar(recarga.pagina);
     await recarga.pagina.locator('.pantalla-mesa').waitFor({ timeout: 10_000 });
-    const yo = await recarga.pagina.locator('.asiento.yo .nombre').innerText();
+    // En las mesas llenas la placa propia dice "Vos": el nombre completo queda en el título.
+    const yo = (await recarga.pagina.locator('.asiento.yo .nombre').getAttribute('title')) ?? '';
     verificar(yo.includes(recarga.nombre), `Tras recargar volvió con otro nombre: "${yo}"`);
     ausentes.delete(recarga);
     console.log(`Partida ${partida}: ${recarga.nombre} recargó la página y volvió a su asiento.`);
@@ -1103,6 +1159,7 @@ if (values.barrido) {
   for (const [k, r] of malos) verificar(false, `Muestreo: ${k} (v ${r.v}, h ${r.h}, mano ${r.mano})`);
 }
 informarAuditoria();
+informarEncimes();
 console.log('\nScroll de más por pantalla y vista (0 o menos = entra completo):');
 for (const [k, v] of [...peor].sort()) console.log(`  ${v <= 0 ? 'OK ' : 'MAL'} ${k}: ${v} px`);
 for (const [k, v] of peor) verificar(v <= 0, `Hay que hacer scroll en ${k} (${v} px de más)`);

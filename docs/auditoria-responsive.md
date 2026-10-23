@@ -174,3 +174,25 @@ Quedan, sin cambiar (fuera de este alcance):
 - **Sala de espera compacta.** Con el logo grande hubo que ajustar más: en pantallas de hasta 1000 px de alto se oculta el aviso
   del piloto automático (además de la firma) y los renglones y botones son un poco más bajos. El piso del diseño apilado pasó de
   700 a 710 px de alto.
+
+## Mesas llenas (después de la fase 8)
+
+Con 6 y 7 jugadores las placas se pisaban (sobre todo mis vecinos conmigo, en celulares con la barra del navegador y la
+letra un poco más grande). Qué cambió, solo para mesas de 6 y 7 (la clase `.mesa.llena`):
+
+- Pié, Mano, el reloj y el piloto van en una **pestaña sobre el borde de arriba** de la placa: no suman un renglón.
+- No se muestran los dorsos de las cartas en mano (en celulares ya no se mostraban).
+- La placa propia dice **"Vos"** en vez del nombre.
+- Con 7 jugadores, los asientos van a 0°, 58°, 101° y 154° de cada lado (antes, cada 51°): más aire entre mis vecinos y
+  yo, y entre los de los costados (`geometria.ts`, medido en 32 tamaños de 320 a 1920 px).
+- Si la mesa es baja (notebooks, ventanas chicas, celular acostado), los asientos se abren más hacia los costados.
+- Los asientos de los costados que quedan apenas arriba del centro llevan sus montones arriba, para no pisar al de abajo.
+
+| Placas encimadas, 7 jugadores, 32 tamaños | Antes | Después |
+| --- | --- | --- |
+| Letra normal | 12 (hasta 30 px) | 3: 320 × 568 (14 px), 568 × 320 (23 px) y 740 × 360 (1 px) |
+| Letra al 115 % (como en muchos Android) | 16 (hasta 42 px) | 10, de hasta 10 px salvo 320 × 568 y 568 × 320 |
+| 6 jugadores, letra normal | 4 | 2: 320 × 568 y 568 × 320 |
+
+El e2e mide ahora cuánto se enciman las placas (con su pestaña) y los montones en cada pantalla y en el barrido, y lo
+informa como "Asientos encimados" (informativo, como los demás solapes).

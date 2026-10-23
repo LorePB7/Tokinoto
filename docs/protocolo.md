@@ -50,7 +50,6 @@ Reglas generales:
 | `sala.quitarBot` | `{ idJugador }` | Anfitrión, en el lobby, antes de iniciar (fase 8). Saca un bot (`ESTADO_INVALIDO` si es una persona). Todos reciben `sala.jugadorSalio`. `sala.expulsar` sobre un bot hace lo mismo |
 | `chat.enviar` | `{ texto }` | Cualquier jugador de la sala, en cualquier momento (fase 7, DP-22). De 1 a 200 caracteres, se recorta, sin saltos de línea ni caracteres de control o de dirección del texto. Ráfaga de 3 y después 1 por segundo por jugador (`DEMASIADOS_MENSAJES`). Responde `{ id }` y todos (también quien lo mandó) reciben `chat.mensaje` |
 | `sala.iniciar` | — | Anfitrión, en el lobby, con 4 a 7 jugadores |
-| `sala.pausarResumen` | `{ pausar }` | Anfitrión, durante el juego (DP-23) |
 | `juego.apostar` | `{ valor }` | Quien tiene el turno de apuesta |
 | `juego.jugarCarta` | `{ idCarta }` | Quien tiene el turno de tirada |
 | `juego.retomarControl` | — | Quien tiene el piloto automático activo por vencimientos, con el juego en curso |
@@ -74,7 +73,6 @@ Ejemplos:
 { "v": 2, "tipo": "sala.salir", "idPedido": "b2" }
 { "v": 2, "tipo": "juego.retomarControl", "idPedido": "b4" }
 { "v": 2, "tipo": "sala.iniciar", "idPedido": "a2" }
-{ "v": 2, "tipo": "sala.pausarResumen", "idPedido": "a3", "datos": { "pausar": true } }
 { "v": 2, "tipo": "juego.apostar", "idPedido": "a4", "datos": { "valor": 2 } }
 { "v": 2, "tipo": "juego.jugarCarta", "idPedido": "a5", "datos": { "idCarta": "K-corazones" } }
 { "v": 2, "tipo": "juego.revancha", "idPedido": "a6" }
@@ -160,7 +158,6 @@ Todos llevan `seq`. Cada jugador recibe todos los eventos de su sala desde que e
 { "v": 2, "tipo": "sala.configuracion", "seq": 6, "datos": { "tiempoTurnoMs": 60000 } }
 { "v": 2, "tipo": "jugador.conexion", "seq": 90, "datos": { "idJugador": "…", "asiento": 2, "conectado": false } }
 { "v": 2, "tipo": "jugador.pilotoAutomatico", "seq": 91, "datos": { "idJugador": "…", "asiento": 2, "activado": true, "motivo": "desconexion" } }
-{ "v": 2, "tipo": "sala.resumenPausado", "seq": 120, "datos": { "pausado": true } }
 ```
 
 Quien entra no recibe su propio `sala.jugadorEntro`, porque su foto ya lo incluye. Del mismo modo, quien vuelve con `sala.reconectar` no recibe su propio `jugador.conexion` ni el `jugador.pilotoAutomatico` que lo desactiva.
@@ -181,7 +178,7 @@ Quien entra no recibe su propio `sala.jugadorEntro`, porque su foto ya lo incluy
 { "tipo": "baza.turno", "datos": { "asiento": 4, "baza": 1, "fechaLimite": 1760572861000 } }
 { "tipo": "baza.cartaJugada", "datos": { "asiento": 4, "carta": "Q-diamantes", "porPiloto": false } }
 { "tipo": "baza.resuelta", "datos": { "baza": 1, "ganador": 0, "cartaGanadora": "A-picas", "tieneFicha": true } }
-{ "tipo": "partida.puntajes", "datos": { "partida": 1, "resultados": [ { "asiento": 0, "apuesta": 1, "bazasGanadas": 1, "puntos": 6 } ], "totales": [6, 0, 0, 0, 5] } }
+{ "tipo": "partida.puntajes", "datos": { "partida": 1, "resultados": [ { "asiento": 0, "apuesta": 1, "bazasGanadas": 1, "puntos": 6 } ], "totales": [6, 0, 0, 0, 5], "finResumen": 1767225606000 } }
 { "tipo": "juego.terminado", "datos": { "ranking": [ { "asiento": 0, "total": 87, "puesto": 1 } ] } }
 { "tipo": "juego.abortado", "datos": { "motivo": "…" } }
 ```
@@ -192,20 +189,19 @@ Notas:
 
 - `sorteo.cartasSacadas.repiten` lista los asientos empatados con la carta más alta, que vuelven a sacar. Vacío si no hubo empate.
 - `partida.manoRepartida` es el único evento con datos **privados**. Cada jugador recibe `cartas` con **solo sus cartas**, y todos reciben `cantidades`, que es cuántas cartas tiene cada asiento.
-- Si el anfitrión pide la revancha con el resumen en pausa, el juego nuevo empieza sin pausa y se avisa con `sala.resumenPausado` (`pausado: false`).
 - `apuesta.turno.valorProhibido` es el valor que el Pié no puede apostar. Es `null` si no le toca al Pié o si no hay restricción efectiva.
 - `baza.resuelta`: el ganador es el Mano de la baza siguiente. `tieneFicha` indica si el montón lleva ficha.
 - `fechaLimite` es la hora del servidor (en ms) en que vence el turno. Es `null` si la sala no tiene límite o si juega el piloto automático.
 - `porPiloto` es `true` si la apuesta o la carta la eligió el piloto automático.
 - Un turno puede anunciarse de nuevo (otro `apuesta.turno` o `baza.turno` para el mismo asiento) si cambia quién lo controla: por ejemplo, si el jugador se desconecta en su turno o vuelve. Vale el último.
-- 🔵 Respecto del diseño técnico se agregaron `baza.iniciada` y `sala.resumenPausado`.
+- 🔵 Respecto del diseño técnico se agregó `baza.iniciada`. `sala.pausarResumen` y `sala.resumenPausado` se quitaron: el resumen ya no se pausa (DP-23).
 
 ### Ritmo
 
 El servidor maneja los tiempos (DP-23):
 
 - Tras `baza.resuelta`, la baza queda a la vista unos **3 s** antes de seguir.
-- Tras `partida.puntajes`, el resumen dura unos **10 s**, salvo que el anfitrión lo pause con `sala.pausarResumen`. La pausa sigue activa en los resúmenes siguientes hasta que se reanude.
+- Tras `partida.puntajes`, el resumen dura **6 s fijos** y nadie lo puede pausar. `finResumen` es la hora del servidor en que termina (en ms, como `fechaLimite`); el cliente la usa para la cuenta regresiva. En la foto viaja como `juego.finResumen` (null fuera del resumen).
 
 ### Ausencias: tiempo límite, piloto automático y reconexión
 
@@ -256,7 +252,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
   "v": 1, "tipo": "estado.foto", "seq": 212,
   "datos": {
     "codigo": "K7QM2XPA", "estado": "JUGANDO", "yo": "…", "anfitrion": "…", "maxJugadores": 7,
-    "tiempoTurnoMs": 30000, "resumenPausado": false,
+    "tiempoTurnoMs": 30000,
     "jugadores": [ { "idJugador": "…", "nombre": "Ana", "conectado": true, "piloto": null, "bot": null } ],
     "horaServidor": 1760572800000,
     "chat": [ { "id": 1, "idJugador": "…", "nombre": "Ana", "texto": "¡Suerte!", "hora": 1760572790000 } ],
@@ -285,7 +281,7 @@ La foto (`estado.foto`) es la **vista completa** de un jugador: todo lo que pued
 (Para abreviar, algunas listas muestran menos asientos de los que tendría la mesa.)
 
 - `estado` puede ser `ESPERANDO` (lobby), `JUGANDO` o `TERMINADO`. En el lobby, `juego` es `null`.
-- `fase` puede ser `SORTEO`, `APUESTAS`, `TIRADAS`, `BAZA_RESUELTA` (la pausa de ~3 s), `RESUMEN` (la pausa de ~10 s), `TERMINADO` o `ABORTADO`.
+- `fase` puede ser `SORTEO`, `APUESTAS`, `TIRADAS`, `BAZA_RESUELTA` (la pausa de ~3 s), `RESUMEN` (la pausa de 6 s), `TERMINADO` o `ABORTADO`.
 - **Regla de oro:** `miMano` trae solo las cartas propias. De los demás, solo `cantidades`. De las bazas cerradas, solo la carta ganadora y quién ganó. La baza en curso muestra todas sus cartas, que son públicas. El mazo no aparece.
 - `puntajes[asiento][partida - 1]` son los puntos de cada partida jugada. Sirven para el desempate final.
 - `jugadores[].bot` es el nivel del bot (`facil`, `medio` o `dificil`) o `null` si es una persona (fase 8).

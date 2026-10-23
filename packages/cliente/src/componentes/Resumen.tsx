@@ -1,13 +1,12 @@
 import { buildRanking } from '@tokinoto/reglas';
-import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
-import { useTienda } from '../estado/contexto';
+import type { VistaJuego } from '@tokinoto/protocolo';
+import { segundosRestantes, useHoraServidor } from '../util/reloj';
 
-/** Resultado de la partida que acaba de terminar. Avanza solo, salvo que el anfitrión lo pause. */
-export function Resumen({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
-  const pausarResumen = useTienda((s) => s.pausarResumen);
-  const ocupado = useTienda((s) => s.ocupado);
+/** Resultado de la partida que acaba de terminar. Avanza solo a los 6 s, con una cuenta regresiva (DP-23). */
+export function Resumen({ juego }: { juego: VistaJuego }) {
+  const ahora = useHoraServidor();
   if (juego.fase !== 'RESUMEN') return null;
-  const soyAnfitrion = sala.anfitrion === sala.yo;
+  const segundos = juego.finResumen === null ? null : segundosRestantes(juego.finResumen, ahora);
   const ultima = juego.partida === juego.totalPartidas;
   // De mayor a menor total; los empatados comparten lugar.
   const filas = buildRanking(juego.puntajes);
@@ -50,18 +49,12 @@ export function Resumen({ sala, juego }: { sala: VistaSala; juego: VistaJuego })
             })}
           </tbody>
         </table>
-        <p className="nota">
-          {sala.resumenPausado
-            ? 'El resumen está en pausa.'
-            : ultima
-              ? 'En unos segundos se muestra el resultado final.'
-              : 'La próxima partida empieza en unos segundos.'}
+        <p className="nota cuenta-resumen">
+          {ultima ? 'El resultado final se muestra en' : 'La próxima partida empieza en'}{' '}
+          <strong role="timer" aria-label={segundos === null ? 'unos segundos' : `${segundos} segundos`}>
+            {segundos ?? '…'}
+          </strong>
         </p>
-        {soyAnfitrion && (
-          <button type="button" className="boton secundario" disabled={ocupado} onClick={() => void pausarResumen(!sala.resumenPausado)}>
-            {sala.resumenPausado ? 'Continuar' : 'Pausar'}
-          </button>
-        )}
       </div>
     </section>
   );

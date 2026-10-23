@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
-import { posicionAsiento, RADIO } from '../util/geometria';
+import { MESA_LLENA, posicionAsiento, RADIO } from '../util/geometria';
 import { Carta } from './Carta';
 import { CuentaRegresiva } from './CuentaRegresiva';
 import { Ficha } from './Ficha';
@@ -48,8 +48,9 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const bot = jugador?.bot ?? null;
   const fechaLimite = enTurno ? (juego.turno?.fechaLimite ?? null) : null;
   const montones = juego.bazasCerradas.filter((b) => b.ganador === asiento);
-  // Los montones van hacia afuera de la mesa, para no tapar las cartas de la baza.
-  const arriba = y < 42;
+  // Los montones van hacia afuera de la mesa, para no tapar las cartas de la baza. Los asientos de los
+  // costados que quedan apenas arriba del centro también los llevan arriba, para no pisar al vecino de abajo.
+  const arriba = (y - 50) / RADIO < -0.15;
   // Los asientos de la cima de la mesa: en pantallas anchas sus montones van al costado de afuera,
   // para no subir hasta la barra de arriba.
   const cima = (y - 50) / RADIO < -0.75 ? (x < 50 - 0.5 ? 'cima izq' : 'cima der') : '';
@@ -67,8 +68,8 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
         <span className="nombre" title={datos.nombre}>
           {/* Fase 8: el ícono del bot va en el renglón del nombre, así la placa no crece. */}
           {bot && <InsigniaBot nivel={bot} />}
-          {datos.nombre}
-          {soyYo ? ' (vos)' : ''}
+          {/* En una mesa llena, la placa propia dice solo "Vos": es más angosta y no pisa a los vecinos. */}
+          {soyYo && n >= MESA_LLENA ? 'Vos' : `${datos.nombre}${soyYo ? ' (vos)' : ''}`}
         </span>
         {(reparte || esMano || desconectado || piloto || fechaLimite !== null) && (
           <span className="insignias">

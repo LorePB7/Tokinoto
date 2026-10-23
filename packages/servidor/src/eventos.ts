@@ -17,9 +17,10 @@ export type EventoSalida = {
 
 /**
  * Traduce un evento del motor. `despues` es el estado inmediatamente
- * posterior a aplicar ese evento.
+ * posterior a aplicar ese evento; `finResumen`, la hora en que termina el
+ * resumen de la partida (la decide la sala).
  */
-export function traducirEvento(evento: GameEvent, despues: GameState): EventoSalida[] {
+export function traducirEvento(evento: GameEvent, despues: GameState, finResumen: number | null = null): EventoSalida[] {
   switch (evento.type) {
     case 'JUEGO_INICIADO':
       return [
@@ -120,6 +121,7 @@ export function traducirEvento(evento: GameEvent, despues: GameState): EventoSal
               puntos: r.points,
             })),
             totales: totalScores(despues),
+            finResumen: finResumen ?? 0,
           },
         },
       ];

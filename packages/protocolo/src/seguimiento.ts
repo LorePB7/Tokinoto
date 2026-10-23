@@ -81,6 +81,7 @@ export function juegoNuevo(asientos: AsientoPublico[], yo: string): VistaJuego {
     turno: null,
     ranking: null,
     motivoAborto: null,
+    finResumen: null,
   };
 }
 
@@ -105,9 +106,6 @@ function aplicarEvento(sala: VistaSala, evento: MensajeEvento): boolean {
       return true;
     case 'sala.anfitrionCambio':
       sala.anfitrion = evento.datos.anfitrion;
-      return true;
-    case 'sala.resumenPausado':
-      sala.resumenPausado = evento.datos.pausado;
       return true;
     case 'sala.configuracion':
       sala.tiempoTurnoMs = evento.datos.tiempoTurnoMs;
@@ -156,6 +154,7 @@ function aplicarEventoDeJuego(sala: VistaSala, juego: VistaJuego, evento: Mensaj
       juego.bazaActual = null;
       juego.bazasCerradas = [];
       juego.turno = null;
+      juego.finResumen = null;
       return true;
     }
 
@@ -218,6 +217,7 @@ function aplicarEventoDeJuego(sala: VistaSala, juego: VistaJuego, evento: Mensaj
         puntos[evento.datos.partida - 1] = resultado.puntos;
       }
       juego.totales = [...evento.datos.totales];
+      juego.finResumen = evento.datos.finResumen;
       return true;
 
     case 'juego.terminado':
@@ -225,6 +225,7 @@ function aplicarEventoDeJuego(sala: VistaSala, juego: VistaJuego, evento: Mensaj
       juego.fase = 'TERMINADO';
       juego.ranking = structuredClone(evento.datos.ranking);
       juego.turno = null;
+      juego.finResumen = null;
       return true;
 
     case 'juego.abortado':
@@ -232,6 +233,7 @@ function aplicarEventoDeJuego(sala: VistaSala, juego: VistaJuego, evento: Mensaj
       juego.fase = 'ABORTADO';
       juego.motivoAborto = evento.datos.motivo;
       juego.turno = null;
+      juego.finResumen = null;
       return true;
 
     default:

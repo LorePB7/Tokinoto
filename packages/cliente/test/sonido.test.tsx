@@ -196,6 +196,14 @@ describe('qué suena con cada mensaje', () => {
     expect(sonidosDelMensaje(cartaDeOtro, estado({}), estado(mio, 'tiempo'))).toEqual(['carta']);
   });
 
+  it('cuando le toca a otro suena un aviso suave; el propio sigue siendo "turno"', () => {
+    const deOtro = { turno: { tipo: 'apuesta', asiento: 2 } };
+    expect(sonidosDelMensaje(evento('apuesta.turno', { asiento: 2 }), estado({}), estado(deOtro))).toEqual(['turnoAjeno']);
+    expect(sonidosDelMensaje(evento('baza.turno', { asiento: 3 }), estado({}), estado(deOtro))).toEqual(['turnoAjeno']);
+    const mio = { turno: { tipo: 'apuesta', asiento: 0 } };
+    expect(sonidosDelMensaje(evento('apuesta.turno', { asiento: 0 }), estado({}), estado(mio))).toEqual(['turno']);
+  });
+
   it('el chat suena solo con mensajes de otros', () => {
     const chat = (idJugador: string) => ({ v: 1, tipo: 'chat.mensaje', datos: { id: 1, idJugador, nombre: 'X', texto: 'hola', hora: 0 } }) as unknown as MensajeServidor;
     expect(sonidosDelMensaje(chat('b'), estado({}), estado({}))).toEqual(['chat']);

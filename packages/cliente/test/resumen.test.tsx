@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
+import type { VistaJuego } from '@tokinoto/protocolo';
 import { Resumen } from '../src/componentes/Resumen';
 import { ProveedorTienda } from '../src/estado/contexto';
 import { crearTienda } from '../src/estado/tienda';
@@ -21,12 +21,12 @@ describe('Resumen de la partida', () => {
       bazasGanadas: [0, 1, 1, 1],
       puntajes,
       totales: [0, 12, 12, 20],
+      finResumen: Date.now() + 6000,
     } as unknown as VistaJuego;
-    const sala = { anfitrion: 'j0', yo: 'j0', resumenPausado: false } as unknown as VistaSala;
     const tienda = crearTienda({ url: 'http://localhost:1', almacen: almacenEnMemoria(), esperasDeReconexion: [20] });
     render(
       <ProveedorTienda tienda={tienda}>
-        <Resumen sala={sala} juego={juego} />
+        <Resumen juego={juego} />
       </ProveedorTienda>,
     );
     const filas = within(screen.getByRole('table')).getAllByRole('row').slice(1);
@@ -35,5 +35,8 @@ describe('Resumen de la partida', () => {
     expect(lectura[1]).toMatch(/^2Beto/);
     expect(lectura[2]).toMatch(/^2Cora/);
     expect(lectura[3]).toMatch(/^4Ana/);
+    // Sin botón de pausa: solo la cuenta regresiva de 6 s.
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByRole('timer').textContent).toBe('6');
   });
 });

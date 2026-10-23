@@ -1,5 +1,5 @@
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
-import { giroDeCarta, haciaElCentro, posicionAsiento } from '../util/geometria';
+import { giroDeCarta, haciaElCentro, MESA_LLENA, posicionAsiento } from '../util/geometria';
 import { Asiento } from './Asiento';
 import { Carta } from './Carta';
 
@@ -15,7 +15,7 @@ export function MesaRedonda({ sala, juego }: PropiedadesMesa) {
   const ganador = juego.fase === 'BAZA_RESUELTA' ? juego.bazaActual?.ganador : null;
 
   return (
-    <div className="mesa" role="group" aria-label="Mesa de juego">
+    <div className={n >= MESA_LLENA ? 'mesa llena' : 'mesa'} role="group" aria-label="Mesa de juego">
       <div className="riel">
         <div className="fieltro">
           <div className="titulo-mesa" aria-hidden="true">
@@ -26,7 +26,7 @@ export function MesaRedonda({ sala, juego }: PropiedadesMesa) {
 
       <div className="cartas-en-mesa" aria-label="Cartas de la baza">
         {tiradas.map((tirada, orden) => {
-          const punto = haciaElCentro(posicionAsiento(tirada.asiento, juego.miAsiento, n), n >= 6 ? 0.37 : n === 5 ? 0.46 : 0.5);
+          const punto = haciaElCentro(posicionAsiento(tirada.asiento, juego.miAsiento, n), n >= MESA_LLENA ? 0.37 : n === 5 ? 0.46 : 0.5);
           return (
             <div
               key={`${juego.bazaActual?.baza}-${tirada.asiento}`}

@@ -73,7 +73,7 @@ export interface OpcionesSala {
   maxJugadores: number;
   /** Tiempo que la baza resuelta queda a la vista antes de seguir (DP-23: ~3 s). */
   pausaBazaMs: number;
-  /** Tiempo del resumen entre partidas (DP-23: ~10 s), salvo que el anfitrión pause. */
+  /** Tiempo del resumen entre partidas (DP-23: 6 s fijos, sin pausa). */
   pausaResumenMs: number;
   /** Tiempo por apuesta y por tirada (DP-13: 30 s). null = sin límite. */
   tiempoTurnoMs: number | null;
@@ -97,7 +97,7 @@ export interface OpcionesSala {
 export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
   maxJugadores: 7,
   pausaBazaMs: 3000,
-  pausaResumenMs: 10000,
+  pausaResumenMs: 6000,
   tiempoTurnoMs: TIEMPO_TURNO_POR_DEFECTO_S * 1000,
   pausaPilotoMs: 1000,
   pausaBotMs: 1000,
@@ -176,7 +176,6 @@ export class Sala {
   private azar: Rng | null = null;
   /** Azar de los bots (separado del reparto). */
   private azarBots: Rng | null = null;
-  private resumenPausado = false;
   /** Identificador del juego en el historial, y cuántos eventos del motor lleva. */
   private juegoId: string | null = null;
   private eventosDelMotor = 0;
@@ -202,6 +201,8 @@ export class Sala {
   private numeroTurno = 0;
   /** Hora límite del turno en curso (null si no hay o si no tiene límite). */
   private fechaLimite: number | null = null;
+  /** Hora en que termina el resumen de la partida (null fuera del resumen). */
+  private finResumen: number | null = null;
   /** Cambia con cada juego nuevo: invalida avances programados del juego anterior. */
   private generacion = 0;
   private cerrada = false;
@@ -248,10 +249,6 @@ export class Sala {
 
   get eventos(): readonly RegistroEvento[] {
     return this.registro;
-  }
-
-  get resumenEnPausa(): boolean {
-    return this.resumenPausado;
   }
 
   // -------------------------------------------------------------------------
@@ -766,22 +763,6 @@ export class Sala {
         return respuestaOk();
       }
 
-      case 'sala.pausarResumen': {
-        const noAnfitrion = this.exigirAnfitrion(jugador);
-        if (noAnfitrion) return noAnfitrion;
-        if (!this.juego) return respuestaError('JUEGO_NO_INICIADO', 'El juego todavía no empezó');
-        const pausar = comando.datos.pausar;
-        if (pausar !== this.resumenPausado) {
-          this.resumenPausado = pausar;
-          this.emitir('sala.resumenPausado', { pausado: pausar });
-          if (this.juego.phase === 'ROUND_SUMMARY') {
-            if (pausar) this.cancelarAvanceProgramado();
-            else this.programarAvance(this.opciones.pausaResumenMs);
-          }
-        }
-        return respuestaOk();
-      }
-
       case 'juego.apostar':
         return this.accionDeJugador(jugador, { type: 'APOSTAR', playerId: jugador.id, value: comando.datos.valor });
 
@@ -950,11 +931,7 @@ export class Sala {
     }
     this.cancelarAvanceProgramado();
     this.generacion++;
-    if (this.resumenPausado) {
-      // Cada juego empieza sin pausa; se avisa para que los clientes lo sepan.
-      this.resumenPausado = false;
-      this.emitir('sala.resumenPausado', { pausado: false });
-    }
+    this.finResumen = null;
     // Cada juego empieza sin vencimientos; el piloto sigue solo para quien no está conectado.
     for (const jugador of this.jugadores) {
       jugador.vencimientos = 0;
@@ -1014,7 +991,9 @@ export class Sala {
       this.juego = evolve(this.juego, evento);
       const juegoId = this.juegoId;
       if (juegoId) this.guardar(() => this.opciones.historial?.evento(juegoId, this.eventosDelMotor++, evento));
-      for (const salida of traducirEvento(evento, this.juego)) this.emitirSalida(salida);
+      // El resumen dura un tiempo fijo: la hora en que termina viaja con los puntajes.
+      if (evento.type === 'PARTIDA_PUNTUADA') this.finResumen = this.opciones.reloj.ahora() + this.opciones.pausaResumenMs;
+      for (const salida of traducirEvento(evento, this.juego, this.finResumen)) this.emitirSalida(salida);
     }
     this.despuesDeCambiar();
     return null;
@@ -1052,7 +1031,7 @@ export class Sala {
         return;
       case 'ROUND_SUMMARY':
         this.cancelarTurno();
-        if (!this.resumenPausado) this.programarAvance(this.opciones.pausaResumenMs);
+        this.programarAvance(Math.max(0, (this.finResumen ?? 0) - this.opciones.reloj.ahora()));
         return;
       default:
         this.cancelarTurno();
@@ -1068,7 +1047,7 @@ export class Sala {
         if (this.cerrada || generacion !== this.generacion) return;
         this.cancelarAvance = null;
         const fase = this.juego?.phase;
-        if (fase === 'TRICK_RESOLUTION' || (fase === 'ROUND_SUMMARY' && !this.resumenPausado)) {
+        if (fase === 'TRICK_RESOLUTION' || fase === 'ROUND_SUMMARY') {
           this.aplicarDelServidor({ type: 'AVANZAR' });
         }
       });
@@ -1127,7 +1106,6 @@ export class Sala {
       anfitrion: this.anfitrion,
       maxJugadores: this.opciones.maxJugadores,
       tiempoTurnoMs: this.opciones.tiempoTurnoMs,
-      resumenPausado: this.resumenPausado,
       jugadores: this.jugadores.map((j) => ({
         idJugador: j.id,
         nombre: j.nombre,
@@ -1137,7 +1115,7 @@ export class Sala {
       })),
       horaServidor: this.opciones.reloj.ahora(),
       chat: this.chat.map((m) => ({ ...m })),
-      juego: this.juego ? proyectarJuego(this.juego, jugador.id, this.fechaLimite) : null,
+      juego: this.juego ? proyectarJuego(this.juego, jugador.id, this.fechaLimite, this.finResumen) : null,
     };
   }
 

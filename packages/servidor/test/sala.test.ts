@@ -282,7 +282,6 @@ describe('apuestas y tiradas', () => {
       { tipo: 'juego.apostar', datos: { valor: 0 } },
       { tipo: 'juego.jugarCarta', datos: { idCarta: 'K-picas' } },
       { tipo: 'juego.revancha' },
-      { tipo: 'sala.pausarResumen', datos: { pausar: true } },
     ] as const) {
       expect(mesa.comando(0, comando)).toMatchObject({ error: { codigo: 'JUEGO_NO_INICIADO' } });
     }
@@ -331,7 +330,7 @@ describe('pausas (el tiempo lo maneja el servidor)', () => {
     }
   }
 
-  it('la baza resuelta queda 3 s a la vista y el resumen 10 s', () => {
+  it('la baza resuelta queda 3 s a la vista y el resumen 6 s', () => {
     const mesa = armarMesa(4);
     iniciar(mesa);
     hastaLaPrimeraBazaResuelta(mesa);
@@ -341,52 +340,17 @@ describe('pausas (el tiempo lo maneja el servidor)', () => {
     mesa.reloj.avanzar(1);
     // Partida 1 tiene una sola baza: después de la pausa se puntúa.
     expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
-    const puntajes = mesa.eventos(0, 'partida.puntajes')[0]!.datos as { totales: number[] };
+    const puntajes = mesa.eventos(0, 'partida.puntajes')[0]!.datos as { totales: number[]; finResumen: number };
     expect(puntajes.totales).toEqual(totalScores(mesa.sala.estadoDelJuego!));
-    mesa.reloj.avanzar(9999);
+    // La hora en que termina el resumen viaja con los puntajes y en la foto.
+    expect(puntajes.finResumen).toBe(mesa.reloj.ahora() + 6000);
+    expect(mesa.sala.vistaPara(mesa.jugadores[1]!.id)!.juego!.finResumen).toBe(puntajes.finResumen);
+    mesa.reloj.avanzar(5999);
     expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
     mesa.reloj.avanzar(1);
     expect(mesa.sala.estadoDelJuego!.roundNumber).toBe(2);
     expect(mesa.sala.estadoDelJuego!.phase).toBe('BETTING');
-  });
-
-  it('el anfitrión puede pausar y reanudar el resumen', () => {
-    const mesa = armarMesa(4, { pausaBazaMs: 0 });
-    iniciar(mesa);
-    hastaLaPrimeraBazaResuelta(mesa);
-    mesa.reloj.avanzar(0);
-    expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
-
-    expect(mesa.comando(1, { tipo: 'sala.pausarResumen', datos: { pausar: true } })).toMatchObject({
-      error: { codigo: 'NO_ES_ANFITRION' },
-    });
-    expect(mesa.comando(0, { tipo: 'sala.pausarResumen', datos: { pausar: true } })).toEqual(OK);
-    expect(mesa.eventos(1).at(-1)).toMatchObject({ tipo: 'sala.resumenPausado', datos: { pausado: true } });
-    expect(mesa.reloj.pendientes).toBe(0);
-    mesa.reloj.avanzar(60_000);
-    expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
-
-    // Pedir lo mismo de nuevo no genera otro evento.
-    const eventos = mesa.eventos(1).length;
-    expect(mesa.comando(0, { tipo: 'sala.pausarResumen', datos: { pausar: true } })).toEqual(OK);
-    expect(mesa.eventos(1)).toHaveLength(eventos);
-
-    expect(mesa.comando(0, { tipo: 'sala.pausarResumen', datos: { pausar: false } })).toEqual(OK);
-    mesa.reloj.avanzar(9999);
-    expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
-    mesa.reloj.avanzar(1);
-    expect(mesa.sala.estadoDelJuego!.phase).toBe('BETTING');
-  });
-
-  it('la pausa sigue activa en los resúmenes siguientes hasta que se reanude', () => {
-    const mesa = armarMesa(4, { pausaBazaMs: 0 });
-    iniciar(mesa);
-    expect(mesa.comando(0, { tipo: 'sala.pausarResumen', datos: { pausar: true } })).toEqual(OK);
-    hastaLaPrimeraBazaResuelta(mesa);
-    mesa.reloj.avanzar(0);
-    expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
-    mesa.reloj.avanzar(60_000);
-    expect(mesa.sala.estadoDelJuego!.phase).toBe('ROUND_SUMMARY');
+    expect(mesa.sala.vistaPara(mesa.jugadores[1]!.id)!.juego!.finResumen).toBeNull();
   });
 });
 
