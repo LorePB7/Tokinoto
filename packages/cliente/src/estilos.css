@@ -3520,3 +3520,12 @@ i.bot.nivel-dificil {
     bottom: calc(100% + 0.9em);
   }
 }
+
+/* El reloj del turno también va en la pestaña: con fondo, para que no quede escrito sobre el borde. */
+.mesa.llena .asiento .insignias .cuenta-regresiva {
+  padding: 0.1em 0.4em;
+  border-radius: 999px;
+  font-size: max(12px, 0.8em);
+  line-height: 1;
+  background: #26160b;
+}
