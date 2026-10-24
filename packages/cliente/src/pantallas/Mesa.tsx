@@ -40,13 +40,21 @@ export function mensajeDeTurno(juego: VistaJuego): string {
   }
 }
 
-/** Salir con el juego en curso: se pide confirmación, porque el asiento queda con el piloto. */
-function ConfirmarSalida({ alCancelar }: { alCancelar: () => void }) {
+/**
+ * Salir con el juego en curso: se pide confirmación. Si quedan otras personas, el asiento queda con el
+ * piloto; si no (por ejemplo, jugando solo contra bots), la partida se cierra.
+ */
+function ConfirmarSalida({ sala, alCancelar }: { sala: VistaSala; alCancelar: () => void }) {
   const salir = useTienda((s) => s.salir);
   const ocupado = useTienda((s) => s.ocupado);
+  const quedanPersonas = sala.jugadores.some((j) => j.idJugador !== sala.yo && j.bot === null && j.piloto !== 'abandono');
   return (
     <div className="confirmar-salida" role="alertdialog" aria-label="Salir del juego">
-      <p>¿Dejás la mesa? El piloto automático va a jugar por vos hasta el final.</p>
+      <p>
+        {quedanPersonas
+          ? '¿Dejás la mesa? El piloto automático va a jugar por vos hasta el final.'
+          : '¿Dejás la mesa? No queda nadie más, así que la partida se cierra.'}
+      </p>
       <div className="acciones">
         <button type="button" className="boton chico" disabled={ocupado} onClick={() => void salir()}>
           Sí, salir
@@ -169,7 +177,7 @@ export function Mesa({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
               )}
             </>
           )}
-          {enCurso && confirmandoSalida && <ConfirmarSalida alCancelar={() => setConfirmandoSalida(false)} />}
+          {enCurso && confirmandoSalida && <ConfirmarSalida sala={sala} alCancelar={() => setConfirmandoSalida(false)} />}
         </div>
       </header>
 

@@ -143,6 +143,11 @@ const comandoSchema = z.discriminatedUnion('tipo', [
     datos: sinDatos,
   }),
   z.strictObject({
+    tipo: z.literal('sala.abandonar'),
+    /** Desde el inicio: deja la partida en la que la persona tiene lugar, sin volver a entrar (como `sala.salir`). */
+    datos: sinDatos,
+  }),
+  z.strictObject({
     tipo: z.literal('sala.configurar'),
     /** Solo el anfitrión, antes de iniciar. Segundos por jugada; null = sin límite. */
     datos: z.strictObject({
@@ -194,7 +199,7 @@ export type Comando = z.infer<typeof comandoSchema>;
 export type TipoComando = Comando['tipo'];
 /** Comandos de identidad (fase 6). */
 export type ComandoDeCuenta = Extract<Comando, { tipo: `cuenta.${string}` }>;
-/** Comandos que se ejecutan dentro de una sala (todos menos los de cuenta, crear, jugar contra bots, unirse, reconectar, consultar y ping). */
+/** Comandos que se ejecutan dentro de una sala (todos menos los de cuenta, crear, jugar contra bots, unirse, reconectar, consultar, abandonar y ping). */
 export type ComandoDeSala = Exclude<
   Comando,
   {
@@ -204,6 +209,7 @@ export type ComandoDeSala = Exclude<
       | 'sala.unirse'
       | 'sala.reconectar'
       | 'sala.consultar'
+      | 'sala.abandonar'
       | 'ping'
       | `cuenta.${string}`;
   }

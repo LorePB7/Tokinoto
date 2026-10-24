@@ -74,6 +74,8 @@ export interface EstadoTienda {
   registro: LineaRegistro[];
   /** Último mensaje de chat que la persona ya vio (id). Los de otros con id mayor cuentan como sin leer. */
   chatLeido: number;
+  /** Sube cada vez que el servidor dice "ya estás en otra sala": el inicio vuelve a ofrecer Volver o Abandonar. */
+  avisosOtraPartida: number;
 
   /** Entra con el token de identidad que dio el botón de Google. */
   entrarConGoogle(credencial: string): Promise<boolean>;
@@ -96,6 +98,8 @@ export interface EstadoTienda {
    * Sin cuenta o sin conexión, null.
    */
   consultarUltima(): Promise<{ codigo: string } | null>;
+  /** Desde el inicio: deja la partida que la persona tenía, sin volver a entrar (el piloto juega por ella). */
+  abandonarUltima(): Promise<boolean>;
   unirse(codigo: string): Promise<boolean>;
   /** Vuelve al asiento que la persona tiene en una sala. */
   reconectar(): Promise<boolean>;
@@ -398,6 +402,9 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
     async function ingresarAvisando(construir: (idPedido: string) => unknown): Promise<boolean> {
       const respuesta = await ingresar(construir);
       if (respuesta.tipo === 'error' && respuesta.idPedido !== '') avisar(respuesta.datos.mensaje);
+      if (respuesta.tipo === 'error' && respuesta.datos.codigo === 'YA_ESTAS_EN_UNA_SALA') {
+        set({ avisosOtraPartida: get().avisosOtraPartida + 1 });
+      }
       return respuesta.tipo === 'ok';
     }
 
@@ -457,6 +464,30 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       return { codigo: String(respuesta.datos['codigo']) };
     }
 
+    async function abandonarUltima(): Promise<boolean> {
+      if (!almacen.leerCuenta() || get().seguimiento.sala) return false;
+      set({ ocupado: true });
+      try {
+        if (!(await conectar(true))) {
+          avisar('No se pudo conectar con el servidor');
+          return false;
+        }
+        const id = nuevoIdPedido();
+        const respuesta = await enviar(id, armarComando('sala.abandonar', id));
+        if (!get().seguimiento.sala && get().conexion !== 'conectando') cerrarConexion();
+        if (respuesta.tipo === 'error') {
+          avisar(respuesta.datos.mensaje);
+          return false;
+        }
+        // Esta pestaña ya no tiene a qué volver.
+        almacen.borrarSala();
+        set({ codigoSala: null });
+        return true;
+      } finally {
+        set({ ocupado: false });
+      }
+    }
+
     const aceptado = async (construir: (idPedido: string) => unknown): Promise<boolean> =>
       (await ejecutar(construir)).tipo === 'ok';
 
@@ -473,6 +504,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
       aviso: null,
       registro: [],
       chatLeido: 0,
+      avisosOtraPartida: 0,
 
       entrarConGoogle: (credencial) => comandoDeCuenta((id) => armarComando('cuenta.entrar', id, { credencial })),
       entrarComoInvitado: (nombre) => comandoDeCuenta((id) => armarComando('cuenta.entrarInvitado', id, { nombre })),
@@ -494,6 +526,7 @@ export function crearTienda(opciones: OpcionesTienda): Tienda {
         });
         return consultaEnCurso;
       },
+      abandonarUltima,
       unirse: (codigo) => ingresarAvisando((id) => armarComando('sala.unirse', id, { codigo })),
       reconectar,
       async retomarSesion() {

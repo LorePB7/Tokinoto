@@ -3529,3 +3529,11 @@ i.bot.nivel-dificil {
   line-height: 1;
   background: #26160b;
 }
+
+/* ---------- Inicio: volver a la partida o abandonarla ---------- */
+
+.acciones-volver {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
