@@ -69,7 +69,7 @@ async function puertoLibre(): Promise<number> {
   return port;
 }
 
-const pausas = { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300 };
+const pausas = { pausaBazaMs: 700, pausaResumenMs: 1500, pausaPilotoMs: 300, pausaBotMs: 1000 };
 
 /**
  * Reemplazo local del script de Google Identity Services: dibuja un botón del
@@ -980,10 +980,13 @@ async function auditarVista(j: Jugador): Promise<void> {
       await captura(j, '6-resultado-final-' + j.tamano);
       if (!capturado.has(`${j.nombre}-det`)) {
         capturado.add(`${j.nombre}-det`);
-        await p.getByText('Puntos de cada partida').click();
-        await medir(j, 'resultado final con la tabla abierta', Math.max(await excesoDeScroll(j), await excesoDe(j, '.superposicion')));
+        await p.getByRole('button', { name: 'Puntos de cada partida' }).click();
+        const tabla = p.locator('#panel-puntos-final');
+        await tabla.waitFor();
+        await medir(j, 'resultado final con la tabla abierta', Math.max(await excesoDeScroll(j), await excesoDe(j, '#panel-puntos-final')));
         await captura(j, '6b-tabla-' + j.tamano);
-        await p.getByText('Puntos de cada partida').click();
+        await p.keyboard.press('Escape');
+        await tabla.waitFor({ state: 'detached' });
       }
     }
     else if (!capturado.has(`${j.nombre}-res`)) {

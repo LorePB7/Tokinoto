@@ -100,7 +100,7 @@ export const OPCIONES_SALA_POR_DEFECTO: OpcionesSala = {
   pausaResumenMs: 6000,
   tiempoTurnoMs: TIEMPO_TURNO_POR_DEFECTO_S * 1000,
   pausaPilotoMs: 1000,
-  pausaBotMs: 1000,
+  pausaBotMs: 2000,
   esperaAbortoMs: 3 * 60 * 1000,
   graciaLobbyMs: 15000,
   reloj: relojReal,

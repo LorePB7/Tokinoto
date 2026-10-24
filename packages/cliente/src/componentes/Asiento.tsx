@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
 import { MESA_LLENA, posicionAsiento, RADIO } from '../util/geometria';
+import { AroTiempo } from './AroTiempo';
 import { Carta } from './Carta';
 import { CuentaRegresiva } from './CuentaRegresiva';
 import { Ficha } from './Ficha';
@@ -47,6 +48,7 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const piloto = jugador?.piloto ?? null;
   const bot = jugador?.bot ?? null;
   const fechaLimite = enTurno ? (juego.turno?.fechaLimite ?? null) : null;
+  const conAro = fechaLimite !== null && sala.tiempoTurnoMs !== null && sala.tiempoTurnoMs > 0;
   const montones = juego.bazasCerradas.filter((b) => b.ganador === asiento);
   // Los montones van hacia afuera de la mesa, para no tapar las cartas de la baza. Los asientos de los
   // costados que quedan apenas arriba del centro también los llevan arriba, para no pisar al vecino de abajo.
@@ -58,13 +60,15 @@ export function Asiento({ sala, juego, asiento }: PropiedadesAsiento) {
   const esMano = jugando && juego.mano === asiento;
   const reparte = juego.partida > 0 && juego.repartidor === asiento;
 
-  const clases = ['asiento', soyYo ? 'yo' : '', enTurno ? 'en-turno' : '', desconectado ? 'desconectado' : '']
+  const clases = ['asiento', soyYo ? 'yo' : '', enTurno ? 'en-turno' : '', conAro ? 'con-tiempo' : '', desconectado ? 'desconectado' : '']
     .filter(Boolean)
     .join(' ');
 
   return (
     <div className={clases} style={direccion} data-asiento={asiento}>
       <div className="placa">
+        {/* Va primero: así la pestaña de las insignias (mesas llenas) queda por encima. */}
+        {conAro && <AroTiempo fechaLimite={fechaLimite} totalMs={sala.tiempoTurnoMs!} />}
         <span className="nombre" title={datos.nombre}>
           {/* Fase 8: el ícono del bot va en el renglón del nombre, así la placa no crece. */}
           {bot && <InsigniaBot nivel={bot} />}

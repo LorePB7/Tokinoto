@@ -279,6 +279,12 @@ describe('con un servidor real', () => {
     const final = screen.getByRole('region', { name: /resultado final/i });
     expect(within(final).getAllByRole('listitem')).toHaveLength(4);
     expect(within(final).getByRole('button', { name: /jugar de nuevo/i })).toBeInTheDocument();
+    // La tabla de cada partida se abre en el panel de Puntos, no dentro del resultado.
+    await userEvent.click(within(final).getByRole('button', { name: /puntos de cada partida/i }));
+    const panel = screen.getByRole('dialog', { name: 'Puntos' });
+    expect(within(panel).getAllByRole('row')).toHaveLength(5);
+    await userEvent.click(within(panel).getByRole('button', { name: 'Cerrar' }));
+    expect(screen.queryByRole('dialog', { name: 'Puntos' })).toBeNull();
   }, 70000);
 });
 
