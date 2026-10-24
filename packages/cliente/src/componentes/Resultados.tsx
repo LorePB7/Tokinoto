@@ -1,12 +1,17 @@
 import type { VistaJuego, VistaSala } from '@tokinoto/protocolo';
+import { useRef, useState } from 'react';
 import { useTienda } from '../estado/contexto';
-import { TablaPuntos } from './TablaPuntos';
+import { Panel } from './Panel';
+import { ContenidoPuntos } from './TablaPuntos';
 
 /** Resultado final del juego: ranking con podio compartido y puntaje de cada partida. */
 export function Resultados({ sala, juego }: { sala: VistaSala; juego: VistaJuego }) {
   const revancha = useTienda((s) => s.revancha);
   const salir = useTienda((s) => s.salir);
   const ocupado = useTienda((s) => s.ocupado);
+  // La tabla de cada partida se abre en el mismo panel que el botón Puntos de la mesa.
+  const [tablaAbierta, setTablaAbierta] = useState(false);
+  const botonTabla = useRef<HTMLButtonElement>(null);
   if (juego.fase !== 'TERMINADO' && juego.fase !== 'ABORTADO') return null;
   const soyAnfitrion = sala.anfitrion === sala.yo;
   const nombreDe = (asiento: number) => juego.asientos[asiento]?.nombre ?? `Jugador ${asiento + 1}`;
@@ -46,10 +51,16 @@ export function Resultados({ sala, juego }: { sala: VistaSala; juego: VistaJuego
             </li>
           ))}
         </ol>
-        <details>
-          <summary>Puntos de cada partida</summary>
-          <TablaPuntos juego={juego} />
-        </details>
+        <button
+          ref={botonTabla}
+          type="button"
+          className="boton chico secundario"
+          aria-expanded={tablaAbierta}
+          aria-controls="panel-puntos-final"
+          onClick={() => setTablaAbierta(true)}
+        >
+          Puntos de cada partida
+        </button>
         <div className="acciones">
           {soyAnfitrion ? (
             <button type="button" className="boton" disabled={ocupado} onClick={() => void revancha()}>
@@ -63,6 +74,20 @@ export function Resultados({ sala, juego }: { sala: VistaSala; juego: VistaJuego
           </button>
         </div>
       </div>
+      {tablaAbierta && (
+        <Panel
+          id="panel-puntos-final"
+          titulo="Puntos"
+          alCerrar={() => {
+            setTablaAbierta(false);
+            botonTabla.current?.focus();
+          }}
+          clase="panel-puntos panel-reglas"
+          claseEncabezado="encabezado-reglas"
+        >
+          <ContenidoPuntos juego={juego} />
+        </Panel>
+      )}
     </section>
   );
 }

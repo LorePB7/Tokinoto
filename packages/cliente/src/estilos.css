@@ -618,6 +618,48 @@ select {
     0 0 22px rgba(232, 197, 122, 0.5);
 }
 
+/* Con tiempo por jugada, el anillo brillante se va vaciando (AroTiempo). El borde queda tenue debajo. */
+.asiento.en-turno.con-tiempo .placa {
+  border-color: var(--laton-oscuro);
+  box-shadow:
+    0 0 0 3px rgba(232, 197, 122, 0.18),
+    0 0 22px rgba(232, 197, 122, 0.4);
+}
+
+@property --resto {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+.placa {
+  position: relative;
+}
+
+/* Cubre el borde de la placa y el anillo de afuera (2 px + 3 px). Arranca arriba al medio y se vacía
+   en sentido antihorario. La máscara deja ver solo el contorno, no el relleno. */
+.aro-tiempo {
+  position: absolute;
+  inset: -5px;
+  padding: 5px;
+  border-radius: calc(0.65em + 3px);
+  background: conic-gradient(rgb(240, 212, 140) calc(var(--resto) * 1turn), transparent 0);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  transition: --resto 0.25s linear;
+}
+
+.aro-tiempo.urgente {
+  background: conic-gradient(#e0452d calc(var(--resto) * 1turn), transparent 0);
+}
+
 .asiento.desconectado .placa {
   opacity: 0.6;
 }
